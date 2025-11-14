@@ -7,13 +7,13 @@ import { create } from '@/routes/habilitations';
 
 interface Habilitation {
     id: number;
-    statut: string;
-    type_demande: string;
-    demandeur: {
+    status: string;
+    request_type: string;
+    requester: {
         nom: string;
         prenom: string;
     };
-    beneficiaire: {
+    beneficiary: {
         nom: string;
         prenom: string;
     };
@@ -37,32 +37,32 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-const getStatutBadge = (statut: string) => {
+const getStatutBadge = (status: string) => {
     const badges: Record<string, string> = {
-        brouillon: 'bg-gray-100 text-gray-800',
-        en_attente_n1: 'bg-blue-100 text-blue-800',
-        en_attente_controle: 'bg-yellow-100 text-yellow-800',
-        en_attente_n2: 'bg-orange-100 text-orange-800',
-        approuvee: 'bg-green-100 text-green-800',
-        rejetee: 'bg-red-100 text-red-800',
-        en_cours_execution: 'bg-purple-100 text-purple-800',
-        terminee: 'bg-green-200 text-green-900',
+        draft: 'bg-gray-100 text-gray-800',
+        pending_n1: 'bg-blue-100 text-blue-800',
+        pending_control: 'bg-yellow-100 text-yellow-800',
+        pending_n2: 'bg-orange-100 text-orange-800',
+        approved: 'bg-green-100 text-green-800',
+        rejected: 'bg-red-100 text-red-800',
+        in_progress: 'bg-purple-100 text-purple-800',
+        completed: 'bg-green-200 text-green-900',
     };
-    return badges[statut] || 'bg-gray-100 text-gray-800';
+    return badges[status] || 'bg-gray-100 text-gray-800';
 };
 
-const getStatutLabel = (statut: string) => {
+const getStatutLabel = (status: string) => {
     const labels: Record<string, string> = {
-        brouillon: 'Brouillon',
-        en_attente_n1: 'En attente N+1',
-        en_attente_controle: 'En attente Contrôle',
-        en_attente_n2: 'En attente N+2',
-        approuvee: 'Approuvée',
-        rejetee: 'Rejetée',
-        en_cours_execution: 'En cours d\'exécution',
-        terminee: 'Terminée',
+        draft: 'Brouillon',
+        pending_n1: 'En attente N+1',
+        pending_control: 'En attente Contrôle',
+        pending_n2: 'En attente N+2',
+        approved: 'Approuvée',
+        rejected: 'Rejetée',
+        in_progress: 'En cours d\'exécution',
+        completed: 'Terminée',
     };
-    return labels[statut] || statut;
+    return labels[status] || status;
 };
 </script>
 
@@ -95,21 +95,21 @@ const getStatutLabel = (statut: string) => {
                         <tbody class="divide-y divide-sidebar-border">
                             <tr v-for="habilitation in habilitations.data" :key="habilitation.id">
                                 <td class="px-4 py-3 text-sm">#{{ habilitation.id }}</td>
-                                <td class="px-4 py-3 text-sm">{{ habilitation.type_demande }}</td>
+                                <td class="px-4 py-3 text-sm">{{ habilitation.request_type }}</td>
                                 <td class="px-4 py-3 text-sm">
-                                    {{ habilitation.demandeur.prenom }} {{ habilitation.demandeur.nom }}
+                                    {{ habilitation.requester.prenom }} {{ habilitation.requester.nom }}
                                 </td>
                                 <td class="px-4 py-3 text-sm">
-                                    {{ habilitation.beneficiaire.prenom }} {{ habilitation.beneficiaire.nom }}
+                                    {{ habilitation.beneficiary.prenom }} {{ habilitation.beneficiary.nom }}
                                 </td>
                                 <td class="px-4 py-3">
                                     <span
                                         :class="[
                                             'rounded-full px-2 py-1 text-xs font-medium',
-                                            getStatutBadge(habilitation.statut),
+                                            getStatutBadge(habilitation.status),
                                         ]"
                                     >
-                                        {{ getStatutLabel(habilitation.statut) }}
+                                        {{ getStatutLabel(habilitation.status) }}
                                     </span>
                                 </td>
                                 <td class="px-4 py-3 text-sm">

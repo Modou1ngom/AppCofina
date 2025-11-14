@@ -38,12 +38,23 @@ class Profil extends Model
 
     public function habilitationsEnTantQueDemandeur()
     {
-        return $this->hasMany(Habilitation::class, 'demandeur_profile_id');
+        return $this->hasMany(Habilitation::class, 'requester_profile_id');
     }
 
     public function habilitationsEnTantQueBeneficiaire()
     {
-        return $this->hasMany(Habilitation::class, 'beneficiaire_profile_id');
+        return $this->hasMany(Habilitation::class, 'beneficiary_profile_id');
+    }
+    
+    // Méthodes alias pour compatibilité ascendante
+    public function habilitationsAsRequester()
+    {
+        return $this->habilitationsEnTantQueDemandeur();
+    }
+    
+    public function habilitationsAsBeneficiary()
+    {
+        return $this->habilitationsEnTantQueBeneficiaire();
     }
 
     public function getFullNameAttribute()
