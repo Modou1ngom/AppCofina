@@ -13,30 +13,72 @@ import {
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
 import { type NavItem } from '@/types';
-import { Link } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid } from 'lucide-vue-next';
+import { Link, usePage } from '@inertiajs/vue3';
+import { BookOpen, Folder, LayoutGrid, Users, ShieldCheck, FileCheck } from 'lucide-vue-next';
+import { computed } from 'vue';
 import AppLogo from './AppLogo.vue';
 
-const mainNavItems: NavItem[] = [
-    {
-        title: 'Dashboard',
-        href: dashboard(),
-        icon: LayoutGrid,
-    },
-];
+const page = usePage();
+const auth = computed(() => page.props.auth as any);
 
-const footerNavItems: NavItem[] = [
-    {
-        title: 'Github Repo',
-        href: 'https://github.com/laravel/vue-starter-kit',
-        icon: Folder,
-    },
-    {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#vue',
-        icon: BookOpen,
-    },
-];
+const mainNavItems = computed<NavItem[]>(() => {
+    const items: NavItem[] = [
+        {
+            title: 'Dashboard',
+            href: dashboard(),
+            icon: LayoutGrid,
+        },
+    ];
+
+    // Admin voit tout
+    if (auth.value?.isAdmin) {
+        items.push(
+            {
+                title: 'Profils',
+                href: '/profils',
+                icon: Users,
+            },
+            {
+                title: 'Rôles',
+                href: '/roles',
+                icon: ShieldCheck,
+            },
+            {
+                title: 'Habilitations',
+                href: '/habilitations',
+                icon: FileCheck,
+            }
+        );
+    }
+    // Métier voit uniquement les habilitations
+    else if (auth.value?.isMetier) {
+        items.push({
+            title: 'Habilitations',
+            href: '/habilitations',
+            icon: FileCheck,
+        });
+    }
+    // Contrôle voit uniquement les habilitations
+    else if (auth.value?.isControle) {
+        items.push({
+            title: 'Habilitations',
+            href: '/habilitations',
+            icon: FileCheck,
+        });
+    }
+    // Si aucun rôle défini, voir au moins les habilitations
+    else {
+        items.push({
+            title: 'Habilitations',
+            href: '/habilitations',
+            icon: FileCheck,
+        });
+    }
+
+    return items;
+});
+
+
 </script>
 
 <template>
@@ -58,7 +100,6 @@ const footerNavItems: NavItem[] = [
         </SidebarContent>
 
         <SidebarFooter>
-            <NavFooter :items="footerNavItems" />
             <NavUser />
         </SidebarFooter>
     </Sidebar>

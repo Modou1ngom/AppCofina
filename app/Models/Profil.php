@@ -61,4 +61,12 @@ class Profil extends Model
     {
         return "{$this->prenom} {$this->nom}";
     }
+
+    /**
+     * Relation avec les rôles (many-to-many)
+     */
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class, 'profile_role', 'profile_id', 'role_id');
+    }
 }

@@ -34,7 +34,7 @@ import { toUrl, urlIsActive } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import type { BreadcrumbItem, NavItem } from '@/types';
 import { InertiaLinkProps, Link, usePage } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid, Menu, Search } from 'lucide-vue-next';
+import { BookOpen, Folder, LayoutGrid, Menu, Search, Users, ShieldCheck, FileCheck } from 'lucide-vue-next';
 import { computed } from 'vue';
 
 interface Props {
@@ -60,13 +60,62 @@ const activeItemStyles = computed(
             : '',
 );
 
-const mainNavItems: NavItem[] = [
-    {
-        title: 'Dashboard',
-        href: dashboard(),
-        icon: LayoutGrid,
-    },
-];
+const mainNavItems = computed<NavItem[]>(() => {
+    const items: NavItem[] = [
+        {
+            title: 'Dashboard',
+            href: dashboard(),
+            icon: LayoutGrid,
+        },
+    ];
+
+    // Admin voit tout
+    if (auth.value?.isAdmin) {
+        items.push(
+            {
+                title: 'Profils',
+                href: '/profils',
+                icon: Users,
+            },
+            {
+                title: 'Rôles',
+                href: '/roles',
+                icon: ShieldCheck,
+            },
+            {
+                title: 'Habilitations',
+                href: '/habilitations',
+                icon: FileCheck,
+            }
+        );
+    }
+    // Métier voit uniquement les habilitations
+    else if (auth.value?.isMetier) {
+        items.push({
+            title: 'Habilitations',
+            href: '/habilitations',
+            icon: FileCheck,
+        });
+    }
+    // Contrôle voit uniquement les habilitations
+    else if (auth.value?.isControle) {
+        items.push({
+            title: 'Habilitations',
+            href: '/habilitations',
+            icon: FileCheck,
+        });
+    }
+    // Si aucun rôle défini, voir au moins les habilitations
+    else {
+        items.push({
+            title: 'Habilitations',
+            href: '/habilitations',
+            icon: FileCheck,
+        });
+    }
+
+    return items;
+});
 
 const rightNavItems: NavItem[] = [
     {

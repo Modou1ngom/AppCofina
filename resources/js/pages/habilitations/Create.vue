@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import InputError from '@/components/InputError.vue';
 import { store } from '@/routes/habilitations';
-import { ref, computed, watch } from 'vue';
+import { computed } from 'vue';
 
 interface Profil {
     id: number;
@@ -25,6 +25,10 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+
+// Debug: vérifier que les applications sont bien reçues
+console.log('Applications reçues:', props.applications);
+console.log('Nombre d\'applications:', props.applications?.length);
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -67,77 +71,68 @@ const form = useForm({
     subsidiary: '',
 });
 
-const selectedApplications = ref<string[]>([]);
-const showAutreApplication = computed(() => selectedApplications.value.includes('Autres'));
+const showAutreApplication = computed(() => form.applications.includes('Autres'));
 const showProfilSpecifique = computed(() => form.profile_type === 'Profil Specifique');
 const showDatesTemporaire = computed(() => form.validity_period === 'Temporaire');
 const showProfilActuel = computed(() => form.request_type === 'Modification');
 
-const toggleApplication = (app: string) => {
-    console.log('toggleApplication appelé pour:', app);
-    const index = selectedApplications.value.indexOf(app);
-    if (index > -1) {
-        selectedApplications.value.splice(index, 1);
-        console.log('Application retirée. Liste actuelle:', selectedApplications.value);
+const toggleApplication = (app: string, checked: boolean) => {
+    console.log('toggleApplication appelé:', { app, checked, current: form.applications });
+    
+    // Créer un nouveau tableau pour forcer la réactivité d'Inertia
+    if (checked) {
+        if (!form.applications.includes(app)) {
+            form.applications = [...form.applications, app];
+        }
     } else {
-        selectedApplications.value.push(app);
-        console.log('Application ajoutée. Liste actuelle:', selectedApplications.value);
+        form.applications = form.applications.filter(a => a !== app);
     }
-    // Synchroniser immédiatement avec le formulaire
-    form.applications = [...selectedApplications.value];
-    console.log('form.applications mis à jour:', form.applications);
+    
+    console.log('Après toggle - form.applications:', form.applications);
 };
 
 const submit = () => {
-    // S'assurer que les applications sont bien dans le formulaire (copie du tableau)
-    const applications = [...selectedApplications.value];
-    
-    // Debug: vérifier les données avant envoi
-    console.log('Applications sélectionnées:', selectedApplications.value);
-    console.log('Nombre d\'applications:', applications.length);
+    console.log('Submit habilitation - form.applications:', form.applications);
+    console.log('Submit habilitation - form.data():', form.data());
     
     // Vérifier que au moins une application est sélectionnée
-    if (!applications || applications.length === 0) {
+    if (!form.applications || form.applications.length === 0) {
         form.setError('applications', 'Veuillez sélectionner au moins une application.');
         return;
     }
     
-    // Mettre à jour form.applications
-    form.applications = applications;
+    // Vérifier que form.applications est bien un tableau
+    if (!Array.isArray(form.applications)) {
+        console.error('ERROR: form.applications n\'est pas un tableau!', form.applications);
+        form.applications = [];
+        form.setError('applications', 'Erreur: les applications ne sont pas valides.');
+        return;
+    }
     
-    // Utiliser transform() pour forcer l'inclusion des applications
-    // et les envoyer aussi comme JSON string pour le backend
+    // S'assurer que les données sont correctement formatées avant l'envoi
+    const applicationsData = Array.isArray(form.applications) ? form.applications : [];
+    
+    // Utiliser transform pour s'assurer que les applications sont bien incluses
     form.transform((data) => {
-        const transformed = {
+        return {
             ...data,
-            applications: applications, // Tableau d'applications
-            applications_json: JSON.stringify(applications), // JSON string en backup
+            applications: applicationsData,
+            applications_json: JSON.stringify(applicationsData),
         };
-        
-        // Debug dans transform
-        console.log('Transform - applications:', transformed.applications);
-        console.log('Transform - applications_json:', transformed.applications_json);
-        
-        return transformed;
-    });
-    
-    // Debug: vérifier les données du formulaire
-    console.log('Form applications avant soumission:', form.applications);
-    console.log('Form data complet:', form.data());
-    
-    // Utiliser form.post() - transform() garantit l'inclusion des données
-    form.post(store.url(), {
+    }).post(store.url(), {
         preserveScroll: true,
+        preserveState: false,
         onError: (errors) => {
-            console.log('Erreurs de validation:', errors);
-            console.log('Form data après erreur:', form.data());
-            // Mettre à jour les erreurs du formulaire
+            console.log('Erreurs reçues:', errors);
+            if (errors.message && errors.message.includes('403')) {
+                console.error('Erreur 403: Problème de permissions');
+            }
             Object.keys(errors).forEach((key) => {
                 form.setError(key as any, Array.isArray(errors[key]) ? errors[key][0] : errors[key]);
             });
         },
         onSuccess: () => {
-            console.log('Formulaire soumis avec succès');
+            console.log('Habilitation créée avec succès');
         }
     });
 };
@@ -149,8 +144,8 @@ const submit = () => {
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex flex-col gap-6 p-6">
-            <div>
-                <h1 class="text-2xl font-bold">Étape 1 : Informations de base</h1>
+            <div class="mb-6">
+                <h1 class="text-2xl font-bold bg-primary text-primary-foreground px-6 py-3 rounded-lg mb-3">ÉTAPE 1 : INFORMATIONS DE BASE</h1>
                 <p class="text-muted-foreground mt-1">Renseigner les informations du demandeur, du bénéficiaire et les détails de la demande</p>
             </div>
 
@@ -161,7 +156,7 @@ const submit = () => {
                 >
                     <!-- Section Demandeur -->
                     <div class="space-y-4">
-                        <h2 class="text-lg font-semibold border-b pb-2">Informations du demandeur</h2>
+                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Informations du demandeur</h2>
                         
                         <div class="grid gap-4 md:grid-cols-2">
                             <div class="grid gap-2">
@@ -224,7 +219,7 @@ const submit = () => {
 
                     <!-- Section Bénéficiaire -->
                     <div class="space-y-4">
-                        <h2 class="text-lg font-semibold border-b pb-2">Informations du bénéficiaire</h2>
+                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Informations du bénéficiaire</h2>
                         
                         <div class="grid gap-4 md:grid-cols-2">
                             <div class="grid gap-2">
@@ -298,7 +293,7 @@ const submit = () => {
 
                     <!-- Section Détails de la demande -->
                     <div class="space-y-4">
-                        <h2 class="text-lg font-semibold border-b pb-2">Détails de la demande</h2>
+                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Détails de la demande</h2>
                         
                         <div class="grid gap-4 md:grid-cols-2">
                             <div class="grid gap-2">
@@ -336,7 +331,7 @@ const submit = () => {
                                     v-model="form.current_profile"
                                     name="current_profile"
                                     rows="3"
-                                    class="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                    class="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                                     placeholder="Décrire le profil actuel du bénéficiaire"
                                 ></textarea>
                                 <InputError :message="form.errors.current_profile" />
@@ -349,7 +344,7 @@ const submit = () => {
                                     v-model="form.requested_profile"
                                     name="requested_profile"
                                     rows="3"
-                                    class="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                    class="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                                     placeholder="Décrire le profil demandé"
                                 ></textarea>
                                 <InputError :message="form.errors.requested_profile" />
@@ -370,23 +365,23 @@ const submit = () => {
 
                     <!-- Section Applications -->
                     <div class="space-y-4">
-                        <h2 class="text-lg font-semibold border-b pb-2">Applications / Services demandés *</h2>
-                        
-                        <!-- Champs cachés pour forcer l'inclusion des applications dans le formulaire -->
-                        <template v-for="(app, index) in selectedApplications" :key="`hidden-${app}-${index}`">
-                            <input type="hidden" :name="`applications[${index}]`" :value="app" />
-                        </template>
+                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Applications / Services demandés *</h2>
                         
                         <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                             <div
                                 v-for="app in applications"
                                 :key="app"
                                 class="flex items-center space-x-2 cursor-pointer"
-                                @click="toggleApplication(app)"
+                                @click="toggleApplication(app, !form.applications.includes(app))"
                             >
                                 <Checkbox
                                     :id="`app-${app}`"
-                                    :checked="selectedApplications.includes(app)"
+                                    :checked="form.applications.includes(app)"
+                                    @update:checked="(checked: boolean) => {
+                                        console.log('Checkbox update:checked déclenché pour app', app, checked);
+                                        toggleApplication(app, checked);
+                                    }"
+                                    @click.stop
                                 />
                                 <Label
                                     :for="`app-${app}`"
@@ -412,7 +407,7 @@ const submit = () => {
 
                     <!-- Section Type de profil -->
                     <div class="space-y-4">
-                        <h2 class="text-lg font-semibold border-b pb-2">Type de profil</h2>
+                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Type de profil</h2>
                         
                         <div class="grid gap-4 md:grid-cols-2">
                             <div class="grid gap-2">
@@ -446,7 +441,7 @@ const submit = () => {
 
                     <!-- Section Période de validité -->
                     <div class="space-y-4">
-                        <h2 class="text-lg font-semibold border-b pb-2">Période de validité</h2>
+                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Période de validité</h2>
                         
                         <div class="grid gap-4 md:grid-cols-2">
                             <div class="grid gap-2">
@@ -491,7 +486,7 @@ const submit = () => {
 
                     <!-- Section Motif -->
                     <div class="space-y-4">
-                        <h2 class="text-lg font-semibold border-b pb-2">Motif de la demande</h2>
+                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Motif de la demande</h2>
                         
                         <div class="grid gap-2">
                             <Label for="request_reason">Motif</Label>
@@ -500,7 +495,7 @@ const submit = () => {
                                 v-model="form.request_reason"
                                 name="request_reason"
                                 rows="4"
-                                class="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                                 placeholder="Expliquer le motif de la demande d'habilitation"
                             ></textarea>
                             <InputError :message="form.errors.request_reason" />

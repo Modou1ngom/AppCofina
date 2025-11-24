@@ -17,9 +17,42 @@ class HabilitationController extends Controller
      */
     public function index()
     {
-        $habilitations = Habilitation::with(['requester', 'beneficiary', 'validatorN1', 'validatorControl', 'validatorN2', 'executorIt'])
-            ->orderBy('created_at', 'desc')
-            ->paginate(15);
+        $user = Auth::user();
+        $profil = $user?->profil;
+
+        // Admin voit toutes les habilitations
+        if ($user && $user->isAdmin()) {
+            $habilitations = Habilitation::with(['requester', 'beneficiary', 'validatorN1', 'validatorControl', 'validatorN2', 'executorIt'])
+                ->orderBy('created_at', 'desc')
+                ->paginate(15);
+        } 
+        // Controle voit les habilitations en attente de contrôle et celles déjà contrôlées
+        elseif ($user && $user->isControle()) {
+            $habilitations = Habilitation::with(['requester', 'beneficiary', 'validatorN1', 'validatorControl', 'validatorN2', 'executorIt'])
+                ->where(function($query) {
+                    $query->where('status', 'pending_control')
+                          ->orWhere('validator_control_id', '!=', null);
+                })
+                ->orderBy('created_at', 'desc')
+                ->paginate(15);
+        }
+        // Metier (N et N-1) voit ses habilitations et celles de ses subordonnés
+        elseif ($profil) {
+            $subordonnesIds = $profil->subordonnes()->pluck('id')->toArray();
+            $subordonnesIds[] = $profil->id; // Inclure aussi le profil lui-même
+
+            $habilitations = Habilitation::with(['requester', 'beneficiary', 'validatorN1', 'validatorControl', 'validatorN2', 'executorIt'])
+                ->where(function($query) use ($profil, $subordonnesIds) {
+                    $query->whereIn('requester_profile_id', $subordonnesIds)
+                          ->orWhereIn('beneficiary_profile_id', $subordonnesIds)
+                          ->orWhere('validator_n1_id', $profil->id);
+                })
+                ->orderBy('created_at', 'desc')
+                ->paginate(15);
+        } 
+        else {
+            $habilitations = Habilitation::where('id', 0)->paginate(15); // Aucune habilitation
+        }
 
         return Inertia::render('habilitations/Index', [
             'habilitations' => $habilitations,
@@ -44,6 +77,15 @@ class HabilitationController extends Controller
      */
     public function store(Request $request)
     {
+        // Debug: vérifier l'utilisateur authentifié
+        $user = Auth::user();
+        \Log::info('Store habilitation - User check', [
+            'user_id' => $user?->id,
+            'user_email' => $user?->email,
+            'is_admin' => $user?->isAdmin(),
+            'has_profil' => $user?->profil !== null,
+        ]);
+        
         // Normaliser les applications - gérer plusieurs formats possibles
         $applications = $request->input('applications');
         
@@ -144,16 +186,21 @@ class HabilitationController extends Controller
      */
     public function etape2(Habilitation $habilitation)
     {
-        if ($habilitation->status !== 'draft' && $habilitation->status !== 'pending_n1') {
-            return redirect()->route('habilitations.show', $habilitation->id)
-                ->with('error', 'Cette étape n\'est plus accessible.');
+        $user = Auth::user();
+        // Admin peut accéder à toutes les étapes
+        if (!$user || !$user->isAdmin()) {
+            if ($habilitation->status !== 'draft' && $habilitation->status !== 'pending_n1') {
+                return redirect()->route('habilitations.show', $habilitation->id)
+                    ->with('error', 'Cette étape n\'est plus accessible.');
+            }
         }
 
         $habilitation->load(['requester', 'beneficiary']);
 
+        // À l'étape 2, on n'affiche que les applications déjà sélectionnées à l'étape 1
+        // Plus besoin d'envoyer toutes les applications disponibles
         return Inertia::render('habilitations/Etape2', [
             'habilitation' => $habilitation,
-            'applications' => $this->getApplicationsList(),
         ]);
     }
 
@@ -162,6 +209,42 @@ class HabilitationController extends Controller
      */
     public function updateEtape2(Request $request, Habilitation $habilitation)
     {
+        // Normaliser les applications - gérer plusieurs formats possibles
+        $applications = $request->input('applications');
+        
+        // Si applications est null ou vide, essayer plusieurs méthodes de récupération
+        if (empty($applications) || !is_array($applications)) {
+            $applications = [];
+            
+            // Méthode 1: Essayer applications_json (chaîne JSON)
+            $applicationsJson = $request->input('applications_json');
+            if ($applicationsJson) {
+                $decoded = json_decode($applicationsJson, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $applications = $decoded;
+                }
+            }
+            
+            // Méthode 2: Reconstruire depuis applications[0], applications[1], etc.
+            if (empty($applications)) {
+                $allInputs = $request->all();
+                foreach ($allInputs as $key => $value) {
+                    if (preg_match('/^applications\[(\d+)\]$/', $key, $matches)) {
+                        $index = (int)$matches[1];
+                        $applications[$index] = $value;
+                    }
+                }
+                // Réindexer le tableau
+                if (!empty($applications)) {
+                    ksort($applications);
+                    $applications = array_values($applications);
+                }
+            }
+        }
+        
+        // Remplacer temporairement applications dans la requête pour la validation
+        $request->merge(['applications' => $applications]);
+        
         $validated = $request->validate([
             'requested_profile' => 'required|string',
             'profile_type' => 'required|in:Consultation simple,Profil Specifique',
@@ -172,13 +255,19 @@ class HabilitationController extends Controller
             'comment_n1' => 'nullable|string',
         ]);
 
+        // S'assurer que applications est un tableau même si NULL
+        $data = $validated;
+        if (!isset($data['applications']) || !is_array($data['applications']) || empty($data['applications'])) {
+            $data['applications'] = $applications;
+        }
+
         $habilitation->update([
-            'requested_profile' => $validated['requested_profile'],
-            'profile_type' => $validated['profile_type'],
-            'specific_profile' => $validated['specific_profile'] ?? null,
-            'applications' => $validated['applications'] ?? [],
-            'other_application' => $validated['other_application'] ?? null,
-            'comment_n1' => $validated['comment_n1'] ?? null,
+            'requested_profile' => $data['requested_profile'],
+            'profile_type' => $data['profile_type'],
+            'specific_profile' => $data['specific_profile'] ?? null,
+            'applications' => $data['applications'],
+            'other_application' => $data['other_application'] ?? null,
+            'comment_n1' => $data['comment_n1'] ?? null,
             'status' => 'pending_control',
         ]);
 
@@ -193,9 +282,13 @@ class HabilitationController extends Controller
      */
     public function etape3(Habilitation $habilitation)
     {
-        if ($habilitation->status !== 'pending_control') {
-            return redirect()->route('habilitations.show', $habilitation->id)
-                ->with('error', 'Cette étape n\'est pas accessible actuellement.');
+        $user = Auth::user();
+        // Admin peut accéder à toutes les étapes
+        if (!$user || !$user->isAdmin()) {
+            if ($habilitation->status !== 'pending_control') {
+                return redirect()->route('habilitations.show', $habilitation->id)
+                    ->with('error', 'Cette étape n\'est pas accessible actuellement.');
+            }
         }
 
         $habilitation->load(['requester', 'beneficiary', 'validatorN1']);
@@ -226,10 +319,11 @@ class HabilitationController extends Controller
             return redirect()->route('habilitations.show', $habilitation->id)
                 ->with('success', 'Étape 3 : Validation Contrôle Permanent complétée. La demande est en attente de validation N+2.');
         } else {
-            $habilitation->reject($validated['comment_control'], 'control');
             $habilitation->update([
                 'validator_control_id' => Auth::id() ?? null,
                 'validated_control_at' => now(),
+                'comment_control' => $validated['comment_control'] ?? null,
+                'status' => 'rejected',
             ]);
 
             return redirect()->route('habilitations.show', $habilitation->id)
@@ -242,9 +336,13 @@ class HabilitationController extends Controller
      */
     public function etape4(Habilitation $habilitation)
     {
-        if ($habilitation->status !== 'pending_n2') {
-            return redirect()->route('habilitations.show', $habilitation->id)
-                ->with('error', 'Cette étape n\'est pas accessible actuellement.');
+        $user = Auth::user();
+        // Admin peut accéder à toutes les étapes
+        if (!$user || !$user->isAdmin()) {
+            if ($habilitation->status !== 'pending_n2') {
+                return redirect()->route('habilitations.show', $habilitation->id)
+                    ->with('error', 'Cette étape n\'est pas accessible actuellement.');
+            }
         }
 
         $habilitation->load(['requester', 'beneficiary', 'validatorN1', 'validatorControl']);
@@ -292,9 +390,13 @@ class HabilitationController extends Controller
      */
     public function etape5(Habilitation $habilitation)
     {
-        if ($habilitation->status !== 'approved' && $habilitation->status !== 'in_progress') {
-            return redirect()->route('habilitations.show', $habilitation->id)
-                ->with('error', 'Cette étape n\'est pas accessible actuellement.');
+        $user = Auth::user();
+        // Admin peut accéder à toutes les étapes
+        if (!$user || !$user->isAdmin()) {
+            if ($habilitation->status !== 'approved' && $habilitation->status !== 'in_progress') {
+                return redirect()->route('habilitations.show', $habilitation->id)
+                    ->with('error', 'Cette étape n\'est pas accessible actuellement.');
+            }
         }
 
         $habilitation->load([

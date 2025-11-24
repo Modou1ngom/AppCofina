@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
-import { create } from '@/routes/habilitations';
+import { create, etape3 } from '@/routes/habilitations';
+import { computed } from 'vue';
 
 interface Habilitation {
     id: number;
@@ -30,6 +31,9 @@ interface Props {
 
 defineProps<Props>();
 
+const page = usePage();
+const isControle = computed(() => page.props.auth?.isControle || false);
+
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Demandes d\'habilitation',
@@ -39,16 +43,16 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 const getStatutBadge = (status: string) => {
     const badges: Record<string, string> = {
-        draft: 'bg-gray-100 text-gray-800',
-        pending_n1: 'bg-blue-100 text-blue-800',
-        pending_control: 'bg-yellow-100 text-yellow-800',
-        pending_n2: 'bg-orange-100 text-orange-800',
-        approved: 'bg-green-100 text-green-800',
-        rejected: 'bg-red-100 text-red-800',
-        in_progress: 'bg-purple-100 text-purple-800',
-        completed: 'bg-green-200 text-green-900',
+        draft: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
+        pending_n1: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+        pending_control: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+        pending_n2: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+        approved: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+        rejected: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+        in_progress: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+        completed: 'bg-green-200 text-green-900 dark:bg-green-800 dark:text-green-100',
     };
-    return badges[status] || 'bg-gray-100 text-gray-800';
+    return badges[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
 };
 
 const getStatutLabel = (status: string) => {
@@ -116,12 +120,22 @@ const getStatutLabel = (status: string) => {
                                     {{ new Date(habilitation.created_at).toLocaleDateString('fr-FR') }}
                                 </td>
                                 <td class="px-4 py-3">
-                                    <Link
-                                        :href="`/habilitations/${habilitation.id}`"
-                                        class="text-primary hover:underline"
-                                    >
-                                        Voir
-                                    </Link>
+                                    <div class="flex items-center gap-2">
+                                        <Link
+                                            :href="`/habilitations/${habilitation.id}`"
+                                            class="text-primary hover:underline"
+                                        >
+                                            Voir
+                                        </Link>
+                                        <Link
+                                            v-if="habilitation.status === 'pending_control' && isControle"
+                                            :href="etape3.url({ habilitation: habilitation.id })"
+                                        >
+                                            <Button size="sm" variant="outline">
+                                                Contrôler
+                                            </Button>
+                                        </Link>
+                                    </div>
                                 </td>
                             </tr>
                         </tbody>

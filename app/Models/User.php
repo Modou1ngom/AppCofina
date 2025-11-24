@@ -49,4 +49,75 @@ class User extends Authenticatable
             'two_factor_confirmed_at' => 'datetime',
         ];
     }
+
+    /**
+     * Relation avec le profil (via email)
+     */
+    public function profil()
+    {
+        return $this->hasOne(Profil::class, 'email', 'email');
+    }
+
+    /**
+     * Vérifie si l'utilisateur a un rôle spécifique
+     */
+    public function hasRole(string $roleSlug): bool
+    {
+        $profil = $this->profil;
+        if (!$profil) {
+            return false;
+        }
+
+        return $profil->roles()->where('slug', $roleSlug)->exists();
+    }
+
+    /**
+     * Vérifie si l'utilisateur a au moins un des rôles spécifiés
+     */
+    public function hasAnyRole(array $roleSlugs): bool
+    {
+        $profil = $this->profil;
+        if (!$profil) {
+            return false;
+        }
+
+        return $profil->roles()->whereIn('slug', $roleSlugs)->exists();
+    }
+
+    /**
+     * Vérifie si l'utilisateur est admin
+     */
+    public function isAdmin(): bool
+    {
+        return $this->hasRole('admin');
+    }
+
+    /**
+     * Vérifie si l'utilisateur est métier
+     */
+    public function isMetier(): bool
+    {
+        return $this->hasRole('metier');
+    }
+
+    /**
+     * Vérifie si l'utilisateur est contrôle
+     */
+    public function isControle(): bool
+    {
+        return $this->hasRole('controle');
+    }
+
+    /**
+     * Récupère tous les rôles de l'utilisateur
+     */
+    public function getRoles(): \Illuminate\Support\Collection
+    {
+        $profil = $this->profil;
+        if (!$profil) {
+            return collect([]);
+        }
+
+        return $profil->roles;
+    }
 }

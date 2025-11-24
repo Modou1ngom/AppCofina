@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
         // Seed des applications par défaut
         $this->call([
             ApplicationSeeder::class,
+            RoleSeeder::class,
         ]);
     }
 }

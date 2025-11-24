@@ -33,7 +33,7 @@ interface Habilitation {
 
 interface Props {
     habilitation: Habilitation;
-    applications: string[];
+    applications?: string[]; // Optionnel maintenant, car on n'affiche que les applications sélectionnées
 }
 
 const props = defineProps<Props>();
@@ -58,25 +58,46 @@ const form = useForm({
     comment_n1: props.habilitation.comment_n1 || '',
 });
 
+// À l'étape 2, on affiche uniquement les applications déjà sélectionnées à l'étape 1
 const selectedApplications = ref<string[]>(props.habilitation.applications || []);
 const showAutreApplication = computed(() => selectedApplications.value.includes('Autres'));
 const showProfilSpecifique = computed(() => form.profile_type === 'Profil Specifique');
 
-const toggleApplication = (app: string) => {
-    const index = selectedApplications.value.indexOf(app);
-    if (index > -1) {
-        selectedApplications.value.splice(index, 1);
-    } else {
-        selectedApplications.value.push(app);
-    }
-    form.applications = selectedApplications.value;
-};
+// Les applications sont en lecture seule à l'étape 2, elles ne peuvent pas être modifiées
+// Elles sont déjà définies à l'étape 1
 
 const submit = () => {
     // S'assurer que les applications sont bien dans le formulaire
-    form.applications = selectedApplications.value;
+    const applications = [...selectedApplications.value];
     
-    form.put(updateEtape2.url({ habilitation: props.habilitation.id }));
+    // Vérifier que au moins une application est sélectionnée
+    if (!applications || applications.length === 0) {
+        form.setError('applications', 'Veuillez sélectionner au moins une application.');
+        return;
+    }
+    
+    // Mettre à jour form.applications
+    form.applications = applications;
+    
+    // Utiliser transform() pour forcer l'inclusion des applications
+    // et les envoyer aussi comme JSON string pour le backend
+    form.transform((data) => {
+        return {
+            ...data,
+            applications: applications, // Tableau d'applications
+            applications_json: JSON.stringify(applications), // JSON string en backup
+        };
+    });
+    
+    form.put(updateEtape2.url({ habilitation: props.habilitation.id }), {
+        preserveScroll: true,
+        onError: (errors) => {
+            // Mettre à jour les erreurs du formulaire
+            Object.keys(errors).forEach((key) => {
+                form.setError(key as any, Array.isArray(errors[key]) ? errors[key][0] : errors[key]);
+            });
+        }
+    });
 };
 </script>
 
@@ -85,8 +106,8 @@ const submit = () => {
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex flex-col gap-6 p-6">
-            <div>
-                <h1 class="text-2xl font-bold">Étape 2 : Définition des droits et habilitations</h1>
+            <div class="mb-6">
+                <h1 class="text-2xl font-bold bg-primary text-primary-foreground px-6 py-3 rounded-lg mb-3">ÉTAPE 2 : DÉFINITION DES DROITS ET HABILITATIONS</h1>
                 <p class="text-muted-foreground mt-1">Définir les droits et habilitations par N+1</p>
             </div>
 
@@ -109,7 +130,7 @@ const submit = () => {
                 >
                     <!-- Profil demandé -->
                     <div class="space-y-4">
-                        <h2 class="text-lg font-semibold border-b pb-2">Profil demandé *</h2>
+                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Profil demandé *</h2>
                         
                         <div class="grid gap-2">
                             <Label for="requested_profile">Description du profil demandé</Label>
@@ -119,7 +140,7 @@ const submit = () => {
                                 name="requested_profile"
                                 rows="4"
                                 required
-                                class="flex min-h-[100px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                class="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                                 placeholder="Décrire en détail le profil demandé pour le bénéficiaire"
                             ></textarea>
                             <InputError :message="form.errors.requested_profile" />
@@ -128,7 +149,7 @@ const submit = () => {
 
                     <!-- Type de profil -->
                     <div class="space-y-4">
-                        <h2 class="text-lg font-semibold border-b pb-2">Type de profil *</h2>
+                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Type de profil *</h2>
                         
                         <div class="grid gap-4 md:grid-cols-2">
                             <div class="grid gap-2">
@@ -163,26 +184,30 @@ const submit = () => {
 
                     <!-- Applications -->
                     <div class="space-y-4">
-                        <h2 class="text-lg font-semibold border-b pb-2">Applications / Services demandés *</h2>
+                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Applications / Services demandés</h2>
+                       
                         
-                        <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                        <div v-if="selectedApplications.length > 0" class="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                             <div
-                                v-for="app in applications"
+                                v-for="app in selectedApplications"
                                 :key="app"
                                 class="flex items-center space-x-2"
                             >
                                 <Checkbox
                                     :id="`app-${app}`"
-                                    :checked="selectedApplications.includes(app)"
-                                    @update:checked="toggleApplication(app)"
+                                    :checked="true"
+                                    :disabled="true"
                                 />
                                 <Label
                                     :for="`app-${app}`"
-                                    class="text-sm font-normal cursor-pointer"
+                                    class="text-sm font-normal"
                                 >
                                     {{ app }}
                                 </Label>
                             </div>
+                        </div>
+                        <div v-else class="text-sm text-muted-foreground">
+                            Aucune application sélectionnée
                         </div>
                         <InputError :message="form.errors.applications" />
 
@@ -200,7 +225,7 @@ const submit = () => {
 
                     <!-- Commentaire N+1 -->
                     <div class="space-y-4">
-                        <h2 class="text-lg font-semibold border-b pb-2">Commentaire N+1</h2>
+                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Commentaire N+1</h2>
                         
                         <div class="grid gap-2">
                             <Label for="comment_n1">Commentaire (optionnel)</Label>
