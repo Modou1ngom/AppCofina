@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import InputError from '@/components/InputError.vue';
 import { store } from '@/routes/habilitations';
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 
 interface Profil {
     id: number;
@@ -17,11 +17,22 @@ interface Profil {
     matricule: string;
     fonction?: string;
     departement?: string;
+    email?: string;
+    telephone?: string;
+    site?: string;
+}
+
+interface Filiale {
+    id: number;
+    nom: string;
 }
 
 interface Props {
-    profils: Profil[];
+    profils?: Profil[];
     applications: string[];
+    demandeur?: Profil;
+    beneficiaire?: Profil;
+    filiales?: Filiale[];
 }
 
 const props = defineProps<Props>();
@@ -29,6 +40,8 @@ const props = defineProps<Props>();
 // Debug: vérifier que les applications sont bien reçues
 console.log('Applications reçues:', props.applications);
 console.log('Nombre d\'applications:', props.applications?.length);
+console.log('Demandeur:', props.demandeur);
+console.log('Bénéficiaire:', props.beneficiaire);
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -43,17 +56,17 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 const form = useForm({
     // Demandeur
-    requester_profile_id: '' as string | number,
-    requester_direction: '',
-    requester_email: '',
-    requester_telephone: '',
+    requester_profile_id: (props.demandeur?.id || '') as string | number,
+    requester_direction: props.demandeur?.departement || '',
+    requester_email: props.demandeur?.email || '',
+    requester_telephone: props.demandeur?.telephone || '',
     
     // Bénéficiaire
-    beneficiary_profile_id: '' as string | number,
-    beneficiary_direction: '',
-    beneficiary_email: '',
-    beneficiary_telephone: '',
-    beneficiary_site: '',
+    beneficiary_profile_id: (props.beneficiaire?.id || '') as string | number,
+    beneficiary_direction: props.beneficiaire?.departement || '',
+    beneficiary_email: props.beneficiaire?.email || '',
+    beneficiary_telephone: props.beneficiaire?.telephone || '',
+    beneficiary_site: props.beneficiaire?.site || '',
     
     // Détails de la demande
     request_type: 'Creation' as 'Creation' | 'Modification' | 'Desactivation' | 'Suppression',
@@ -75,6 +88,50 @@ const showAutreApplication = computed(() => form.applications.includes('Autres')
 const showProfilSpecifique = computed(() => form.profile_type === 'Profil Specifique');
 const showDatesTemporaire = computed(() => form.validity_period === 'Temporaire');
 const showProfilActuel = computed(() => form.request_type === 'Modification');
+
+// Watcher pour remplir automatiquement les informations du demandeur
+watch(() => form.requester_profile_id, (newProfileId) => {
+    // Ne pas remplir si le demandeur est déjà pré-rempli
+    if (props.demandeur) {
+        return;
+    }
+    if (newProfileId && props.profils) {
+        const selectedProfil = props.profils.find(p => p.id === Number(newProfileId));
+        if (selectedProfil) {
+            form.requester_direction = selectedProfil.departement || '';
+            form.requester_email = selectedProfil.email || '';
+            form.requester_telephone = selectedProfil.telephone || '';
+        }
+    } else {
+        // Réinitialiser les champs si aucun profil n'est sélectionné
+        form.requester_direction = '';
+        form.requester_email = '';
+        form.requester_telephone = '';
+    }
+});
+
+// Watcher pour remplir automatiquement les informations du bénéficiaire
+watch(() => form.beneficiary_profile_id, (newProfileId) => {
+    // Ne pas remplir si le bénéficiaire est déjà pré-rempli
+    if (props.beneficiaire) {
+        return;
+    }
+    if (newProfileId && props.profils) {
+        const selectedProfil = props.profils.find(p => p.id === Number(newProfileId));
+        if (selectedProfil) {
+            form.beneficiary_direction = selectedProfil.departement || '';
+            form.beneficiary_email = selectedProfil.email || '';
+            form.beneficiary_telephone = selectedProfil.telephone || '';
+            form.beneficiary_site = selectedProfil.site || '';
+        }
+    } else {
+        // Réinitialiser les champs si aucun profil n'est sélectionné
+        form.beneficiary_direction = '';
+        form.beneficiary_email = '';
+        form.beneficiary_telephone = '';
+        form.beneficiary_site = '';
+    }
+});
 
 const toggleApplication = (app: string, checked: boolean) => {
     console.log('toggleApplication appelé:', { app, checked, current: form.applications });
@@ -146,7 +203,7 @@ const submit = () => {
         <div class="flex flex-col gap-6 p-6">
             <div class="mb-6">
                 <h1 class="text-2xl font-bold bg-primary text-primary-foreground px-6 py-3 rounded-lg mb-3">ÉTAPE 1 : INFORMATIONS DE BASE</h1>
-                <p class="text-muted-foreground mt-1">Renseigner les informations du demandeur, du bénéficiaire et les détails de la demande</p>
+                <p class="text-muted-foreground mt-1">Renseigner les détails de la demande</p>
             </div>
 
             <div class="rounded-lg border border-sidebar-border bg-card p-6">
@@ -161,7 +218,11 @@ const submit = () => {
                         <div class="grid gap-4 md:grid-cols-2">
                             <div class="grid gap-2">
                                 <Label for="requester_profile_id">Profil du demandeur *</Label>
+                                <div v-if="props.demandeur" class="flex h-9 items-center rounded-md border border-input px-3 text-sm">
+                                    {{ props.demandeur.prenom }} {{ props.demandeur.nom }} 
+                                </div>
                                 <select
+                                    v-else
                                     id="requester_profile_id"
                                     v-model="form.requester_profile_id"
                                     name="requester_profile_id"
@@ -170,14 +231,14 @@ const submit = () => {
                                 >
                                     <option value="" disabled selected>Sélectionner un profil</option>
                                     <option
-                                        v-for="profil in profils"
+                                        v-for="profil in props.profils || []"
                                         :key="profil.id"
                                         :value="profil.id"
                                     >
                                         {{ profil.prenom }} {{ profil.nom }} ({{ profil.matricule }})
                                     </option>
                                 </select>
-                                <p v-if="profils.length === 0" class="text-sm text-muted-foreground">Aucun profil disponible. Veuillez d'abord créer des profils.</p>
+                                <p v-if="!props.demandeur && (!props.profils || props.profils.length === 0)" class="text-sm text-muted-foreground">Aucun profil disponible. Veuillez d'abord créer des profils.</p>
                                 <InputError :message="form.errors.requester_profile_id" />
                             </div>
 
@@ -188,6 +249,7 @@ const submit = () => {
                                     v-model="form.requester_direction"
                                     name="requester_direction"
                                     placeholder="Direction du demandeur"
+                                    :disabled="!!props.demandeur"
                                 />
                                 <InputError :message="form.errors.requester_direction" />
                             </div>
@@ -200,6 +262,7 @@ const submit = () => {
                                     type="email"
                                     name="requester_email"
                                     placeholder="email@example.com"
+                                    :disabled="!!props.demandeur"
                                 />
                                 <InputError :message="form.errors.requester_email" />
                             </div>
@@ -211,6 +274,7 @@ const submit = () => {
                                     v-model="form.requester_telephone"
                                     name="requester_telephone"
                                     placeholder="+221 XX XXX XX XX"
+                                    :disabled="!!props.demandeur"
                                 />
                                 <InputError :message="form.errors.requester_telephone" />
                             </div>
@@ -224,7 +288,11 @@ const submit = () => {
                         <div class="grid gap-4 md:grid-cols-2">
                             <div class="grid gap-2">
                                 <Label for="beneficiary_profile_id">Profil du bénéficiaire *</Label>
+                                <div v-if="props.beneficiaire" class="flex h-9 items-center rounded-md border border-input  px-3 text-sm">
+                                    {{ props.beneficiaire.prenom }} {{ props.beneficiaire.nom }} 
+                                </div>
                                 <select
+                                    v-else
                                     id="beneficiary_profile_id"
                                     v-model="form.beneficiary_profile_id"
                                     name="beneficiary_profile_id"
@@ -233,14 +301,14 @@ const submit = () => {
                                 >
                                     <option value="" disabled selected>Sélectionner un profil</option>
                                     <option
-                                        v-for="profil in profils"
+                                        v-for="profil in props.profils || []"
                                         :key="profil.id"
                                         :value="profil.id"
                                     >
                                         {{ profil.prenom }} {{ profil.nom }} ({{ profil.matricule }})
                                     </option>
                                 </select>
-                                <p v-if="profils.length === 0" class="text-sm text-muted-foreground">Aucun profil disponible. Veuillez d'abord créer des profils.</p>
+                                <p v-if="!props.beneficiaire && (!props.profils || props.profils.length === 0)" class="text-sm text-muted-foreground">Aucun profil disponible. Veuillez d'abord créer des profils.</p>
                                 <InputError :message="form.errors.beneficiary_profile_id" />
                             </div>
 
@@ -251,6 +319,7 @@ const submit = () => {
                                     v-model="form.beneficiary_direction"
                                     name="beneficiary_direction"
                                     placeholder="Direction du bénéficiaire"
+                                    :disabled="!!props.beneficiaire"
                                 />
                                 <InputError :message="form.errors.beneficiary_direction" />
                             </div>
@@ -263,6 +332,7 @@ const submit = () => {
                                     type="email"
                                     name="beneficiary_email"
                                     placeholder="email@example.com"
+                                    :disabled="!!props.beneficiaire"
                                 />
                                 <InputError :message="form.errors.beneficiary_email" />
                             </div>
@@ -274,17 +344,19 @@ const submit = () => {
                                     v-model="form.beneficiary_telephone"
                                     name="beneficiary_telephone"
                                     placeholder="+221 XX XXX XX XX"
+                                    :disabled="!!props.beneficiaire"
                                 />
                                 <InputError :message="form.errors.beneficiary_telephone" />
                             </div>
 
                             <div class="grid gap-2">
-                                <Label for="beneficiary_site">Site</Label>
+                                <Label for="beneficiary_site">Agence</Label>
                                 <Input
                                     id="beneficiary_site"
                                     v-model="form.beneficiary_site"
                                     name="beneficiary_site"
                                     placeholder="Site du bénéficiaire"
+                                    :disabled="!!props.beneficiaire"
                                 />
                                 <InputError :message="form.errors.beneficiary_site" />
                             </div>
@@ -309,18 +381,28 @@ const submit = () => {
                                     <option value="Modification">Modification</option>
                                     <option value="Desactivation">Désactivation</option>
                                     <option value="Suppression">Suppression</option>
+                                    <option value="Suppression">Transfert</option>
                                 </select>
                                 <InputError :message="form.errors.request_type" />
                             </div>
 
                             <div class="grid gap-2">
                                 <Label for="subsidiary">Filiale</Label>
-                                <Input
+                                <select
                                     id="subsidiary"
                                     v-model="form.subsidiary"
                                     name="subsidiary"
-                                    placeholder="Nom de la filiale"
-                                />
+                                    class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    
+                                    <option
+                                        v-for="filiale in props.filiales || []"
+                                        :key="filiale.id"
+                                        :value="filiale.nom"
+                                    >
+                                        {{ filiale.nom }}
+                                    </option>
+                                </select>
                                 <InputError :message="form.errors.subsidiary" />
                             </div>
 

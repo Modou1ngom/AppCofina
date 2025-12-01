@@ -4,12 +4,6 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
 
-interface Role {
-    id: number;
-    nom: string;
-    slug: string;
-}
-
 interface Props {
     profil: {
         id: number;
@@ -23,19 +17,18 @@ interface Props {
         site?: string;
         type_contrat: string;
         statut: string;
-        superieur_hierarchique?: {
+        n_plus1?: {
             id: number;
             prenom: string;
             nom: string;
             matricule: string;
         };
-        subordonnes?: Array<{
+        n_plus2?: {
             id: number;
             prenom: string;
             nom: string;
             matricule: string;
-        }>;
-        roles?: Role[];
+        };
     };
 }
 
@@ -131,46 +124,31 @@ const breadcrumbs: BreadcrumbItem[] = [
                                 </span>
                             </dd>
                         </div>
-                        <div v-if="profil.superieur_hierarchique">
-                            <dt class="text-muted-foreground text-sm font-medium">Supérieur hiérarchique</dt>
+                        <div v-if="profil.n_plus1">
+                            <dt class="text-muted-foreground text-sm font-medium">N+1</dt>
                             <dd class="mt-1 text-sm">
-                                {{ profil.superieur_hierarchique.prenom }} {{ profil.superieur_hierarchique.nom }}
-                                ({{ profil.superieur_hierarchique.matricule }})
+                                <Link
+                                    :href="`/profils/${profil.n_plus1.id}`"
+                                    class="text-primary hover:underline"
+                                >
+                                    {{ profil.n_plus1.prenom }} {{ profil.n_plus1.nom }}
+                                    ({{ profil.n_plus1.matricule }})
+                                </Link>
+                            </dd>
+                        </div>
+                        <div v-if="profil.n_plus2">
+                            <dt class="text-muted-foreground text-sm font-medium">N+2</dt>
+                            <dd class="mt-1 text-sm">
+                                <Link
+                                    :href="`/profils/${profil.n_plus2.id}`"
+                                    class="text-primary hover:underline"
+                                >
+                                    {{ profil.n_plus2.prenom }} {{ profil.n_plus2.nom }}
+                                    ({{ profil.n_plus2.matricule }})
+                                </Link>
                             </dd>
                         </div>
                     </dl>
-                </div>
-
-                <div class="rounded-lg border border-sidebar-border bg-card p-6">
-                    <h2 class="mb-4 text-lg font-semibold">Rôles</h2>
-                    <div v-if="profil.roles && profil.roles.length > 0" class="flex flex-wrap gap-2">
-                        <span
-                            v-for="role in profil.roles"
-                            :key="role.id"
-                            class="rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary"
-                        >
-                            {{ role.nom }}
-                        </span>
-                    </div>
-                    <p v-else class="text-muted-foreground text-sm">Aucun rôle assigné</p>
-                </div>
-
-                <div v-if="profil.subordonnes && profil.subordonnes.length > 0" class="rounded-lg border border-sidebar-border bg-card p-6">
-                    <h2 class="mb-4 text-lg font-semibold">Subordonnés</h2>
-                    <ul class="space-y-2">
-                        <li
-                            v-for="subordonne in profil.subordonnes"
-                            :key="subordonne.id"
-                            class="text-sm"
-                        >
-                            <Link
-                                :href="`/profils/${subordonne.id}`"
-                                class="text-primary hover:underline"
-                            >
-                                {{ subordonne.prenom }} {{ subordonne.nom }} ({{ subordonne.matricule }})
-                            </Link>
-                        </li>
-                    </ul>
                 </div>
             </div>
         </div>

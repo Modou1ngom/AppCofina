@@ -7,18 +7,30 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import InputError from '@/components/InputError.vue';
-
-interface Role {
-    id: number;
-    nom: string;
-    slug: string;
-}
+import { computed, watch } from 'vue';
 
 interface Profil {
     id: number;
     nom: string;
     prenom: string;
     matricule: string;
+}
+
+interface Departement {
+    id: number;
+    nom: string;
+    responsable_departement_id?: number | null;
+    responsable?: {
+        id: number;
+        nom: string;
+        prenom: string;
+        matricule: string;
+    } | null;
+}
+
+interface Agence {
+    id: number;
+    nom: string;
 }
 
 interface Props {
@@ -34,11 +46,12 @@ interface Props {
         site?: string;
         type_contrat: string;
         statut: string;
-        superieur_hierarchique_id?: number;
-        roles?: Role[];
-    };
-    roles: Role[];
+        n_plus_1_id?: number;
+        n_plus_2_id?: number;
+        };
     profils: Profil[];
+    departements: Departement[];
+    agences: Agence[];
 }
 
 const props = defineProps<Props>();
@@ -65,18 +78,67 @@ const form = useForm({
     site: props.profil.site || '',
     type_contrat: props.profil.type_contrat as 'CDI' | 'CDD' | 'Stagiaire' | 'Autre',
     statut: props.profil.statut as 'actif' | 'inactif',
-    superieur_hierarchique_id: props.profil.superieur_hierarchique_id || null,
-    roles: props.profil.roles?.map(r => r.id) || [] as number[],
+    n_plus_1_id: props.profil.n_plus_1_id || null,
+    n_plus_2_id: props.profil.n_plus_2_id || null,
 });
 
-const toggleRole = (roleId: number, checked: boolean) => {
-    if (checked) {
-        if (!form.roles.includes(roleId)) {
-            form.roles.push(roleId);
-        }
-    } else {
-        form.roles = form.roles.filter(r => r !== roleId);
+// Filtrer les profils pour exclure le profil actuel
+const availableProfils = computed(() => {
+    return props.profils.filter(p => p.id !== props.profil.id);
+});
+
+// Filtrer les profils disponibles pour N+1 (exclure celui sélectionné comme N+2 et le profil actuel)
+const availableN1 = computed(() => {
+    return props.profils.filter(p => {
+        if (p.id === props.profil.id) return false;
+        if (form.n_plus_2_id && p.id == form.n_plus_2_id) return false;
+        return true;
+    });
+});
+
+// Filtrer les profils disponibles pour N+2 (exclure celui sélectionné comme N+1 et le profil actuel)
+const availableN2 = computed(() => {
+    return props.profils.filter(p => {
+        if (p.id === props.profil.id) return false;
+        if (form.n_plus_1_id && p.id == form.n_plus_1_id) return false;
+        return true;
+    });
+});
+
+// Réinitialiser N+2 si N+1 est sélectionné comme N+2
+watch(() => form.n_plus_1_id, (newValue) => {
+    if (newValue && form.n_plus_2_id == newValue) {
+        form.n_plus_2_id = null;
     }
+});
+
+// Réinitialiser N+1 si N+2 est sélectionné comme N+1
+watch(() => form.n_plus_2_id, (newValue) => {
+    if (newValue && form.n_plus_1_id == newValue) {
+        form.n_plus_1_id = null;
+    }
+});
+
+// Formatage et validation du numéro de téléphone
+const formatTelephone = (event: Event) => {
+    const input = event.target as HTMLInputElement;
+    let value = input.value.replace(/\D/g, ''); // Supprimer tous les caractères non numériques
+    
+    // Si commence par 221, garder le préfixe
+    if (value.startsWith('221')) {
+        value = '+221' + value.substring(3);
+    } else if (value.startsWith('00221')) {
+        value = '+221' + value.substring(5);
+    } else if (value.length > 0 && !value.startsWith('+')) {
+        // Si c'est un numéro local (commence par 7 ou 8), formater
+        if (value.length <= 9) {
+            value = value;
+        } else {
+            value = value.substring(0, 9);
+        }
+    }
+    
+    form.telephone = value;
 };
 
 const submit = () => {
@@ -151,19 +213,32 @@ const submit = () => {
                                 id="telephone"
                                 v-model="form.telephone"
                                 type="tel"
+                                pattern="^(\+221|00221|221)?[0-9]{9}$"
+                                placeholder="+221 XX XXX XX XX "
+                                maxlength="20"
                                 class="mt-1"
+                                @input="formatTelephone"
                             />
+                         
                             <InputError :message="form.errors.telephone" />
                         </div>
 
                         <div>
-                            <Label for="site">Site</Label>
-                            <Input
+                            <Label for="site">Agence</Label>
+                            <select
                                 id="site"
                                 v-model="form.site"
-                                type="text"
-                                class="mt-1"
-                            />
+                                class="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                            >
+                                <option value="">Sélectionner une agence</option>
+                                <option
+                                    v-for="agence in props.agences"
+                                    :key="agence.id"
+                                    :value="agence.nom"
+                                >
+                                    {{ agence.nom }}
+                                </option>
+                            </select>
                             <InputError :message="form.errors.site" />
                         </div>
                     </div>
@@ -186,12 +261,20 @@ const submit = () => {
 
                         <div>
                             <Label for="departement">Département</Label>
-                            <Input
+                            <select
                                 id="departement"
                                 v-model="form.departement"
-                                type="text"
-                                class="mt-1"
-                            />
+                                class="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                            >
+                                <option value="">Sélectionner un département</option>
+                                <option
+                                    v-for="departement in props.departements"
+                                    :key="departement.id"
+                                    :value="departement.nom"
+                                >
+                                    {{ departement.nom }}
+                                </option>
+                            </select>
                             <InputError :message="form.errors.departement" />
                         </div>
 
@@ -224,49 +307,43 @@ const submit = () => {
                         </div>
 
                         <div>
-                            <Label for="superieur_hierarchique_id">Supérieur hiérarchique</Label>
+                            <Label for="n_plus_1">N+1</Label>
                             <select
-                                id="superieur_hierarchique_id"
-                                v-model="form.superieur_hierarchique_id"
+                                id="n_plus_1"
+                                v-model="form.n_plus_1_id"
                                 class="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
                             >
-                                <option :value="null">Aucun</option>
+                                <option :value="null">Sélectionner un N+1</option>
                                 <option
-                                    v-for="profil in profils"
+                                    v-for="profil in availableN1"
                                     :key="profil.id"
                                     :value="profil.id"
                                 >
                                     {{ profil.prenom }} {{ profil.nom }} ({{ profil.matricule }})
                                 </option>
                             </select>
-                            <InputError :message="form.errors.superieur_hierarchique_id" />
+                            <InputError :message="form.errors.n_plus_1_id" />
                         </div>
-                    </div>
-                </div>
 
-                <div class="rounded-lg border border-sidebar-border bg-card p-6">
-                    <h2 class="mb-4 text-lg font-semibold">Rôles</h2>
-                    
-                    <div class="flex flex-col gap-2">
-                        <div
-                            v-for="role in roles"
-                            :key="role.id"
-                            class="flex items-center gap-2"
-                        >
-                            <Checkbox
-                                :id="`role-${role.id}`"
-                                :checked="form.roles.includes(role.id)"
-                                @update:checked="(checked: boolean) => toggleRole(role.id, checked)"
-                            />
-                            <Label :for="`role-${role.id}`" class="font-normal cursor-pointer">
-                                {{ role.nom }}
-                            </Label>
+                        <div>
+                            <Label for="n_plus_2">N+2</Label>
+                            <select
+                                id="n_plus_2"
+                                v-model="form.n_plus_2_id"
+                                class="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                            >
+                                <option :value="null">Sélectionner un N+2</option>
+                                <option
+                                    v-for="profil in availableN2"
+                                    :key="profil.id"
+                                    :value="profil.id"
+                                >
+                                    {{ profil.prenom }} {{ profil.nom }} ({{ profil.matricule }})
+                                </option>
+                            </select>
+                            <InputError :message="form.errors.n_plus_2_id" />
                         </div>
-                        <p v-if="roles.length === 0" class="text-muted-foreground text-sm">
-                            Aucun rôle disponible. <a href="/roles/create" class="text-primary hover:underline">Créer un rôle</a>
-                        </p>
                     </div>
-                    <InputError :message="form.errors.roles" />
                 </div>
 
                 <div class="flex justify-end gap-2">

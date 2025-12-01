@@ -34,7 +34,7 @@ import { toUrl, urlIsActive } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import type { BreadcrumbItem, NavItem } from '@/types';
 import { InertiaLinkProps, Link, usePage } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid, Menu, Search, Users, ShieldCheck, FileCheck } from 'lucide-vue-next';
+import { BookOpen, Folder, LayoutGrid, Menu, Search, Users, ShieldCheck, FileCheck, UserCog, Building2, MapPin, Building } from 'lucide-vue-next';
 import { computed } from 'vue';
 
 interface Props {
@@ -73,6 +73,11 @@ const mainNavItems = computed<NavItem[]>(() => {
     if (auth.value?.isAdmin) {
         items.push(
             {
+                title: 'Utilisateurs',
+                href: '/users',
+                icon: UserCog,
+            },
+            {
                 title: 'Profils',
                 href: '/profils',
                 icon: Users,
@@ -81,6 +86,36 @@ const mainNavItems = computed<NavItem[]>(() => {
                 title: 'Rôles',
                 href: '/roles',
                 icon: ShieldCheck,
+            },
+            {
+                title: 'Départements',
+                href: '/departements',
+                icon: Building2,
+            },
+            {
+                title: 'Agences',
+                href: '/agences',
+                icon: MapPin,
+            },
+            {
+                title: 'Filiales',
+                href: '/filiales',
+                icon: Building,
+            },
+            {
+                title: 'Habilitations',
+                href: '/habilitations',
+                icon: FileCheck,
+            }
+        );
+    }
+    // RH voit les profils et les habilitations qui le concernent
+    else if (auth.value?.isRh) {
+        items.push(
+            {
+                title: 'Profils',
+                href: '/profils',
+                icon: Users,
             },
             {
                 title: 'Habilitations',

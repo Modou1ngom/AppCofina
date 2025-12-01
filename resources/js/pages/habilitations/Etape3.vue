@@ -42,29 +42,34 @@ const breadcrumbs: BreadcrumbItem[] = [
         href: '/habilitations',
     },
     {
-        title: 'Étape 3 : Validation Contrôle Permanent',
+        title: 'Étape 3 : Validation N+1',
         href: '#',
     },
 ];
 
 const form = useForm({
     action: '' as 'approuver' | 'rejeter' | '',
-    comment_control: '',
+    comment_n1: '',
 });
 
-const actionSelected = ref<'approuver' | 'rejeter' | ''>('');
-const showCommentField = computed(() => actionSelected.value === 'rejeter');
-
-const submit = () => {
-    if (!actionSelected.value) {
-        form.setError('action', 'Veuillez sélectionner une action.');
+const submit = (action: 'approuver' | 'rejeter') => {
+    // Si rejet, vérifier qu'un commentaire est fourni
+    if (action === 'rejeter' && !form.comment_n1) {
+        form.setError('comment_n1', 'Un commentaire est obligatoire pour rejeter la demande.');
         return;
     }
 
-    form.action = actionSelected.value;
+    // Réinitialiser les erreurs précédentes
+    form.clearErrors();
+    
+    // Mettre à jour l'action et soumettre
+    form.action = action;
     
     form.post(validerEtape3.url({ habilitation: props.habilitation.id }), {
         preserveScroll: true,
+        onSuccess: () => {
+            // La redirection est gérée par le contrôleur
+        },
         onError: (errors) => {
             Object.keys(errors).forEach((key) => {
                 form.setError(key as any, Array.isArray(errors[key]) ? errors[key][0] : errors[key]);
@@ -75,13 +80,13 @@ const submit = () => {
 </script>
 
 <template>
-    <Head title="Étape 3 : Validation Contrôle Permanent" />
+    <Head title="Étape 3 : Validation N+1" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex flex-col gap-6 p-6">
             <div class="mb-6">
-                <h1 class="text-2xl font-bold bg-primary text-primary-foreground px-6 py-3 rounded-lg mb-3">ÉTAPE 3 : VALIDATION CONTRÔLE PERMANENT</h1>
-                <p class="text-muted-foreground mt-1">Valider ou rejeter la demande d'habilitation</p>
+                <h1 class="text-2xl font-bold bg-primary text-primary-foreground px-6 py-3 rounded-lg mb-3">ÉTAPE 3 : VALIDATION N+1</h1>
+                <p class="text-muted-foreground mt-1">Valider ou rejeter la demande d'habilitation en tant que N+1 du bénéficiaire</p>
             </div>
 
             <!-- Informations de la demande -->
@@ -128,95 +133,36 @@ const submit = () => {
                     </div>
                 </div>
 
-                <div class="space-y-2" v-if="habilitation.comment_n1">
-                    <h4 class="font-medium text-sm text-muted-foreground">Commentaire N+1</h4>
-                    <p class="text-sm whitespace-pre-wrap">{{ habilitation.comment_n1 }}</p>
-                </div>
             </div>
 
             <!-- Formulaire de validation -->
             <div class="rounded-lg border border-sidebar-border bg-card p-6">
-                <form @submit.prevent="submit" class="space-y-6">
-                    <!-- Action -->
+                <form @submit.prevent class="space-y-6">
+                    <!-- Actions disponibles -->
                     <div class="space-y-4">
-                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Décision *</h2>
-                        
-                        <div class="grid gap-4 md:grid-cols-2">
-                            <div
-                                class="flex items-center space-x-2 p-4 border rounded-lg cursor-pointer transition-colors"
-                                :class="actionSelected === 'approuver' ? 'border-primary bg-primary/5' : 'border-input'"
-                                @click="actionSelected = 'approuver'"
-                            >
-                                <input
-                                    type="radio"
-                                    id="action_approuver"
-                                    name="action"
-                                    value="approuver"
-                                    v-model="actionSelected"
-                                    class="h-4 w-4 text-primary"
-                                />
-                                <Label for="action_approuver" class="cursor-pointer flex-1">
-                                    <div class="font-medium">Approuver</div>
-                                    <div class="text-sm text-muted-foreground">Valider la demande et passer à l'étape suivante</div>
-                                </Label>
-                            </div>
-
-                            <div
-                                class="flex items-center space-x-2 p-4 border rounded-lg cursor-pointer transition-colors"
-                                :class="actionSelected === 'rejeter' ? 'border-destructive bg-destructive/5' : 'border-input'"
-                                @click="actionSelected = 'rejeter'"
-                            >
-                                <input
-                                    type="radio"
-                                    id="action_rejeter"
-                                    name="action"
-                                    value="rejeter"
-                                    v-model="actionSelected"
-                                    class="h-4 w-4 text-destructive"
-                                />
-                                <Label for="action_rejeter" class="cursor-pointer flex-1">
-                                    <div class="font-medium">Rejeter</div>
-                                    <div class="text-sm text-muted-foreground">Rejeter la demande (commentaire obligatoire)</div>
-                                </Label>
-                            </div>
-                        </div>
+                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Actions disponibles</h2>
+                        <p class="text-sm text-muted-foreground">Étape 3 : Validation N+1</p>
                         <InputError :message="form.errors.action" />
                     </div>
 
                     <!-- Commentaire -->
-                    <div class="space-y-4" v-if="showCommentField">
-                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Commentaire *</h2>
+                    <div class="space-y-4">
+                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Commentaire</h2>
                         
                         <div class="grid gap-2">
-                            <Label for="comment_control">Motif du rejet</Label>
+                            <Label for="comment_n1">
+                                Commentaire 
+                                <span class="text-muted-foreground text-sm font-normal">(obligatoire pour rejeter, optionnel pour valider)</span>
+                            </Label>
                             <textarea
-                                id="comment_control"
-                                v-model="form.comment_control"
-                                name="comment_control"
-                                rows="4"
-                                required
-                                class="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                placeholder="Expliquer le motif du rejet de la demande"
-                            ></textarea>
-                            <InputError :message="form.errors.comment_control" />
-                        </div>
-                    </div>
-
-                    <!-- Commentaire optionnel pour approbation -->
-                    <div class="space-y-4" v-if="actionSelected === 'approuver'">
-                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Commentaire (optionnel)</h2>
-                        
-                        <div class="grid gap-2">
-                            <Label for="comment_control_optional">Commentaire</Label>
-                            <textarea
-                                id="comment_control_optional"
-                                v-model="form.comment_control"
-                                name="comment_control"
+                                id="comment_n1"
+                                v-model="form.comment_n1"
+                                name="comment_n1"
                                 rows="4"
                                 class="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                placeholder="Ajouter un commentaire si nécessaire"
+                                placeholder="Ajouter un commentaire si nécessaire (obligatoire pour rejeter)"
                             ></textarea>
-                            <InputError :message="form.errors.comment_control" />
+                            <InputError :message="form.errors.comment_n1" />
                         </div>
                     </div>
 
@@ -229,16 +175,25 @@ const submit = () => {
                         >
                             Annuler
                         </Button>
-                        <Button
-                            type="submit"
-                            :disabled="form.processing || !actionSelected"
-                            :variant="actionSelected === 'rejeter' ? 'destructive' : 'default'"
-                        >
-                            <span v-if="form.processing">Traitement...</span>
-                            <span v-else-if="actionSelected === 'approuver'">Approuver la demande</span>
-                            <span v-else-if="actionSelected === 'rejeter'">Rejeter la demande</span>
-                            <span v-else>Valider</span>
-                        </Button>
+                        <div class="flex gap-3">
+                            <Button
+                                type="button"
+                                variant="destructive"
+                                @click="submit('rejeter')"
+                                :disabled="form.processing"
+                            >
+                                <span v-if="form.processing">Traitement...</span>
+                                <span v-else>Rejeter</span>
+                            </Button>
+                            <Button
+                                type="button"
+                                @click="submit('approuver')"
+                                :disabled="form.processing"
+                            >
+                                <span v-if="form.processing">Traitement...</span>
+                                <span v-else>Valider</span>
+                            </Button>
+                        </div>
                     </div>
                 </form>
             </div>

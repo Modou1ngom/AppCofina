@@ -55,7 +55,6 @@ const deleteRole = (id: number) => {
                         <thead class="bg-muted">
                             <tr>
                                 <th class="px-4 py-3 text-left text-sm font-medium">Nom</th>
-                                <th class="px-4 py-3 text-left text-sm font-medium">Slug</th>
                                 <th class="px-4 py-3 text-left text-sm font-medium">Description</th>
                                 <th class="px-4 py-3 text-left text-sm font-medium">Statut</th>
                                 <th class="px-4 py-3 text-left text-sm font-medium">Actions</th>
@@ -64,7 +63,6 @@ const deleteRole = (id: number) => {
                         <tbody class="divide-y divide-sidebar-border">
                             <tr v-for="role in roles" :key="role.id">
                                 <td class="px-4 py-3 text-sm font-medium">{{ role.nom }}</td>
-                                <td class="px-4 py-3 text-sm text-muted-foreground">{{ role.slug }}</td>
                                 <td class="px-4 py-3 text-sm">{{ role.description || '-' }}</td>
                                 <td class="px-4 py-3">
                                     <span

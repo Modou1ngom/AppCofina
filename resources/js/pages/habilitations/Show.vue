@@ -3,7 +3,7 @@ import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
-import { etape2, etape3, etape4, etape5, show } from '@/routes/habilitations';
+import { etape2, etape3, etape4, etape5, etape6, show } from '@/routes/habilitations';
 import { computed } from 'vue';
 
 interface Profil {
@@ -22,7 +22,12 @@ interface User {
 interface Habilitation {
     id: number;
     requester: Profil;
-    beneficiary: Profil;
+    beneficiary: Profil & {
+        n_plus_1_id?: number | null;
+        n_plus_2_id?: number | null;
+        n_plus_1?: Profil;
+        n_plus_2?: Profil;
+    };
     request_type: string;
     requested_profile?: string;
     profile_type?: string;
@@ -54,7 +59,10 @@ const props = defineProps<Props>();
 
 // Accès aux données d'authentification depuis Inertia
 const page = usePage();
-const isAdmin = computed(() => page.props.auth?.isAdmin || false);
+const isAdmin = computed(() => (page.props.auth as any)?.isAdmin || false);
+const isMetier = computed(() => (page.props.auth as any)?.isMetier || false);
+const isControle = computed(() => (page.props.auth as any)?.isControle || false);
+const currentProfil = computed(() => (page.props.auth as any)?.profil || null);
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -96,21 +104,69 @@ const getStatutLabel = (status: string) => {
 };
 
 // Admin peut voir toutes les étapes, les autres utilisateurs selon le statut
+// Étape 2 : Définir les droits - accessible uniquement si le statut est 'draft'
 const canAccessEtape2 = computed(() => 
-    isAdmin.value || props.habilitation.status === 'draft' || props.habilitation.status === 'pending_n1'
+    isAdmin.value || props.habilitation.status === 'draft'
 );
 
-const canAccessEtape3 = computed(() => 
-    isAdmin.value || props.habilitation.status === 'pending_control'
+// Étape 3 : Validation N+1 - accessible uniquement si l'utilisateur est le N+1 du bénéficiaire
+// L'admin ne voit ce bouton que s'il est lui-même le N+1 du bénéficiaire
+const canAccessEtape3 = computed(() => {
+    if (props.habilitation.status !== 'pending_n1') return false;
+    if (!currentProfil.value || !props.habilitation.beneficiary) return false;
+    return props.habilitation.beneficiary.n_plus_1_id === currentProfil.value.id;
+});
+
+// Étape 4 : Validation N+2 - accessible uniquement si l'utilisateur est le N+2 du bénéficiaire
+// L'admin ne voit ce bouton que s'il est lui-même le N+2 du bénéficiaire
+const canAccessEtape4 = computed(() => {
+    if (props.habilitation.status !== 'pending_n2') return false;
+    if (!currentProfil.value || !props.habilitation.beneficiary) return false;
+    return props.habilitation.beneficiary.n_plus_2_id === currentProfil.value.id;
+});
+
+// Étape 5 : Validation Contrôle - accessible uniquement si l'utilisateur a le rôle Contrôle
+// ET que le N+1 et le N+2 ont validé
+const canAccessEtape5 = computed(() => {
+    if (!isControle.value || props.habilitation.status !== 'pending_control') {
+        return false;
+    }
+    // Vérifier que le N+1 a validé
+    if (!props.habilitation.validator_n1 || !props.habilitation.validated_n1_at) {
+        return false;
+    }
+    // Vérifier que le N+2 a validé
+    if (!props.habilitation.validator_n2 || !props.habilitation.validated_n2_at) {
+        return false;
+    }
+    return true;
+});
+
+// Étape 6 : Exécution IT - accessible uniquement aux admins
+const canAccessEtape6 = computed(() => 
+    isAdmin.value && (props.habilitation.status === 'approved' || props.habilitation.status === 'in_progress')
 );
 
-const canAccessEtape4 = computed(() => 
-    isAdmin.value || props.habilitation.status === 'pending_n2'
-);
-
-const canAccessEtape5 = computed(() => 
-    isAdmin.value || props.habilitation.status === 'approved' || props.habilitation.status === 'in_progress'
-);
+// Fonction pour confirmer et supprimer la demande
+const confirmDelete = () => {
+    const message = `Êtes-vous sûr de vouloir supprimer la demande d'habilitation #${props.habilitation.id} ?\n\n` +
+                   `Demandeur: ${props.habilitation.requester.prenom} ${props.habilitation.requester.nom}\n` +
+                   `Bénéficiaire: ${props.habilitation.beneficiary.prenom} ${props.habilitation.beneficiary.nom}\n\n` +
+                   `Cette action est irréversible et supprimera définitivement la demande.`;
+    
+    if (confirm(message)) {
+        router.delete(`/habilitations/${props.habilitation.id}`, {
+            preserveScroll: false,
+            onSuccess: () => {
+                // La redirection est gérée par le contrôleur
+            },
+            onError: (errors) => {
+                console.error('Erreur lors de la suppression:', errors);
+                alert('Une erreur est survenue lors de la suppression de la demande.');
+            }
+        });
+    }
+};
 </script>
 
 <template>
@@ -134,42 +190,39 @@ const canAccessEtape5 = computed(() =>
                     </p>
                 </div>
             </div>
-            <div class="flex justify-end mb-4">
+            <div class="flex justify-end gap-3 mb-4">
                 <Link href="/habilitations">
                     <Button variant="outline">Retour à la liste</Button>
                 </Link>
+                <Button
+                    v-if="isAdmin"
+                    variant="destructive"
+                    @click="confirmDelete"
+                >
+                    Supprimer la demande
+                </Button>
             </div>
 
             <!-- Actions rapides selon le statut -->
-            <!-- Admin voit toutes les étapes pour suivre le processus complet -->
-            <div class="rounded-lg border border-sidebar-border bg-card p-4" v-if="canAccessEtape2 || canAccessEtape3 || canAccessEtape4 || canAccessEtape5">
+            <div class="rounded-lg border border-sidebar-border bg-card p-4" v-if="canAccessEtape2 || canAccessEtape3 || canAccessEtape4 || canAccessEtape5 || canAccessEtape6">
                 <h3 class="font-semibold mb-3">
-                    {{ isAdmin ? 'Voir toutes les étapes du processus' : 'Actions disponibles' }}
+                    Actions disponibles
                 </h3>
                 <div class="flex flex-wrap gap-2">
-                    <Link
-                        v-if="canAccessEtape2"
-                        :href="etape2.url({ habilitation: habilitation.id })"
-                    >
-                        <Button>{{ isAdmin ? 'Voir Étape 2' : 'Continuer vers l\'étape 2' }}</Button>
+                    <Link v-if="canAccessEtape2" :href="etape2.url({ habilitation: habilitation.id })">
+                        <Button variant="outline">Étape 2 : Définir les droits</Button>
                     </Link>
-                    <Link
-                        v-if="canAccessEtape3"
-                        :href="etape3.url({ habilitation: habilitation.id })"
-                    >
-                        <Button>{{ isAdmin ? 'Voir Étape 3' : 'Valider le Contrôle Permanent (Étape 3)' }}</Button>
+                    <Link v-if="canAccessEtape3" :href="etape3.url({ habilitation: habilitation.id })">
+                        <Button>Valider N+1</Button>
                     </Link>
-                    <Link
-                        v-if="canAccessEtape4"
-                        :href="etape4.url({ habilitation: habilitation.id })"
-                    >
-                        <Button>{{ isAdmin ? 'Voir Étape 4' : 'Valider N+2 (Étape 4)' }}</Button>
+                    <Link v-if="canAccessEtape4" :href="etape4.url({ habilitation: habilitation.id })">
+                        <Button>Valider N+2</Button>
                     </Link>
-                    <Link
-                        v-if="canAccessEtape5"
-                        :href="etape5.url({ habilitation: habilitation.id })"
-                    >
-                        <Button>{{ isAdmin ? 'Voir Étape 5' : 'Exécuter IT (Étape 5)' }}</Button>
+                    <Link v-if="canAccessEtape5" :href="etape5.url({ habilitation: habilitation.id })">
+                        <Button>Valider Contrôle</Button>
+                    </Link>
+                    <Link v-if="canAccessEtape6" :href="etape6.url({ habilitation: habilitation.id })">
+                        <Button variant="outline">Exécuter IT</Button>
                     </Link>
                 </div>
             </div>
@@ -277,6 +330,25 @@ const canAccessEtape5 = computed(() =>
                         </p>
                     </div>
 
+                    <!-- Validation N+2 -->
+                    <div v-if="habilitation.validator_n2" class="border-l-4 border-orange-500 pl-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="font-medium">Validation N+2</h3>
+                                <p class="text-sm text-muted-foreground">
+                                    Validé par {{ habilitation.validator_n2.name }}
+                                    <span v-if="habilitation.validated_n2_at">
+                                        le {{ new Date(habilitation.validated_n2_at).toLocaleDateString('fr-FR') }}
+                                    </span>
+                                </p>
+                            </div>
+                            <span class="text-green-600 text-sm font-medium">✓ Validé</span>
+                        </div>
+                        <p v-if="habilitation.comment_n2" class="text-sm mt-2 text-muted-foreground">
+                            {{ habilitation.comment_n2 }}
+                        </p>
+                    </div>
+
                     <!-- Validation Contrôle Permanent -->
                     <div v-if="habilitation.validator_control" class="border-l-4 pl-4"
                          :class="habilitation.status === 'rejected' ? 'border-red-500' : 'border-yellow-500'">
@@ -299,25 +371,6 @@ const canAccessEtape5 = computed(() =>
                         </div>
                         <p v-if="habilitation.comment_control" class="text-sm mt-2 text-muted-foreground">
                             {{ habilitation.comment_control }}
-                        </p>
-                    </div>
-
-                    <!-- Validation N+2 -->
-                    <div v-if="habilitation.validator_n2" class="border-l-4 border-orange-500 pl-4">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <h3 class="font-medium">Validation N+2</h3>
-                                <p class="text-sm text-muted-foreground">
-                                    Validé par {{ habilitation.validator_n2.name }}
-                                    <span v-if="habilitation.validated_n2_at">
-                                        le {{ new Date(habilitation.validated_n2_at).toLocaleDateString('fr-FR') }}
-                                    </span>
-                                </p>
-                            </div>
-                            <span class="text-green-600 text-sm font-medium">✓ Validé</span>
-                        </div>
-                        <p v-if="habilitation.comment_n2" class="text-sm mt-2 text-muted-foreground">
-                            {{ habilitation.comment_n2 }}
                         </p>
                     </div>
 

@@ -32,6 +32,12 @@ class RoleSeeder extends Seeder
                 'description' => 'Profil de contrôle et validation',
                 'actif' => true,
             ],
+            [
+                'nom' => 'RH',
+                'slug' => 'rh',
+                'description' => 'Ressources Humaines - Gestion de l\'enrôlement des employés',
+                'actif' => true,
+            ],
         ];
 
         foreach ($roles as $roleData) {

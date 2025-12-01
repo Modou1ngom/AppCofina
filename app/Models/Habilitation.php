@@ -130,9 +130,9 @@ class Habilitation extends Model
     {
         $this->status = match($this->status) {
             'draft' => 'pending_n1',
-            'pending_n1' => 'pending_control',
-            'pending_control' => 'pending_n2',
-            'pending_n2' => 'approved',
+            'pending_n1' => 'pending_n2',
+            'pending_n2' => 'pending_control',
+            'pending_control' => 'approved',
             'approved' => 'in_progress',
             'in_progress' => 'completed',
             default => $this->status,

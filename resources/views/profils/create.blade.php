@@ -15,8 +15,11 @@
     <label>Département :</label>
     <input type="text" name="departement" required>
 
-    <label>Supérieur hiérarchique (N+1) :</label>
-    <input type="text" name="superieur_hierarchique" required>
+    <label>N+1 :</label>
+    <input type="text" name="n_plus_1" required>
+
+    <label>N+2 :</label>
+    <input type="text" name="n_plus_2">
 
     <label>Type de demande :</label>
     <select name="type_demande" required>

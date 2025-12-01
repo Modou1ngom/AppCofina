@@ -108,7 +108,7 @@ const submit = () => {
         <div class="flex flex-col gap-6 p-6">
             <div class="mb-6">
                 <h1 class="text-2xl font-bold bg-primary text-primary-foreground px-6 py-3 rounded-lg mb-3">ÉTAPE 2 : DÉFINITION DES DROITS ET HABILITATIONS</h1>
-                <p class="text-muted-foreground mt-1">Définir les droits et habilitations par N+1</p>
+               
             </div>
 
             <!-- Informations de la demande -->
@@ -225,7 +225,7 @@ const submit = () => {
 
                     <!-- Commentaire N+1 -->
                     <div class="space-y-4">
-                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Commentaire N+1</h2>
+                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Commentaire</h2>
                         
                         <div class="grid gap-2">
                             <Label for="comment_n1">Commentaire (optionnel)</Label>

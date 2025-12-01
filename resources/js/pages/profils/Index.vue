@@ -4,12 +4,6 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
 
-interface Role {
-    id: number;
-    nom: string;
-    slug: string;
-}
-
 interface Profil {
     id: number;
     matricule: string;
@@ -22,7 +16,6 @@ interface Profil {
     site?: string;
     type_contrat: string;
     statut: string;
-    roles?: Role[];
 }
 
 interface Props {
@@ -52,14 +45,7 @@ const deleteProfil = (id: number) => {
         <div class="flex flex-col gap-6 p-6">
             <div class="flex items-center justify-between">
                 <h1 class="text-2xl font-bold">Gestion des profils</h1>
-                <div class="flex gap-2">
-                    <Link href="/roles">
-                        <Button variant="outline">Gérer les rôles</Button>
-                    </Link>
-                    <Link href="/profils/create">
-                        <Button>Nouveau profil</Button>
-                    </Link>
-                </div>
+                
             </div>
 
             <div class="rounded-lg border border-sidebar-border bg-card">
@@ -71,7 +57,6 @@ const deleteProfil = (id: number) => {
                                 <th class="px-4 py-3 text-left text-sm font-medium">Nom complet</th>
                                 <th class="px-4 py-3 text-left text-sm font-medium">Fonction</th>
                                 <th class="px-4 py-3 text-left text-sm font-medium">Département</th>
-                                <th class="px-4 py-3 text-left text-sm font-medium">Rôles</th>
                                 <th class="px-4 py-3 text-left text-sm font-medium">Statut</th>
                                 <th class="px-4 py-3 text-left text-sm font-medium">Actions</th>
                             </tr>
@@ -84,20 +69,6 @@ const deleteProfil = (id: number) => {
                                 </td>
                                 <td class="px-4 py-3 text-sm">{{ profil.fonction || '-' }}</td>
                                 <td class="px-4 py-3 text-sm">{{ profil.departement || '-' }}</td>
-                                <td class="px-4 py-3">
-                                    <div class="flex flex-wrap gap-1">
-                                        <span
-                                            v-for="role in profil.roles"
-                                            :key="role.id"
-                                            class="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary"
-                                        >
-                                            {{ role.nom }}
-                                        </span>
-                                        <span v-if="!profil.roles || profil.roles.length === 0" class="text-muted-foreground text-xs">
-                                            Aucun rôle
-                                        </span>
-                                    </div>
-                                </td>
                                 <td class="px-4 py-3">
                                     <span
                                         :class="[

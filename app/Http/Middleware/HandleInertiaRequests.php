@@ -43,11 +43,9 @@ class HandleInertiaRequests extends Middleware
         $roles = [];
 
         if ($user) {
+            $user->load('roles');
             $profil = $user->profil;
-            if ($profil) {
-                $profil->load('roles');
-                $roles = $profil->roles->pluck('slug')->toArray();
-            }
+            $roles = $user->roles->pluck('slug')->toArray();
         }
 
         return [
@@ -61,6 +59,8 @@ class HandleInertiaRequests extends Middleware
                 'isAdmin' => $user ? $user->isAdmin() : false,
                 'isMetier' => $user ? $user->isMetier() : false,
                 'isControle' => $user ? $user->isControle() : false,
+                'isRh' => $user ? $user->isRh() : false,
+                'isResponsableDepartement' => $user ? $user->isResponsableDepartement() : false,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];

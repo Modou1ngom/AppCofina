@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Habilitation;
 use App\Models\Profil;
 use App\Models\Application;
+use App\Models\Filiale;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
@@ -15,60 +16,204 @@ class HabilitationController extends Controller
     /**
      * Liste toutes les demandes d'habilitation
      */
-    public function index()
+    public function index(Request $request)
     {
         $user = Auth::user();
         $profil = $user?->profil;
+        $filter = $request->query('filter', 'all'); // all, encours, termine, rejete
+
+        $query = Habilitation::with(['requester', 'beneficiary', 'beneficiary.nPlus1', 'beneficiary.nPlus2', 'validatorN1', 'validatorControl', 'validatorN2', 'executorIt']);
 
         // Admin voit toutes les habilitations
         if ($user && $user->isAdmin()) {
-            $habilitations = Habilitation::with(['requester', 'beneficiary', 'validatorN1', 'validatorControl', 'validatorN2', 'executorIt'])
-                ->orderBy('created_at', 'desc')
-                ->paginate(15);
+            // Pas de restriction pour l'admin
         } 
         // Controle voit les habilitations en attente de contrôle et celles déjà contrôlées
         elseif ($user && $user->isControle()) {
-            $habilitations = Habilitation::with(['requester', 'beneficiary', 'validatorN1', 'validatorControl', 'validatorN2', 'executorIt'])
-                ->where(function($query) {
-                    $query->where('status', 'pending_control')
-                          ->orWhere('validator_control_id', '!=', null);
-                })
-                ->orderBy('created_at', 'desc')
-                ->paginate(15);
+            $query->where(function($q) {
+                $q->where('status', 'pending_control')
+                  ->orWhere('validator_control_id', '!=', null);
+            });
         }
-        // Metier (N et N-1) voit ses habilitations et celles de ses subordonnés
+        // RH voit les habilitations où son profil est demandeur ou bénéficiaire
+        elseif ($user && $user->isRh() && $profil) {
+            $query->where(function($q) use ($profil) {
+                $q->where('requester_profile_id', $profil->id)
+                  ->orWhere('beneficiary_profile_id', $profil->id);
+            });
+        }
+        // Metier voit ses habilitations, celles de ses subordonnés, et celles qu'il doit valider (N+1 ou N+2)
         elseif ($profil) {
             $subordonnesIds = $profil->subordonnes()->pluck('id')->toArray();
             $subordonnesIds[] = $profil->id; // Inclure aussi le profil lui-même
 
-            $habilitations = Habilitation::with(['requester', 'beneficiary', 'validatorN1', 'validatorControl', 'validatorN2', 'executorIt'])
-                ->where(function($query) use ($profil, $subordonnesIds) {
-                    $query->whereIn('requester_profile_id', $subordonnesIds)
-                          ->orWhereIn('beneficiary_profile_id', $subordonnesIds)
-                          ->orWhere('validator_n1_id', $profil->id);
-                })
-                ->orderBy('created_at', 'desc')
-                ->paginate(15);
+            // Récupérer les profils dont l'utilisateur est N+1 ou N+2
+            $profilsNPlus1 = Profil::where('n_plus_1_id', $profil->id)->pluck('id')->toArray();
+            $profilsNPlus2 = Profil::where('n_plus_2_id', $profil->id)->pluck('id')->toArray();
+
+            $query->where(function($q) use ($profil, $subordonnesIds, $profilsNPlus1, $profilsNPlus2) {
+                $q->whereIn('requester_profile_id', $subordonnesIds)
+                  ->orWhereIn('beneficiary_profile_id', $subordonnesIds)
+                  ->orWhere('validator_n1_id', $profil->id)
+                  ->orWhere('validator_n2_id', $profil->id)
+                  // Habilitations où le bénéficiaire a l'utilisateur comme N+1 et le statut est pending_n1
+                  ->orWhere(function($subQ) use ($profilsNPlus1) {
+                      $subQ->whereIn('beneficiary_profile_id', $profilsNPlus1)
+                           ->where('status', 'pending_n1');
+                  })
+                  // Habilitations où le bénéficiaire a l'utilisateur comme N+2 et le statut est pending_n2
+                  ->orWhere(function($subQ) use ($profilsNPlus2) {
+                      $subQ->whereIn('beneficiary_profile_id', $profilsNPlus2)
+                           ->where('status', 'pending_n2');
+                  });
+            });
         } 
         else {
-            $habilitations = Habilitation::where('id', 0)->paginate(15); // Aucune habilitation
+            $query->where('id', 0); // Aucune habilitation
+        }
+
+        // Appliquer le filtre de statut
+        if ($filter === 'encours') {
+            // Toutes les habilitations qui ne sont pas terminées ni rejetées
+            $query->whereNotIn('status', ['completed', 'rejected']);
+        } elseif ($filter === 'termine') {
+            $query->where('status', 'completed');
+        } elseif ($filter === 'rejete') {
+            $query->where('status', 'rejected');
+        }
+        // Si filter === 'all', pas de filtre supplémentaire
+
+        $habilitations = $query->orderBy('created_at', 'desc')->paginate(15);
+
+        // Récupérer les membres du département si l'utilisateur a un profil avec un département
+        $subordonnes = collect([]);
+        if ($profil && $profil->departement) {
+            $subordonnes = Profil::where('departement', $profil->departement)
+                ->where('id', '!=', $profil->id) // Exclure l'utilisateur lui-même
+                ->where('statut', 'actif')
+                ->orderBy('nom')
+                ->orderBy('prenom')
+                ->get(['id', 'nom', 'prenom', 'matricule', 'fonction', 'departement', 'email', 'telephone', 'site']);
         }
 
         return Inertia::render('habilitations/Index', [
             'habilitations' => $habilitations,
+            'filter' => $filter,
+            'subordonnes' => $subordonnes,
+            'hasDepartement' => $profil && $profil->departement ? true : false,
+        ]);
+    }
+
+    /**
+     * API: Récupérer les membres du département pour le dialog
+     */
+    public function getSubordonnes()
+    {
+        $user = Auth::user();
+        
+        // Vérifier que l'utilisateur a un profil avec un département
+        if (!$user || !$user->profil) {
+            return response()->json(['error' => 'Vous devez avoir un profil pour créer des demandes d\'habilitation.'], 403);
+        }
+        
+        $profil = $user->profil;
+        
+        if (!$profil->departement) {
+            return response()->json(['error' => 'Aucun département associé trouvé.'], 404);
+        }
+        
+        // Récupérer tous les profils du même département sauf l'utilisateur lui-même
+        $subordonnes = Profil::where('departement', $profil->departement)
+            ->where('id', '!=', $profil->id) // Exclure l'utilisateur lui-même
+            ->where('statut', 'actif')
+            ->orderBy('nom')
+            ->orderBy('prenom')
+            ->get(['id', 'nom', 'prenom', 'matricule', 'fonction', 'departement', 'email', 'telephone', 'site']);
+        
+        return response()->json([
+            'subordonnes' => $subordonnes,
+        ]);
+    }
+
+    /**
+     * Sélection du bénéficiaire - Première étape pour tous les membres du département
+     */
+    public function selectBeneficiary()
+    {
+        $user = Auth::user();
+        
+        // Vérifier que l'utilisateur a un profil avec un département
+        if (!$user || !$user->profil) {
+            return redirect()->route('habilitations.index')
+                ->with('error', 'Vous devez avoir un profil pour créer des demandes d\'habilitation.');
+        }
+        
+        $profil = $user->profil;
+        
+        if (!$profil->departement) {
+            return redirect()->route('habilitations.index')
+                ->with('error', 'Aucun département associé trouvé.');
+        }
+        
+        // Récupérer tous les profils du même département sauf l'utilisateur lui-même
+        $subordonnes = Profil::where('departement', $profil->departement)
+            ->where('id', '!=', $profil->id) // Exclure l'utilisateur lui-même
+            ->where('statut', 'actif')
+            ->orderBy('nom')
+            ->orderBy('prenom')
+            ->get(['id', 'nom', 'prenom', 'matricule', 'fonction', 'departement', 'email', 'telephone', 'site']);
+        
+        return Inertia::render('habilitations/SelectBeneficiary', [
+            'subordonnes' => $subordonnes,
+            'demandeur' => $profil,
         ]);
     }
 
     /**
      * Étape 1: Informations de base - Formulaire de création de demande
      */
-    public function create()
+    public function create(Request $request)
     {
-        $profils = Profil::orderBy('nom')->get(['id', 'nom', 'prenom', 'matricule', 'fonction', 'departement']);
+        $user = Auth::user();
+        
+        // Vérifier que l'utilisateur a un profil avec un département
+        if (!$user || !$user->profil) {
+            return redirect()->route('habilitations.index')
+                ->with('error', 'Vous devez avoir un profil pour créer des demandes d\'habilitation.');
+        }
+        
+        $profil = $user->profil;
+        
+        if (!$profil->departement) {
+            return redirect()->route('habilitations.index')
+                ->with('error', 'Aucun département associé trouvé.');
+        }
+        
+        // Récupérer le bénéficiaire si fourni en paramètre
+        $beneficiaryId = $request->query('beneficiary_id');
+        
+        // Si aucun bénéficiaire n'est fourni, rediriger vers la page de sélection
+        if (!$beneficiaryId) {
+            return redirect()->route('habilitations.select-beneficiary');
+        }
+        
+        $beneficiary = Profil::find($beneficiaryId);
+        // Vérifier que le bénéficiaire est bien du même département que l'utilisateur
+        if (!$beneficiary || $beneficiary->departement !== $profil->departement || $beneficiary->id === $profil->id) {
+            return redirect()->route('habilitations.select-beneficiary')
+                ->with('error', 'Le bénéficiaire sélectionné n\'est pas valide.');
+        }
+        
+        // Récupérer les filiales actives
+        $filiales = Filiale::where('actif', true)
+            ->orderBy('nom')
+            ->get(['id', 'nom']);
         
         return Inertia::render('habilitations/Create', [
-            'profils' => $profils,
+            'demandeur' => $profil,
+            'beneficiaire' => $beneficiary,
             'applications' => $this->getApplicationsList(),
+            'filiales' => $filiales,
         ]);
     }
 
@@ -189,9 +334,11 @@ class HabilitationController extends Controller
         $user = Auth::user();
         // Admin peut accéder à toutes les étapes
         if (!$user || !$user->isAdmin()) {
-            if ($habilitation->status !== 'draft' && $habilitation->status !== 'pending_n1') {
+            // L'étape 2 n'est accessible que si le statut est 'draft'
+            // Si le statut est 'pending_n1', l'étape 2 est déjà complétée
+            if ($habilitation->status !== 'draft') {
                 return redirect()->route('habilitations.show', $habilitation->id)
-                    ->with('error', 'Cette étape n\'est plus accessible.');
+                    ->with('error', 'Cette étape n\'est plus accessible. La demande est déjà en attente de validation N+1.');
             }
         }
 
@@ -268,30 +415,39 @@ class HabilitationController extends Controller
             'applications' => $data['applications'],
             'other_application' => $data['other_application'] ?? null,
             'comment_n1' => $data['comment_n1'] ?? null,
-            'status' => 'pending_control',
+            'status' => 'pending_n1',
         ]);
 
         // Redirection vers la page de détails (Show) pour afficher le résumé
-        // L'utilisateur pourra ensuite accéder à l'étape 3 depuis cette page
+        // La demande est maintenant en attente de validation N+1
         return redirect()->route('habilitations.index')
-            ->with('success', 'Étape 2 : Définition des droits et habilitations complétée. La demande est en attente de validation du contrôle permanent (Étape 3).');
+            ->with('success', 'Étape 2 : Définition des droits et habilitations complétée. La demande est en attente de validation N+1.');
     }
 
     /**
-     * Étape 3: Validation Contrôle Permanent - Formulaire
+     * Étape 3: Validation N+1 - Formulaire
      */
     public function etape3(Habilitation $habilitation)
     {
         $user = Auth::user();
+        $profil = $user?->profil;
+        
         // Admin peut accéder à toutes les étapes
         if (!$user || !$user->isAdmin()) {
-            if ($habilitation->status !== 'pending_control') {
+            if ($habilitation->status !== 'pending_n1') {
                 return redirect()->route('habilitations.show', $habilitation->id)
                     ->with('error', 'Cette étape n\'est pas accessible actuellement.');
             }
+            
+            // Vérifier que l'utilisateur est le N+1 du bénéficiaire
+            $beneficiary = $habilitation->beneficiary;
+            if (!$beneficiary || !$profil || $beneficiary->n_plus_1_id !== $profil->id) {
+                return redirect()->route('habilitations.show', $habilitation->id)
+                    ->with('error', 'Vous n\'êtes pas autorisé à valider cette demande. Seul le N+1 du bénéficiaire peut valider.');
+            }
         }
 
-        $habilitation->load(['requester', 'beneficiary', 'validatorN1']);
+        $habilitation->load(['requester', 'beneficiary', 'beneficiary.nPlus1']);
 
         return Inertia::render('habilitations/Etape3', [
             'habilitation' => $habilitation,
@@ -299,35 +455,56 @@ class HabilitationController extends Controller
     }
 
     /**
-     * Étape 3: Validation Contrôle Permanent - Validation ou rejet
+     * Étape 3: Validation N+1 - Validation ou rejet
      */
     public function validerEtape3(Request $request, Habilitation $habilitation)
     {
+        $user = Auth::user();
+        $profil = $user?->profil;
+        
+        // Charger le bénéficiaire avec ses relations
+        $habilitation->load('beneficiary');
+        
+        // Vérifier le statut de l'habilitation
+        if ($habilitation->status !== 'pending_n1') {
+            return redirect()->route('habilitations.show', $habilitation->id)
+                ->with('error', 'Cette demande n\'est plus en attente de validation N+1.');
+        }
+        
+        // Vérifier que l'utilisateur est le N+1 du bénéficiaire (sauf admin)
+        if (!$user || !$user->isAdmin()) {
+            $beneficiary = $habilitation->beneficiary;
+            if (!$beneficiary || !$profil || $beneficiary->n_plus_1_id !== $profil->id) {
+                return redirect()->route('habilitations.show', $habilitation->id)
+                    ->with('error', 'Vous n\'êtes pas autorisé à valider cette demande. Seul le N+1 du bénéficiaire peut valider.');
+            }
+        }
+        
         $validated = $request->validate([
             'action' => 'required|in:approuver,rejeter',
-            'comment_control' => 'nullable|string|required_if:action,rejeter',
+            'comment_n1' => 'nullable|string|required_if:action,rejeter',
         ]);
 
         if ($validated['action'] === 'approuver') {
             $habilitation->update([
-                'validator_control_id' => Auth::id() ?? null,
-                'validated_control_at' => now(),
-                'comment_control' => $validated['comment_control'] ?? null,
+                'validator_n1_id' => Auth::id() ?? null,
+                'validated_n1_at' => now(),
+                'comment_n1' => $validated['comment_n1'] ?? null,
                 'status' => 'pending_n2',
             ]);
 
             return redirect()->route('habilitations.show', $habilitation->id)
-                ->with('success', 'Étape 3 : Validation Contrôle Permanent complétée. La demande est en attente de validation N+2.');
+                ->with('success', 'Étape 3 : Validation N+1 complétée. La demande est en attente de validation N+2.');
         } else {
             $habilitation->update([
-                'validator_control_id' => Auth::id() ?? null,
-                'validated_control_at' => now(),
-                'comment_control' => $validated['comment_control'] ?? null,
+                'validator_n1_id' => Auth::id() ?? null,
+                'validated_n1_at' => now(),
+                'comment_n1' => $validated['comment_n1'] ?? null,
                 'status' => 'rejected',
             ]);
 
             return redirect()->route('habilitations.show', $habilitation->id)
-                ->with('error', 'Étape 3 : La demande a été rejetée par le Contrôle Permanent.');
+                ->with('error', 'Étape 3 : La demande a été rejetée par N+1.');
         }
     }
 
@@ -337,15 +514,24 @@ class HabilitationController extends Controller
     public function etape4(Habilitation $habilitation)
     {
         $user = Auth::user();
+        $profil = $user?->profil;
+        
         // Admin peut accéder à toutes les étapes
         if (!$user || !$user->isAdmin()) {
             if ($habilitation->status !== 'pending_n2') {
                 return redirect()->route('habilitations.show', $habilitation->id)
                     ->with('error', 'Cette étape n\'est pas accessible actuellement.');
             }
+            
+            // Vérifier que l'utilisateur est le N+2 du bénéficiaire
+            $beneficiary = $habilitation->beneficiary;
+            if (!$beneficiary || !$profil || $beneficiary->n_plus_2_id !== $profil->id) {
+                return redirect()->route('habilitations.show', $habilitation->id)
+                    ->with('error', 'Vous n\'êtes pas autorisé à valider cette demande. Seul le N+2 du bénéficiaire peut valider.');
+            }
         }
 
-        $habilitation->load(['requester', 'beneficiary', 'validatorN1', 'validatorControl']);
+        $habilitation->load(['requester', 'beneficiary', 'beneficiary.nPlus2', 'validatorN1']);
 
         return Inertia::render('habilitations/Etape4', [
             'habilitation' => $habilitation,
@@ -357,6 +543,21 @@ class HabilitationController extends Controller
      */
     public function validerEtape4(Request $request, Habilitation $habilitation)
     {
+        $user = Auth::user();
+        $profil = $user?->profil;
+        
+        // Charger le bénéficiaire avec ses relations
+        $habilitation->load('beneficiary');
+        
+        // Vérifier que l'utilisateur est le N+2 du bénéficiaire (sauf admin)
+        if (!$user || !$user->isAdmin()) {
+            $beneficiary = $habilitation->beneficiary;
+            if (!$beneficiary || !$profil || $beneficiary->n_plus_2_id !== $profil->id) {
+                return redirect()->route('habilitations.show', $habilitation->id)
+                    ->with('error', 'Vous n\'êtes pas autorisé à valider cette demande.');
+            }
+        }
+        
         $validated = $request->validate([
             'action' => 'required|in:approuver,rejeter',
             'comment_n2' => 'nullable|string|required_if:action,rejeter',
@@ -367,11 +568,11 @@ class HabilitationController extends Controller
                 'validator_n2_id' => Auth::id() ?? null,
                 'validated_n2_at' => now(),
                 'comment_n2' => $validated['comment_n2'] ?? null,
-                'status' => 'approved',
+                'status' => 'pending_control',
             ]);
 
             return redirect()->route('habilitations.show', $habilitation->id)
-                ->with('success', 'Étape 4 : Validation N+2 complétée. La demande est prête pour l\'exécution IT.');
+                ->with('success', 'Étape 4 : Validation N+2 complétée. La demande est en attente de validation du Contrôle Permanent.');
         } else {
             $habilitation->update([
                 'validator_n2_id' => Auth::id() ?? null,
@@ -386,9 +587,115 @@ class HabilitationController extends Controller
     }
 
     /**
-     * Étape 5: Exécution IT - Formulaire
+     * Étape 5: Validation Contrôle Permanent - Formulaire
      */
     public function etape5(Habilitation $habilitation)
+    {
+        $user = Auth::user();
+        
+        // Admin peut accéder à toutes les étapes
+        if (!$user || !$user->isAdmin()) {
+            if ($habilitation->status !== 'pending_control') {
+                return redirect()->route('habilitations.show', $habilitation->id)
+                    ->with('error', 'Cette étape n\'est pas accessible actuellement.');
+            }
+            
+            // Vérifier que l'utilisateur a le rôle Contrôle
+            if (!$user->isControle()) {
+                return redirect()->route('habilitations.show', $habilitation->id)
+                    ->with('error', 'Vous n\'êtes pas autorisé à valider cette demande. Seul le Contrôle Permanent peut valider.');
+            }
+        }
+
+        $habilitation->load([
+            'requester',
+            'beneficiary',
+            'validatorN1',
+            'validatorN2'
+        ]);
+
+        // Vérifier que le N+1 a validé
+        if (!$habilitation->validator_n1_id || !$habilitation->validated_n1_at) {
+            return redirect()->route('habilitations.show', $habilitation->id)
+                ->with('error', 'Le contrôle permanent ne peut pas valider tant que le N+1 n\'a pas validé la demande.');
+        }
+
+        // Vérifier que le N+2 a validé
+        if (!$habilitation->validator_n2_id || !$habilitation->validated_n2_at) {
+            return redirect()->route('habilitations.show', $habilitation->id)
+                ->with('error', 'Le contrôle permanent ne peut pas valider tant que le N+2 n\'a pas validé la demande.');
+        }
+
+        return Inertia::render('habilitations/Etape5', [
+            'habilitation' => $habilitation,
+        ]);
+    }
+
+    /**
+     * Étape 5: Validation Contrôle Permanent - Validation ou rejet
+     */
+    public function validerEtape5(Request $request, Habilitation $habilitation)
+    {
+        $user = Auth::user();
+        
+        // Vérifier que l'utilisateur a le rôle Contrôle (sauf admin)
+        if (!$user || !$user->isAdmin()) {
+            if (!$user->isControle()) {
+                return redirect()->route('habilitations.show', $habilitation->id)
+                    ->with('error', 'Vous n\'êtes pas autorisé à valider cette demande.');
+            }
+        }
+
+        // Vérifier le statut
+        if ($habilitation->status !== 'pending_control') {
+            return redirect()->route('habilitations.show', $habilitation->id)
+                ->with('error', 'Cette demande n\'est plus en attente de validation du contrôle permanent.');
+        }
+
+        // Vérifier que le N+1 a validé
+        if (!$habilitation->validator_n1_id || !$habilitation->validated_n1_at) {
+            return redirect()->route('habilitations.show', $habilitation->id)
+                ->with('error', 'Le contrôle permanent ne peut pas valider tant que le N+1 n\'a pas validé la demande.');
+        }
+
+        // Vérifier que le N+2 a validé
+        if (!$habilitation->validator_n2_id || !$habilitation->validated_n2_at) {
+            return redirect()->route('habilitations.show', $habilitation->id)
+                ->with('error', 'Le contrôle permanent ne peut pas valider tant que le N+2 n\'a pas validé la demande.');
+        }
+        
+        $validated = $request->validate([
+            'action' => 'required|in:approuver,rejeter',
+            'comment_control' => 'nullable|string|required_if:action,rejeter',
+        ]);
+
+        if ($validated['action'] === 'approuver') {
+            $habilitation->update([
+                'validator_control_id' => Auth::id() ?? null,
+                'validated_control_at' => now(),
+                'comment_control' => $validated['comment_control'] ?? null,
+                'status' => 'approved',
+            ]);
+
+            return redirect()->route('habilitations.show', $habilitation->id)
+                ->with('success', 'Étape 5 : Validation Contrôle Permanent complétée. La demande est prête pour l\'exécution IT.');
+        } else {
+            $habilitation->update([
+                'validator_control_id' => Auth::id() ?? null,
+                'validated_control_at' => now(),
+                'comment_control' => $validated['comment_control'] ?? null,
+                'status' => 'rejected',
+            ]);
+
+            return redirect()->route('habilitations.show', $habilitation->id)
+                ->with('error', 'Étape 5 : La demande a été rejetée par le Contrôle Permanent.');
+        }
+    }
+
+    /**
+     * Étape 6: Exécution IT - Formulaire
+     */
+    public function etape6(Habilitation $habilitation)
     {
         $user = Auth::user();
         // Admin peut accéder à toutes les étapes
@@ -403,19 +710,19 @@ class HabilitationController extends Controller
             'requester',
             'beneficiary',
             'validatorN1',
-            'validatorControl',
-            'validatorN2'
+            'validatorN2',
+            'validatorControl'
         ]);
 
-        return Inertia::render('habilitations/Etape5', [
+        return Inertia::render('habilitations/Etape6', [
             'habilitation' => $habilitation,
         ]);
     }
 
     /**
-     * Étape 5: Exécution IT - Exécution et notification
+     * Étape 6: Exécution IT - Exécution et notification
      */
-    public function executerEtape5(Request $request, Habilitation $habilitation)
+    public function executerEtape6(Request $request, Habilitation $habilitation)
     {
         $validated = $request->validate([
             'comment_it' => 'nullable|string',
@@ -435,7 +742,7 @@ class HabilitationController extends Controller
         // TODO: Implémenter l'envoi de notifications par email
 
         return redirect()->route('habilitations.show', $habilitation->id)
-            ->with('success', 'Étape 5 : Exécution IT terminée. Les notifications ont été envoyées.');
+            ->with('success', 'Étape 6 : Exécution IT terminée. Les notifications ont été envoyées.');
     }
 
     /**
@@ -443,9 +750,13 @@ class HabilitationController extends Controller
      */
     public function show(Habilitation $habilitation)
     {
+        $user = Auth::user();
+        $profil = $user?->profil;
+        
         $habilitation->load([
             'requester',
-            'beneficiary',
+            'beneficiary.nPlus1',
+            'beneficiary.nPlus2',
             'validatorN1',
             'validatorControl',
             'validatorN2',
@@ -455,6 +766,26 @@ class HabilitationController extends Controller
         return Inertia::render('habilitations/Show', [
             'habilitation' => $habilitation,
         ]);
+    }
+
+    /**
+     * Supprimer une demande d'habilitation (admin uniquement)
+     */
+    public function destroy(Habilitation $habilitation)
+    {
+        $user = Auth::user();
+        
+        // Seul l'admin peut supprimer une demande
+        if (!$user || !$user->isAdmin()) {
+            return redirect()->route('habilitations.show', $habilitation->id)
+                ->with('error', 'Vous n\'êtes pas autorisé à supprimer cette demande.');
+        }
+
+        $habilitationId = $habilitation->id;
+        $habilitation->delete();
+
+        return redirect()->route('habilitations.index')
+            ->with('success', 'La demande d\'habilitation #' . $habilitationId . ' a été supprimée avec succès.');
     }
 
     /**

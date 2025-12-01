@@ -15,7 +15,6 @@ class ProfileController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'matricule' => 'required|string|unique:profiles,matricule',
             'prenom' => 'required|string|max:100',
             'nom' => 'required|string|max:100',
             'fonction' => 'nullable|string|max:150',
@@ -26,6 +25,9 @@ class ProfileController extends Controller
             'type_contrat' => 'in:CDI,CDD,Stagiaire,Autre',
             'statut' => 'in:actif,inactif',
         ]);
+
+        // Générer automatiquement le matricule
+        $data['matricule'] = Profile::generateMatricule();
 
         $profile = Profile::create($data);
         return response()->json($profile, 201);

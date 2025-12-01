@@ -22,6 +22,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'is_active',
     ];
 
     /**
@@ -47,6 +48,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
+            'is_active' => 'boolean',
         ];
     }
 
@@ -59,16 +61,19 @@ class User extends Authenticatable
     }
 
     /**
+     * Relation avec les rôles (many-to-many)
+     */
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class, 'user_role', 'user_id', 'role_id');
+    }
+
+    /**
      * Vérifie si l'utilisateur a un rôle spécifique
      */
     public function hasRole(string $roleSlug): bool
     {
-        $profil = $this->profil;
-        if (!$profil) {
-            return false;
-        }
-
-        return $profil->roles()->where('slug', $roleSlug)->exists();
+        return $this->roles()->where('slug', $roleSlug)->exists();
     }
 
     /**
@@ -76,12 +81,7 @@ class User extends Authenticatable
      */
     public function hasAnyRole(array $roleSlugs): bool
     {
-        $profil = $this->profil;
-        if (!$profil) {
-            return false;
-        }
-
-        return $profil->roles()->whereIn('slug', $roleSlugs)->exists();
+        return $this->roles()->whereIn('slug', $roleSlugs)->exists();
     }
 
     /**
@@ -109,15 +109,46 @@ class User extends Authenticatable
     }
 
     /**
+     * Vérifie si l'utilisateur est RH
+     */
+    public function isRh(): bool
+    {
+        return $this->hasRole('rh');
+    }
+
+    /**
+     * Vérifie si l'utilisateur est responsable d'un département
+     */
+    public function isResponsableDepartement(): bool
+    {
+        if (!$this->profil) {
+            return false;
+        }
+        
+        return \App\Models\Departement::where('responsable_departement_id', $this->profil->id)
+            ->where('actif', true)
+            ->exists();
+    }
+
+    /**
+     * Récupère le département dont l'utilisateur est responsable
+     */
+    public function getDepartementResponsable()
+    {
+        if (!$this->profil) {
+            return null;
+        }
+        
+        return \App\Models\Departement::where('responsable_departement_id', $this->profil->id)
+            ->where('actif', true)
+            ->first();
+    }
+
+    /**
      * Récupère tous les rôles de l'utilisateur
      */
     public function getRoles(): \Illuminate\Support\Collection
     {
-        $profil = $this->profil;
-        if (!$profil) {
-            return collect([]);
-        }
-
-        return $profil->roles;
+        return $this->roles;
     }
 }
