@@ -798,4 +798,41 @@ class HabilitationController extends Controller
             ->pluck('nom')
             ->toArray();
     }
+
+    /**
+     * Télécharger le document PDF de l'habilitation
+     */
+    public function downloadPdf(Habilitation $habilitation)
+    {
+        // Vérifier que le contrôle a validé
+        if (!$habilitation->validator_control_id || !$habilitation->validated_control_at) {
+            return redirect()->route('habilitations.show', $habilitation->id)
+                ->with('error', 'Le document ne peut être téléchargé qu\'après validation du contrôle permanent.');
+        }
+
+        $habilitation->load([
+            'requester',
+            'beneficiary.nPlus1',
+            'beneficiary.nPlus2',
+            'validatorN1',
+            'validatorControl',
+            'validatorN2',
+            'executorIt'
+        ]);
+
+        // Générer le HTML pour le PDF
+        $html = view('habilitations.pdf', [
+            'habilitation' => $habilitation
+        ])->render();
+
+        // Créer le PDF
+        $dompdf = new \Dompdf\Dompdf();
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        $filename = 'habilitation_' . $habilitation->id . '_' . date('Y-m-d') . '.pdf';
+
+        return $dompdf->stream($filename);
+    }
 }

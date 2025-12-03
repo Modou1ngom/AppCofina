@@ -5,6 +5,7 @@ import { type BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
 import { etape2, etape3, etape4, etape5, etape6, show } from '@/routes/habilitations';
 import { computed } from 'vue';
+import { Printer } from 'lucide-vue-next';
 
 interface Profil {
     id: number;
@@ -147,6 +148,16 @@ const canAccessEtape6 = computed(() =>
     isAdmin.value && (props.habilitation.status === 'approved' || props.habilitation.status === 'in_progress')
 );
 
+// Le bouton d'impression est disponible si le contrôle a validé
+const canDownloadPdf = computed(() => 
+    props.habilitation.validator_control && props.habilitation.validated_control_at
+);
+
+// Fonction pour télécharger le PDF
+const downloadPdf = () => {
+    window.open(`/habilitations/${props.habilitation.id}/pdf`, '_blank');
+};
+
 // Fonction pour confirmer et supprimer la demande
 const confirmDelete = () => {
     const message = `Êtes-vous sûr de vouloir supprimer la demande d'habilitation #${props.habilitation.id} ?\n\n` +
@@ -194,6 +205,14 @@ const confirmDelete = () => {
                 <Link href="/habilitations">
                     <Button variant="outline">Retour à la liste</Button>
                 </Link>
+                <Button
+                    v-if="canDownloadPdf"
+                    @click="downloadPdf"
+                    variant="default"
+                >
+                    <Printer class="mr-2 h-4 w-4" />
+                    Télécharger le document
+                </Button>
                 <Button
                     v-if="isAdmin"
                     variant="destructive"

@@ -49,4 +49,5 @@ Route::middleware(['auth'])->group(function () {
     Route::post('habilitations/{habilitation}/valider-etape5', [HabilitationController::class, 'validerEtape5'])->name('habilitations.valider-etape5')->middleware('role:controle');
     Route::get('habilitations/{habilitation}/etape6', [HabilitationController::class, 'etape6'])->name('habilitations.etape6')->middleware('role:admin');
     Route::post('habilitations/{habilitation}/executer-etape6', [HabilitationController::class, 'executerEtape6'])->name('habilitations.executer-etape6')->middleware('role:admin');
+    Route::get('habilitations/{habilitation}/pdf', [HabilitationController::class, 'downloadPdf'])->name('habilitations.pdf');
 });

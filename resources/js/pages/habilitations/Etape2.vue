@@ -255,7 +255,7 @@ const submit = () => {
                             :disabled="processing || form.processing"
                         >
                             <span v-if="processing || form.processing">Enregistrement...</span>
-                            <span v-else>Valider et passer au contrôle permanent</span>
+                            <span v-else>Valider ta demande</span>
                         </Button>
                     </div>
                 </Form>
