@@ -7,7 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import InputError from '@/components/InputError.vue';
-import { computed, watch } from 'vue';
+import FormSection from '@/components/FormSection.vue';
+import { Code } from 'lucide-vue-next';
+import { computed, watch, ref } from 'vue';
 
 interface Profil {
     id: number;
@@ -31,12 +33,19 @@ interface Departement {
 interface Agence {
     id: number;
     nom: string;
+    filiale_id?: number | null;
+}
+
+interface Filiale {
+    id: number;
+    nom: string;
 }
 
 interface Props {
     profils: Profil[];
     departements: Departement[];
     agences: Agence[];
+    filiales?: Filiale[];
 }
 
 const props = defineProps<Props>();
@@ -63,41 +72,21 @@ const form = useForm({
     type_contrat: 'CDI' as 'CDI' | 'CDD' | 'Stagiaire' | 'Autre',
     statut: 'actif' as 'actif' | 'inactif',
     n_plus_1_id: null as string | number | null,
-    n_plus_2_id: null as string | number | null,
 });
 
-// Filtrer les profils disponibles pour N+1 (exclure celui sélectionné comme N+2)
-const availableN1 = computed(() => {
-    return props.profils.filter(p => {
-        if (form.n_plus_2_id && p.id == form.n_plus_2_id) {
-            return false;
-        }
-        return true;
-    });
-});
+// Filtrer les agences par filiale
+const selectedFiliale = ref<number | null>(null);
 
-// Filtrer les profils disponibles pour N+2 (exclure celui sélectionné comme N+1)
-const availableN2 = computed(() => {
-    return props.profils.filter(p => {
-        if (form.n_plus_1_id && p.id == form.n_plus_1_id) {
-            return false;
-        }
-        return true;
-    });
-});
-
-// Réinitialiser N+2 si N+1 est sélectionné comme N+2
-watch(() => form.n_plus_1_id, (newValue) => {
-    if (newValue && form.n_plus_2_id == newValue) {
-        form.n_plus_2_id = null;
+const filteredAgences = computed(() => {
+    if (!selectedFiliale.value) {
+        return props.agences;
     }
+    return props.agences.filter(agence => agence.filiale_id === selectedFiliale.value);
 });
 
-// Réinitialiser N+1 si N+2 est sélectionné comme N+1
-watch(() => form.n_plus_2_id, (newValue) => {
-    if (newValue && form.n_plus_1_id == newValue) {
-        form.n_plus_1_id = null;
-    }
+// Réinitialiser l'agence sélectionnée si la filiale change
+watch(selectedFiliale, () => {
+    form.site = '';
 });
 
 // Formatage et validation du numéro de téléphone
@@ -139,189 +128,187 @@ const submit = () => {
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex flex-col gap-6 p-6">
-            <h1 class="text-2xl font-bold">Créer un nouveau profil</h1>
+            <div class="flex items-center gap-2">
+                <h1 class="text-3xl font-bold text-gray-900">Créer un profil</h1>
+                <Code class="h-5 w-5 text-gray-500" />
+            </div>
 
             <form @submit.prevent="submit" class="flex flex-col gap-6">
-                <div class="rounded-lg border border-sidebar-border bg-card p-6">
-                    <h2 class="mb-4 text-lg font-semibold">Informations personnelles</h2>
-                    
-                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div>
-                            <Label for="prenom">Prénom *</Label>
-                            <Input
-                                id="prenom"
-                                v-model="form.prenom"
-                                type="text"
-                                required
-                                class="mt-1"
-                            />
-                            <InputError :message="form.errors.prenom" />
-                        </div>
-
-                        <div>
-                            <Label for="nom">Nom *</Label>
-                            <Input
-                                id="nom"
-                                v-model="form.nom"
-                                type="text"
-                                required
-                                class="mt-1"
-                            />
-                            <InputError :message="form.errors.nom" />
-                        </div>
-
-                        <div>
-                            <Label for="email">Email</Label>
-                            <Input
-                                id="email"
-                                v-model="form.email"
-                                type="email"
-                                class="mt-1"
-                            />
-                            <InputError :message="form.errors.email" />
-                        </div>
-
-                        <div>
-                            <Label for="telephone">Téléphone</Label>
-                            <Input
-                                id="telephone"
-                                v-model="form.telephone"
-                                type="tel"
-                                pattern="^(\+221|00221|221)?[0-9]{9}$"
-                                placeholder="+221 XX XXX XX XX"
-                                maxlength="20"
-                                class="mt-1"
-                                @input="formatTelephone"
-                            />
-                           
-                            <InputError :message="form.errors.telephone" />
-                        </div>
-
-                        <div>
-                            <Label for="site">Agence</Label>
-                            <select
-                                id="site"
-                                v-model="form.site"
-                                class="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                            >
-                                <option value="">Sélectionner une agence</option>
-                                <option
-                                    v-for="agence in props.agences"
-                                    :key="agence.id"
-                                    :value="agence.nom"
-                                >
-                                    {{ agence.nom }}
-                                </option>
-                            </select>
-                            <InputError :message="form.errors.site" />
-                        </div>
+                <FormSection :columns="2">
+                    <div>
+                        <Label for="prenom" class="text-base font-medium text-gray-700">First Name</Label>
+                        <Input
+                            id="prenom"
+                            v-model="form.prenom"
+                            type="text"
+                            required
+                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
+                            placeholder="John"
+                        />
+                        <InputError :message="form.errors.prenom" />
                     </div>
-                </div>
 
-                <div class="rounded-lg border border-sidebar-border bg-card p-6">
-                    <h2 class="mb-4 text-lg font-semibold">Informations professionnelles</h2>
-                    
-                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                        <Label for="nom" class="text-base font-medium text-gray-700">Last Name</Label>
+                        <Input
+                            id="nom"
+                            v-model="form.nom"
+                            type="text"
+                            required
+                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
+                            placeholder="Doe"
+                        />
+                        <InputError :message="form.errors.nom" />
+                    </div>
 
-                        <div>
-                            <Label for="departement">Département</Label>
-                            <select
-                                id="departement"
-                                v-model="form.departement"
-                                class="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                    <div>
+                        <Label for="email" class="text-base font-medium text-gray-700">Email</Label>
+                        <Input
+                            id="email"
+                            v-model="form.email"
+                            type="email"
+                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
+                            placeholder="johndoe@email.com"
+                        />
+                        <InputError :message="form.errors.email" />
+                    </div>
+
+                    <div>
+                        <Label for="telephone" class="text-base font-medium text-gray-700">Phone</Label>
+                        <Input
+                            id="telephone"
+                            v-model="form.telephone"
+                            type="tel"
+                            pattern="^(\+221|00221|221)?[0-9]{9}$"
+                            placeholder="+221 XX XXX XX XX"
+                            maxlength="20"
+                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
+                            @input="formatTelephone"
+                        />
+                        <InputError :message="form.errors.telephone" />
+                    </div>
+
+                    <div v-if="props.filiales && props.filiales.length > 0">
+                        <Label for="filiale" class="text-base font-medium text-gray-700">Country</Label>
+                        <select
+                            id="filiale"
+                            v-model="selectedFiliale"
+                            class="mt-1.5 flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
+                        >
+                            <option :value="null">Toutes les filiales</option>
+                            <option
+                                v-for="filiale in props.filiales"
+                                :key="filiale.id"
+                                :value="filiale.id"
                             >
-                                <option value="">Sélectionner un département</option>
-                                <option
-                                    v-for="departement in props.departements"
-                                    :key="departement.id"
-                                    :value="departement.nom"
-                                >
-                                    {{ departement.nom }}
-                                </option>
-                            </select>
-                            <InputError :message="form.errors.departement" />
-                        </div>
+                                {{ filiale.nom }}
+                            </option>
+                        </select>
+                    </div>
+                    <div>
+                        <Label for="site" class="text-base font-medium text-gray-700">Company</Label>
+                        <select
+                            id="site"
+                            v-model="form.site"
+                            class="mt-1.5 flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
+                        >
+                            <option value="">Sélectionner une agence</option>
+                            <option
+                                v-for="agence in filteredAgences"
+                                :key="agence.id"
+                                :value="agence.nom"
+                            >
+                                {{ agence.nom }}
+                            </option>
+                        </select>
+                        <InputError :message="form.errors.site" />
+                        <p v-if="filteredAgences.length === 0 && selectedFiliale" class="mt-2 text-base text-gray-500">
+                            Aucune agence trouvée pour la filiale sélectionnée.
+                        </p>
+                    </div>
+                </FormSection>
 
-                        <div>
-                            <Label for="fonction">Fonction</Label>
-                            <Input
-                                id="fonction"
-                                v-model="form.fonction"
-                                type="text"
-                                class="mt-1"
-                            />
-                            <InputError :message="form.errors.fonction" />
-                        </div>
+                <FormSection title="Informations professionnelles" :columns="2">
 
+                    <div>
+                        <Label for="departement" class="text-base font-medium text-gray-700">Département</Label>
+                        <select
+                            id="departement"
+                            v-model="form.departement"
+                            class="mt-1.5 flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
+                        >
+                            <option value="">Sélectionner un département</option>
+                            <option
+                                v-for="departement in props.departements"
+                                :key="departement.id"
+                                :value="departement.nom"
+                            >
+                                {{ departement.nom }}
+                            </option>
+                        </select>
+                        <InputError :message="form.errors.departement" />
+                    </div>
+
+                    <div>
+                        <Label for="fonction" class="text-base font-medium text-gray-700">Fonction</Label>
+                        <Input
+                            id="fonction"
+                            v-model="form.fonction"
+                            type="text"
+                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
+                            placeholder="Fonction"
+                        />
+                        <InputError :message="form.errors.fonction" />
+                    </div>
+
+                    <div>
+                        <Label for="type_contrat" class="text-base font-medium text-gray-700">Type de contrat</Label>
+                        <select
+                            id="type_contrat"
+                            v-model="form.type_contrat"
+                            class="mt-1.5 flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
+                        >
+                            <option value="CDI">CDI</option>
+                            <option value="CDD">CDD</option>
+                            <option value="Stagiaire">Stagiaire</option>
+                            <option value="Autre">Autre</option>
+                        </select>
+                        <InputError :message="form.errors.type_contrat" />
+                    </div>
+
+                    <div>
+                        <Label for="statut" class="text-base font-medium text-gray-700">Statut</Label>
+                        <select
+                            id="statut"
+                            v-model="form.statut"
+                            class="mt-1.5 flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
+                        >
+                            <option value="actif">Actif</option>
+                            <option value="inactif">Inactif</option>
+                        </select>
+                        <InputError :message="form.errors.statut" />
+                    </div>
+
+                    <div>
+                        <Label for="n_plus_1" class="text-base font-medium text-gray-700">N+1</Label>
+                        <select
+                            id="n_plus_1"
+                            v-model="form.n_plus_1_id"
+                            class="mt-1.5 flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
+                        >
+                            <option :value="null">Sélectionner un N+1</option>
+                            <option
+                                v-for="profil in props.profils"
+                                :key="profil.id"
+                                :value="profil.id"
+                            >
+                                {{ profil.prenom }} {{ profil.nom }} ({{ profil.matricule }})
+                            </option>
+                        </select>
+                        <InputError :message="form.errors.n_plus_1_id" />
                        
-
-                        <div>
-                            <Label for="type_contrat">Type de contrat</Label>
-                            <select
-                                id="type_contrat"
-                                v-model="form.type_contrat"
-                                class="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                            >
-                                <option value="CDI">CDI</option>
-                                <option value="CDD">CDD</option>
-                                <option value="Stagiaire">Stagiaire</option>
-                                <option value="Autre">Autre</option>
-                            </select>
-                            <InputError :message="form.errors.type_contrat" />
-                        </div>
-
-                        <div>
-                            <Label for="statut">Statut</Label>
-                            <select
-                                id="statut"
-                                v-model="form.statut"
-                                class="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                            >
-                                <option value="actif">Actif</option>
-                                <option value="inactif">Inactif</option>
-                            </select>
-                            <InputError :message="form.errors.statut" />
-                        </div>
-
-                        <div>
-                            <Label for="n_plus_1">N+1</Label>
-                            <select
-                                id="n_plus_1"
-                                v-model="form.n_plus_1_id"
-                                class="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                            >
-                                <option :value="null">Sélectionner un N+1</option>
-                                <option
-                                    v-for="profil in props.profils"
-                                    :key="profil.id"
-                                    :value="profil.id"
-                                >
-                                    {{ profil.prenom }} {{ profil.nom }} ({{ profil.matricule }})
-                                </option>
-                            </select>
-                            <InputError :message="form.errors.n_plus_1_id" />
-                        </div>
-
-                        <div>
-                            <Label for="n_plus_2">N+2</Label>
-                            <select
-                                id="n_plus_2"
-                                v-model="form.n_plus_2_id"
-                                class="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                            >
-                                <option :value="null">Sélectionner un N+2</option>
-                                <option
-                                    v-for="profilOption in availableN2"
-                                    :key="profilOption.id"
-                                    :value="profilOption.id"
-                                >
-                                    {{ profilOption.prenom }} {{ profilOption.nom }} ({{ profilOption.matricule }})
-                                </option>
-                            </select>
-                            <InputError :message="form.errors.n_plus_2_id" />
-                        </div>
                     </div>
-                </div>
+                </FormSection>
 
                 <div class="flex justify-end gap-2">
                     <Button type="button" variant="outline" @click="router.visit('/profils')">

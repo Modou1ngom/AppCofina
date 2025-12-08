@@ -7,6 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import InputError from '@/components/InputError.vue';
+import FormSection from '@/components/FormSection.vue';
+import { Code } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
 
 interface Role {
     id: number;
@@ -20,6 +23,12 @@ interface Profil {
     prenom: string;
     matricule: string;
     email?: string;
+    site?: string;
+}
+
+interface Filiale {
+    id: number;
+    nom: string;
 }
 
 interface Props {
@@ -32,9 +41,20 @@ interface Props {
     };
     roles: Role[];
     profils: Profil[];
+    filiales?: Filiale[];
 }
 
 const props = defineProps<Props>();
+
+const selectedFiliale = ref<string | null>(null);
+
+// Filtrer les profils en fonction de la filiale sélectionnée
+const filteredProfils = computed(() => {
+    if (!selectedFiliale.value) {
+        return props.profils;
+    }
+    return props.profils.filter(profil => profil.site === selectedFiliale.value);
+});
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -78,74 +98,70 @@ const submit = () => {
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex flex-col gap-6 p-6">
-            <h1 class="text-2xl font-bold">Modifier l'utilisateur</h1>
+            <div class="flex items-center gap-2">
+                <h1 class="text-3xl font-bold text-gray-900">Modifier l'utilisateur</h1>
+                <Code class="h-5 w-5 text-gray-500" />
+            </div>
 
             <form @submit.prevent="submit" class="flex flex-col gap-6">
-                <div class="rounded-lg border border-sidebar-border bg-card p-6">
-                    <div class="flex flex-col gap-4">
-                        <div>
-                            <Label for="name">Nom complet *</Label>
-                            <Input
-                                id="name"
-                                v-model="form.name"
-                                type="text"
-                                required
-                                class="mt-1"
-                                placeholder="Nom complet"
-                            />
-                            <InputError :message="form.errors.name" />
-                        </div>
-
-                        <div>
-                            <Label for="email">Email *</Label>
-                            <Input
-                                id="email"
-                                v-model="form.email"
-                                type="email"
-                                required
-                                class="mt-1"
-                                placeholder="email@example.com"
-                            />
-                            <InputError :message="form.errors.email" />
-                        </div>
-
-                        <div class="rounded-lg border border-sidebar-border bg-muted/50 p-4">
-                            <h3 class="mb-4 text-lg font-semibold">Changer le mot de passe</h3>
-                            <p class="mb-4 text-sm text-muted-foreground">
-                                Laissez ces champs vides si vous ne souhaitez pas modifier le mot de passe.
-                            </p>
-                            <div class="flex flex-col gap-4">
-                                <div>
-                                    <Label for="password">Nouveau mot de passe</Label>
-                                    <Input
-                                        id="password"
-                                        v-model="form.password"
-                                        type="password"
-                                        class="mt-1"
-                                        placeholder="Minimum 8 caractères"
-                                    />
-                                    <InputError :message="form.errors.password" />
-                                </div>
-
-                                <div>
-                                    <Label for="password_confirmation">Confirmer le nouveau mot de passe</Label>
-                                    <Input
-                                        id="password_confirmation"
-                                        v-model="form.password_confirmation"
-                                        type="password"
-                                        class="mt-1"
-                                        placeholder="Répétez le mot de passe"
-                                    />
-                                    <InputError :message="form.errors.password_confirmation" />
-                                </div>
-                            </div>
-                        </div>
+                <FormSection :columns="2">
+                    <div>
+                        <Label for="name" class="text-base font-medium text-gray-700">First Name</Label>
+                        <Input
+                            id="name"
+                            v-model="form.name"
+                            type="text"
+                            required
+                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
+                            placeholder="John"
+                        />
+                        <InputError :message="form.errors.name" />
                     </div>
-                </div>
 
-                <div class="rounded-lg border border-sidebar-border bg-card p-6">
-                    <h2 class="mb-4 text-lg font-semibold">Rôles</h2>
-                    
+                    <div>
+                        <Label for="email" class="text-base font-medium text-gray-700">Email</Label>
+                        <Input
+                            id="email"
+                            v-model="form.email"
+                            type="email"
+                            required
+                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
+                            placeholder="johndoe@email.com"
+                        />
+                        <InputError :message="form.errors.email" />
+                    </div>
+                </FormSection>
+
+                <FormSection title="Changer le mot de passe" :columns="2" :show-code-icon="false">
+                    <p class="col-span-2 mb-4 text-sm text-gray-600">
+                        Laissez ces champs vides si vous ne souhaitez pas modifier le mot de passe.
+                    </p>
+                    <div>
+                        <Label for="password" class="text-base font-medium text-gray-700">Nouveau mot de passe</Label>
+                        <Input
+                            id="password"
+                            v-model="form.password"
+                            type="password"
+                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
+                            placeholder="Minimum 8 caractères"
+                        />
+                        <InputError :message="form.errors.password" />
+                    </div>
+
+                    <div>
+                        <Label for="password_confirmation" class="text-base font-medium text-gray-700">Confirmer le mot de passe</Label>
+                        <Input
+                            id="password_confirmation"
+                            v-model="form.password_confirmation"
+                            type="password"
+                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
+                            placeholder="Répétez le mot de passe"
+                        />
+                        <InputError :message="form.errors.password_confirmation" />
+                    </div>
+                </FormSection>
+
+                <FormSection title="Rôles" :columns="1">
                     <div class="flex flex-col gap-2">
                         <div
                             v-for="role in props.roles"
@@ -159,7 +175,7 @@ const submit = () => {
                                 @update:checked="(checked: boolean) => toggleRole(role.id, checked)"
                                 @click.stop
                             />
-                            <Label :for="`role-${role.id}`" class="font-normal cursor-pointer">
+                            <Label :for="`role-${role.id}`" class="font-normal cursor-pointer text-sm text-gray-700">
                                 {{ role.nom }}
                             </Label>
                         </div>
@@ -168,35 +184,56 @@ const submit = () => {
                         </p>
                     </div>
                     <InputError :message="form.errors.roles" />
-                </div>
+                </FormSection>
 
-                <div class="rounded-lg border border-sidebar-border bg-card p-6">
-                    <h2 class="mb-4 text-lg font-semibold">Profil associé</h2>
-                    <p class="mb-4 text-sm text-muted-foreground">
+                <FormSection title="Profil associé" :columns="1" :show-code-icon="false">
+                    <p class="mb-4 text-sm text-gray-600">
                         Associez un profil à cet utilisateur. L'email du profil sera automatiquement mis à jour pour correspondre à l'email de l'utilisateur.
                     </p>
-                    <div>
-                        <Label for="profil_id">Sélectionner un profil</Label>
-                        <select
-                            id="profil_id"
-                            v-model="form.profil_id"
-                            class="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                        >
-                            <option :value="null">Aucun profil</option>
-                            <option
-                                v-for="profil in props.profils"
-                                :key="profil.id"
-                                :value="profil.id"
+                    <div class="space-y-4">
+                        <div v-if="props.filiales && props.filiales.length > 0">
+                            <Label for="filiale" class="text-base font-medium text-gray-700">Filtrer par filiale</Label>
+                            <select
+                                id="filiale"
+                                v-model="selectedFiliale"
+                                class="mt-1.5 flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
                             >
-                                {{ profil.prenom }} {{ profil.nom }} ({{ profil.matricule }}){{ profil.email ? ' - ' + profil.email : '' }}
-                            </option>
-                        </select>
-                        <InputError :message="form.errors.profil_id" />
-                        <p v-if="props.user.profil" class="mt-2 text-sm text-muted-foreground">
-                            Profil actuellement associé : <strong>{{ props.user.profil.prenom }} {{ props.user.profil.nom }}</strong> ({{ props.user.profil.matricule }})
-                        </p>
+                                <option :value="null">Toutes les filiales</option>
+                                <option
+                                    v-for="filiale in props.filiales"
+                                    :key="filiale.id"
+                                    :value="filiale.nom"
+                                >
+                                    {{ filiale.nom }}
+                                </option>
+                            </select>
+                        </div>
+                        <div>
+                            <Label for="profil_id" class="text-base font-medium text-gray-700">Sélectionner un profil</Label>
+                            <select
+                                id="profil_id"
+                                v-model="form.profil_id"
+                                class="mt-1.5 flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
+                            >
+                                <option :value="null">Aucun profil</option>
+                                <option
+                                    v-for="profil in filteredProfils"
+                                    :key="profil.id"
+                                    :value="profil.id"
+                                >
+                                    {{ profil.prenom }} {{ profil.nom }} ({{ profil.matricule }}){{ profil.email ? ' - ' + profil.email : '' }}
+                                </option>
+                            </select>
+                            <InputError :message="form.errors.profil_id" />
+                            <p v-if="filteredProfils.length === 0 && selectedFiliale" class="mt-2 text-base text-gray-500">
+                                Aucun profil trouvé pour la filiale sélectionnée.
+                            </p>
+                            <p v-if="props.user.profil" class="mt-2 text-base text-gray-500">
+                                Profil actuellement associé : <strong>{{ props.user.profil.prenom }} {{ props.user.profil.nom }}</strong> ({{ props.user.profil.matricule }})
+                            </p>
+                        </div>
                     </div>
-                </div>
+                </FormSection>
 
                 <div class="flex justify-end gap-2">
                     <Button type="button" variant="outline" @click="router.visit('/users')">

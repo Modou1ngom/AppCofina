@@ -14,7 +14,8 @@ class Agence extends Model
         'code_agent',
         'description',
         'actif',
-        'chef_agence_id'
+        'chef_agence_id',
+        'filiale_id'
     ];
 
     protected $casts = [
@@ -35,5 +36,13 @@ class Agence extends Model
     public function chefAgence()
     {
         return $this->belongsTo(Profil::class, 'chef_agence_id');
+    }
+
+    /**
+     * Relation avec la filiale
+     */
+    public function filiale()
+    {
+        return $this->belongsTo(Filiale::class, 'filiale_id');
     }
 }

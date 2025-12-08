@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Agence;
 use App\Models\Profil;
+use App\Models\Filiale;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -12,9 +13,10 @@ class AgenceController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $agences = Agence::orderBy('nom')->get();
+        $perPage = (int) $request->get('per_page', 5);
+        $agences = Agence::orderBy('nom')->paginate($perPage);
         
         // Compter le nombre de profils par agence
         $agences->each(function ($agence) {
@@ -32,9 +34,11 @@ class AgenceController extends Controller
     public function create()
     {
         $profils = Profil::orderBy('nom')->get(['id', 'nom', 'prenom', 'matricule']);
+        $filiales = Filiale::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
         
         return Inertia::render('agences/Create', [
             'profils' => $profils,
+            'filiales' => $filiales,
         ]);
     }
 
@@ -49,6 +53,7 @@ class AgenceController extends Controller
             'description' => 'nullable|string',
             'actif' => 'required|in:actif,inactif',
             'chef_agence_id' => 'nullable|exists:profiles,id',
+            'filiale_id' => 'nullable|exists:filiales,id',
         ]);
 
         Agence::create([
@@ -57,6 +62,7 @@ class AgenceController extends Controller
             'description' => $validated['description'] ?? null,
             'actif' => $validated['actif'] === 'actif',
             'chef_agence_id' => $validated['chef_agence_id'] ?? null,
+            'filiale_id' => $validated['filiale_id'] ?? null,
         ]);
 
         return redirect()->route('agences.index')
@@ -83,10 +89,12 @@ class AgenceController extends Controller
     public function edit(Agence $agence)
     {
         $profils = Profil::orderBy('nom')->get(['id', 'nom', 'prenom', 'matricule']);
+        $filiales = Filiale::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
         
         return Inertia::render('agences/Edit', [
             'agence' => $agence,
             'profils' => $profils,
+            'filiales' => $filiales,
         ]);
     }
 
@@ -101,6 +109,7 @@ class AgenceController extends Controller
             'description' => 'nullable|string',
             'actif' => 'required|in:actif,inactif',
             'chef_agence_id' => 'nullable|exists:profiles,id',
+            'filiale_id' => 'nullable|exists:filiales,id',
         ]);
 
         $agence->update([
@@ -109,6 +118,7 @@ class AgenceController extends Controller
             'description' => $validated['description'] ?? null,
             'actif' => $validated['actif'] === 'actif',
             'chef_agence_id' => $validated['chef_agence_id'] ?? null,
+            'filiale_id' => $validated['filiale_id'] ?? null,
         ]);
 
         return redirect()->route('agences.index')

@@ -210,7 +210,7 @@ const confirmDelete = () => {
                     @click="downloadPdf"
                     variant="default"
                 >
-                    <Printer class="mr-2 h-4 w-4" />
+                    <Printer class="mr-2 h-5 w-5" />
                     Télécharger le document
                 </Button>
                 <Button

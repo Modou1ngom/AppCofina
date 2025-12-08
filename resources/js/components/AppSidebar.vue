@@ -14,7 +14,7 @@ import {
 import { dashboard } from '@/routes';
 import { type NavItem } from '@/types';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid, Users, ShieldCheck, FileCheck, Building2, MapPin, Building, UserCog } from 'lucide-vue-next';
+import { BookOpen, Folder, LayoutGrid, Users, ShieldCheck, FileCheck, Building2, MapPin, Building, UserCog, Layers } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { useBeneficiaryDialog } from '@/composables/useBeneficiaryDialog';
 import AppLogo from './AppLogo.vue';
@@ -51,15 +51,15 @@ const mainNavItems = computed<NavItem[]>(() => {
                 ],
             },
             {
-                title: 'Profils',
+                title: 'Enroulement staff',
                 icon: Users,
                 items: [
                       {
-                        title: 'Créer un nouveau profil',
+                        title: 'Créer un nouvel enroulement staff',
                         href: '/profils/create',
                     },
                     {
-                        title: 'Liste des profils',
+                        title: 'Liste des enroulements staff',
                         href: '/profils',
                     },
                   
@@ -84,6 +84,11 @@ const mainNavItems = computed<NavItem[]>(() => {
                 title: 'Filiales',
                 href: '/filiales',
                 icon: Building,
+            },
+            {
+                title: 'Applications',
+                href: '/applications',
+                icon: Layers,
             },
             {
                 title: 'Habilitations',
@@ -150,15 +155,15 @@ const mainNavItems = computed<NavItem[]>(() => {
     else if (auth.value?.isRh) {
         items.push(
             {
-                title: 'Profils',
+                title: 'Enroulement staff',
                 icon: Users,
                 items: [
                       {
-                        title: 'Créer un nouveau profil',
+                        title: 'Créer un nouvel enroulement staff',
                         href: '/profils/create',
                     },
                     {
-                        title: 'Liste des profils',
+                        title: 'Liste des enroulements staff',
                         href: '/profils',
                     },
                   
@@ -315,19 +320,17 @@ const mainNavItems = computed<NavItem[]>(() => {
 
 <template>
     <Sidebar collapsible="icon" variant="inset">
-        <SidebarHeader>
+        <SidebarHeader class="pb-4">
             <SidebarMenu>
                 <SidebarMenuItem>
-                    <SidebarMenuButton size="lg" as-child>
-                        <Link :href="dashboard()">
-                            <AppLogo />
-                        </Link>
-                    </SidebarMenuButton>
+                    <Link :href="dashboard()" class="flex items-center p-2">
+                        <AppLogo />
+                    </Link>
                 </SidebarMenuItem>
             </SidebarMenu>
         </SidebarHeader>
 
-        <SidebarContent>
+        <SidebarContent class="pt-4">
             <NavMain :items="mainNavItems" />
         </SidebarContent>
 

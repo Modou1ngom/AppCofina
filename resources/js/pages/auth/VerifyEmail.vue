@@ -33,7 +33,7 @@ defineProps<{
             v-slot="{ processing }"
         >
             <Button :disabled="processing" variant="secondary">
-                <LoaderCircle v-if="processing" class="h-4 w-4 animate-spin" />
+                <LoaderCircle v-if="processing" class="h-5 w-5 animate-spin" />
                 Resend verification email
             </Button>
 

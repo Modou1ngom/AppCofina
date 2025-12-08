@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import InputError from '@/components/InputError.vue';
+import FormSection from '@/components/FormSection.vue';
+import { Code } from 'lucide-vue-next';
 
 interface Props {
     departement: {
@@ -82,114 +84,110 @@ const submit = () => {
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex flex-col gap-6 p-6">
-            <h1 class="text-2xl font-bold">Modifier le département</h1>
+            <div class="flex items-center gap-2">
+                <h1 class="text-3xl font-bold text-gray-900">Modifier le département</h1>
+                <Code class="h-5 w-5 text-gray-500" />
+            </div>
 
             <form @submit.prevent="submit" class="flex flex-col gap-6">
-                <div class="rounded-lg border border-sidebar-border bg-card p-6">
-                    <div class="flex flex-col gap-4">
-                        <div>
-                            <Label for="nom">Nom du département *</Label>
-                            <Input
-                                id="nom"
-                                v-model="form.nom"
-                                type="text"
-                                required
-                                class="mt-1"
-                            />
-                            <InputError :message="form.errors.nom" />
-                        </div>
-
-                        <div>
-                            <Label for="description">Description</Label>
-                            <textarea
-                                id="description"
-                                v-model="form.description"
-                                rows="4"
-                                class="mt-1 flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                            />
-                            <InputError :message="form.errors.description" />
-                        </div>
-
-                        <div>
-                            <Label for="actif">Statut</Label>
-                            <select
-                                id="actif"
-                                v-model="form.actif"
-                                class="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                            >
-                                <option value="actif">Actif</option>
-                                <option value="inactif">Inactif</option>
-                            </select>
-                            <InputError :message="form.errors.actif" />
-                        </div>
-
-                        <div class="rounded-lg border border-sidebar-border bg-muted/50 p-4">
-                            <h3 class="mb-4 text-lg font-semibold">Informations du responsable du département</h3>
-                            <div class="flex flex-col gap-4">
-                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                    <div>
-                                        <Label for="responsable_prenom">Prénom du responsable</Label>
-                                        <Input
-                                            id="responsable_prenom"
-                                            v-model="form.responsable_prenom"
-                                            type="text"
-                                            placeholder="Prénom"
-                                            class="mt-1"
-                                        />
-                                        <InputError :message="form.errors.responsable_prenom" />
-                                    </div>
-                                    <div>
-                                        <Label for="responsable_nom">Nom du responsable</Label>
-                                        <Input
-                                            id="responsable_nom"
-                                            v-model="form.responsable_nom"
-                                            type="text"
-                                            placeholder="Nom"
-                                            class="mt-1"
-                                        />
-                                        <InputError :message="form.errors.responsable_nom" />
-                                    </div>
-                                </div>
-                                <div>
-                                    <Label for="responsable_fonction">Fonction</Label>
-                                    <Input
-                                        id="responsable_fonction"
-                                        v-model="form.responsable_fonction"
-                                        type="text"
-                                        placeholder="Ex: Directeur, Chef de service, etc."
-                                        class="mt-1"
-                                    />
-                                    <InputError :message="form.errors.responsable_fonction" />
-                                </div>
-                                <div>
-                                    <Label for="responsable_email">Email</Label>
-                                    <Input
-                                        id="responsable_email"
-                                        v-model="form.responsable_email"
-                                        type="email"
-                                        placeholder="email@example.com"
-                                        class="mt-1"
-                                    />
-                                    <InputError :message="form.errors.responsable_email" />
-                                </div>
-                                <div>
-                                    <Label for="responsable_telephone">Téléphone</Label>
-                                    <Input
-                                        id="responsable_telephone"
-                                        v-model="form.responsable_telephone"
-                                        type="tel"
-                                        placeholder="+221 XX XXX XX XX"
-                                        pattern="^(\+221|00221|221)?[0-9]{9}$"
-                                        maxlength="20"
-                                        class="mt-1"
-                                        @input="formatTelephone"
-                                    />
-                                    <InputError :message="form.errors.responsable_telephone" />
-                                </div>
-                            </div>
-                        </div>
+                <FormSection :columns="2">
+                    <div>
+                        <Label for="nom" class="text-base font-medium text-gray-700">Nom du département *</Label>
+                        <Input
+                            id="nom"
+                            v-model="form.nom"
+                            type="text"
+                            required
+                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
+                        />
+                        <InputError :message="form.errors.nom" />
                     </div>
-                </div>
+
+                    <div>
+                        <Label for="actif" class="text-base font-medium text-gray-700">Statut</Label>
+                        <select
+                            id="actif"
+                            v-model="form.actif"
+                            class="mt-1.5 flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
+                        >
+                            <option value="actif">Actif</option>
+                            <option value="inactif">Inactif</option>
+                        </select>
+                        <InputError :message="form.errors.actif" />
+                    </div>
+
+                    <div class="col-span-2">
+                        <Label for="description" class="text-base font-medium text-gray-700">Description</Label>
+                        <textarea
+                            id="description"
+                            v-model="form.description"
+                            rows="4"
+                            class="mt-1.5 flex w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
+                        />
+                        <InputError :message="form.errors.description" />
+                    </div>
+                </FormSection>
+
+                <FormSection title="Informations du responsable" :columns="2" :show-code-icon="false">
+                    <div>
+                        <Label for="responsable_prenom" class="text-base font-medium text-gray-700">First Name</Label>
+                        <Input
+                            id="responsable_prenom"
+                            v-model="form.responsable_prenom"
+                            type="text"
+                            placeholder="John"
+                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
+                        />
+                        <InputError :message="form.errors.responsable_prenom" />
+                    </div>
+                    <div>
+                        <Label for="responsable_nom" class="text-base font-medium text-gray-700">Last Name</Label>
+                        <Input
+                            id="responsable_nom"
+                            v-model="form.responsable_nom"
+                            type="text"
+                            placeholder="Doe"
+                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
+                        />
+                        <InputError :message="form.errors.responsable_nom" />
+                    </div>
+                    <div>
+                        <Label for="responsable_fonction" class="text-base font-medium text-gray-700">Fonction</Label>
+                        <Input
+                            id="responsable_fonction"
+                            v-model="form.responsable_fonction"
+                            type="text"
+                            placeholder="Ex: Directeur"
+                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
+                        />
+                        <InputError :message="form.errors.responsable_fonction" />
+                    </div>
+                    <div>
+                        <Label for="responsable_email" class="text-base font-medium text-gray-700">Email</Label>
+                        <Input
+                            id="responsable_email"
+                            v-model="form.responsable_email"
+                            type="email"
+                            placeholder="johndoe@email.com"
+                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
+                        />
+                        <InputError :message="form.errors.responsable_email" />
+                    </div>
+                    <div>
+                        <Label for="responsable_telephone" class="text-base font-medium text-gray-700">Phone</Label>
+                        <Input
+                            id="responsable_telephone"
+                            v-model="form.responsable_telephone"
+                            type="tel"
+                            placeholder="+221 XX XXX XX XX"
+                            pattern="^(\+221|00221|221)?[0-9]{9}$"
+                            maxlength="20"
+                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
+                            @input="formatTelephone"
+                        />
+                        <InputError :message="form.errors.responsable_telephone" />
+                    </div>
+                </FormSection>
 
                 <div class="flex justify-end gap-2">
                     <Button type="button" variant="outline" @click="router.visit('/departements')">

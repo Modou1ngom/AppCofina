@@ -56,7 +56,7 @@ const isSubItemActive = (href?: string): boolean => {
                             >
                                 <component :is="item.icon" />
                                 <span>{{ item.title }}</span>
-                                <ChevronRight class="ml-auto size-4 transition-transform duration-200" :class="{ 'rotate-90': open }" />
+                                <ChevronRight class="ml-auto size-5 transition-transform duration-200" :class="{ 'rotate-90': open }" />
                             </SidebarMenuButton>
                         </CollapsibleTrigger>
                         <CollapsibleContent>

@@ -6,9 +6,9 @@
     <style>
         @page {
             margin-top: 0.3cm;
-            margin-bottom: 0.2cm;
-            margin-left: 1cm;
-            margin-right: 1cm;
+            margin-bottom: 0.3cm;
+            margin-left: 0.8cm;
+            margin-right: 0.8cm;
             size: A4;
         }
         * {
@@ -17,162 +17,211 @@
             box-sizing: border-box;
         }
         body {
-            font-family: 'Arial', sans-serif;
-            font-size: 9pt;
-            line-height: 1.15;
-            color: #000;
+            font-family: 'Arial', 'Helvetica', sans-serif;
+            font-size: 8.5pt;
+            line-height: 1.2;
+            color: #2c3e50;
+            background-color: #ffffff;
         }
         .header-container {
             display: table;
             width: 100%;
-            margin-top: 15px;
+            margin-top: 5px;
             margin-bottom: 10px;
-            border-bottom: 2px solid #000;
-            padding-bottom: 4px;
+            border-bottom: 2px solid #DC143C;
+            padding-bottom: 8px;
         }
         .header-left {
             display: table-cell;
-            width: 25%;
+            width: 30%;
             vertical-align: top;
+            padding-right: 15px;
         }
         .header-center {
             display: table-cell;
-            width: 50%;
+            width: 40%;
             text-align: center;
-            vertical-align: middle;
+            vertical-align: top;
+            padding: 0 10px;
         }
         .header-right {
             display: table-cell;
-            width: 25%;
+            width: 30%;
             text-align: right;
             vertical-align: top;
             font-size: 8pt;
+            color: #000;
+            padding-left: 15px;
         }
         .logo {
-            font-size: 24pt;
+            font-size: 20pt;
             font-weight: bold;
-            color: #000;
+            color: #DC143C;
             letter-spacing: 1px;
-            margin-bottom: 2px;
+            margin-bottom: 3px;
+        }
+        .logo-img {
+            max-width: 120px;
+            max-height: 60px;
+            width: auto;
+            height: auto;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .logo-reference {
+            font-size: 7pt;
+            color: #666;
+            margin-top: 3px;
         }
         .main-title {
-            font-size: 13pt;
+            font-size: 12pt;
             font-weight: bold;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin: 2px 0;
+            letter-spacing: 1px;
+            margin: 0;
             background-color: #DC143C;
             color: white;
-            padding: 4px;
+            padding: 6px 12px;
         }
         .subtitle {
-            font-size: 10pt;
-            font-weight: bold;
-            margin-top: 2px;
+            font-size: 9pt;
+            font-weight: normal;
+            margin-top: 3px;
+            color: #000;
         }
         .date-info {
-            margin-bottom: 5px;
-            margin-left: 10px;
+            margin-bottom: 4px;
+            font-size: 8pt;
+            line-height: 1.3;
+        }
+        .date-info strong {
+            color: #000;
         }
         .two-columns {
             display: table;
             width: 100%;
-            margin-top: 15px;
+            margin-top: 10px;
             margin-bottom: 8px;
             border-collapse: separate;
-            border-spacing: 8px 0;
+            border-spacing: 10px 0;
         }
         .column {
             display: table-cell;
             width: 50%;
             vertical-align: top;
+            padding: 0 5px;
         }
         .section-header {
-            font-size: 9.5pt;
+            font-size: 9pt;
             font-weight: bold;
             text-transform: uppercase;
             background-color: #DC143C;
             color: white;
-            padding: 2.5px;
-            margin-bottom: 6px;
-            margin-top: 15px;
+            padding: 5px 8px;
+            margin-bottom: 8px;
+            margin-top: 10px;
             text-align: center;
+            letter-spacing: 0.5px;
         }
         .field-row {
-            margin-bottom: 4px;
-            min-height: 13px;
+            margin-bottom: 6px;
+            min-height: 16px;
+            padding: 2px 0;
         }
         .field-label {
-            font-weight: bold;
+            font-weight: normal;
             display: inline-block;
-            min-width: 95px;
+            min-width: 100px;
             font-size: 8.5pt;
+            color: #000;
         }
         .field-value {
             display: inline-block;
             border-bottom: 1px solid #000;
             min-width: 150px;
-            padding: 0 2px;
+            padding: 0 3px;
             font-size: 8.5pt;
+            color: #000;
+        }
+        .field-value-long {
+            display: inline-block;
+            border-bottom: 1px solid #000;
+            min-width: 250px;
+            padding: 0 3px;
+            font-size: 8.5pt;
+            color: #000;
         }
         .checkbox-container {
-            margin: 5px 0;
+            margin: 6px 0;
+            padding: 0;
         }
         .checkbox-row {
-            margin: 1.5px 0;
+            margin: 3px 0;
             display: inline-block;
-            width: 48%;
+            width: 32%;
             vertical-align: top;
+            padding: 2px 0;
+            margin-right: 1%;
         }
         .checkbox-box {
             display: inline-block;
-            width: 9px;
-            height: 9px;
+            width: 10px;
+            height: 10px;
             border: 1.5px solid #000;
-            margin-right: 3px;
+            margin-right: 5px;
             vertical-align: middle;
             position: relative;
+            background-color: #fff;
+        }
+        .checkbox-box.checked {
+            background-color: #000;
         }
         .checkbox-box.checked::before {
             content: "✓";
             position: absolute;
-            top: -3px;
-            left: -1px;
-            font-size: 10px;
+            top: -2px;
+            left: 1px;
+            font-size: 9px;
             font-weight: bold;
-            line-height: 9px;
+            line-height: 10px;
+            color: white;
         }
         .checkbox-text {
             display: inline-block;
             vertical-align: middle;
             font-size: 8.5pt;
+            color: #000;
         }
         .checkbox-text-small {
             font-size: 7.5pt;
         }
         .note-text {
-            font-size: 7pt;
+            font-size: 7.5pt;
             font-style: italic;
-            margin-top: 3px;
-            color: #333;
+            margin-top: 6px;
+            margin-bottom: 8px;
+            color: #000;
+            padding: 0;
         }
         .text-box {
             border: 1px solid #000;
-            min-height: 70px;
-            padding: 3px;
-            margin-top: 4px;
+            min-height: 60px;
+            padding: 5px;
+            margin-top: 5px;
             margin-bottom: 8px;
             font-size: 8.5pt;
+            background-color: #fff;
+            color: #000;
         }
         .validation-container {
-            margin-top: 15px;
+            margin-top: 10px;
         }
         .validation-columns {
             display: table;
             width: 100%;
             border-collapse: separate;
             border-spacing: 0;
-            margin-top: 15px;
+            margin-top: 10px;
             margin-bottom: 0;
             padding-bottom: 0;
         }
@@ -181,8 +230,9 @@
             width: 33.33%;
             vertical-align: top;
             border: 1px solid #000;
-            padding: 6px 6px 8px 6px;
+            padding: 6px 5px;
             border-right: none;
+            background-color: #ffffff;
         }
         .validation-column:last-child {
             border-right: 1px solid #000;
@@ -191,24 +241,28 @@
             font-size: 8.5pt;
             font-weight: bold;
             text-transform: uppercase;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
             text-align: center;
             background-color: #DC143C;
             color: white;
-            padding: 3px;
-            margin: -4px -4px 4px -4px;
+            padding: 4px;
+            margin: -6px -5px 6px -5px;
+            letter-spacing: 0.3px;
         }
         .signature-area {
             border-bottom: 1px solid #000;
-            margin-top: 25px;
+            margin-top: 20px;
             min-height: 25px;
             width: 100%;
-            margin-bottom: 0;
+            margin-bottom: 3px;
+            background-color: #fff;
         }
         .signature-label {
             text-align: center;
             font-size: 7pt;
-            margin-top: 2px;
+            margin-top: 3px;
+            color: #000;
+            font-weight: normal;
         }
         .other-app-text {
             display: inline-block;
@@ -223,21 +277,49 @@
             margin-left: 15px;
             font-size: 8.5pt;
         }
+        .footer-instructions {
+            margin-top: 15px;
+            font-size: 7.5pt;
+            color: #000;
+            line-height: 1.4;
+        }
     </style>
 </head>
 <body>
     <!-- En-tête -->
     <div class="header-container">
         <div class="header-left">
-            <div class="logo">cofina</div>
+            @php
+                $logoPath = null;
+                $logoUrl = null;
+                
+                // Essayer d'abord avec .png
+                if (file_exists(public_path('logo_Cofina.png'))) {
+                    $logoPath = public_path('logo_Cofina.png');
+                    $imageData = file_get_contents($logoPath);
+                    $logoUrl = 'data:image/png;base64,' . base64_encode($imageData);
+                }
+                // Sinon essayer avec .jpg
+                elseif (file_exists(public_path('logo_Cofina.jpg'))) {
+                    $logoPath = public_path('logo_Cofina.jpg');
+                    $imageData = file_get_contents($logoPath);
+                    $logoUrl = 'data:image/jpeg;base64,' . base64_encode($imageData);
+                }
+            @endphp
+            @if($logoUrl)
+                <img src="{{ $logoUrl }}" alt="Logo COFINA" class="logo-img" />
+            @else
+                <div class="logo">cofina</div>
+            @endif
+            <div class="logo-reference">02SUP01V04</div>
         </div>
         <div class="header-center">
             <div class="main-title">DEMANDE D'HABILITATIONS</div>
-            <div class="subtitle">Fiche d'habilitations</div>
         </div>
         <div class="header-right">
             <div class="date-info"><strong>Date de création:</strong> {{ $habilitation->created_at->format('d/m/y') }}</div>
-            <div><strong>Filiale</strong> {{ $habilitation->subsidiary ?? '' }}</div>
+            <div class="date-info">Fiche d'habilitations</div>
+            <div class="date-info"><strong>Filiale</strong> {{ $habilitation->subsidiary ?? '' }}</div>
         </div>
     </div>
 
@@ -299,12 +381,12 @@
     </div>
 
     <!-- DÉTAILS DE LA DEMANDE -->
-    <div class="section-header" style="margin-top: 15px;">DÉTAILS DE LA DEMANDE</div>
+    <div class="section-header" style="margin-top: 6px;">DÉTAILS DE LA DEMANDE</div>
 
     <!-- Type de la demande -->
-    <div style="margin: 6px 0; padding-left: 15px;">
-        <strong style="font-size: 9pt;">Type de la demande:</strong>
-        <div style="margin-left: 15px; margin-top: 5px;">
+    <div style="margin: 3px 0; padding-left: 10px;">
+        <strong style="font-size: 8.5pt;">Type de la demande:</strong>
+        <div style="margin-left: 10px; margin-top: 2px;">
             <span class="checkbox-box checked"></span>
             <span class="checkbox-text">
                 @if($habilitation->request_type === 'Creation') Création
@@ -318,9 +400,9 @@
     </div>
 
     <!-- Type d'application ou service - UNIQUEMENT LES APPLICATIONS SÉLECTIONNÉES -->
-    <div style="margin: 8px 0; padding-left: 15px;">
-        <strong style="font-size: 9pt;">Type d'application ou service:</strong>
-        <div class="checkbox-container" style="margin-left: 15px; margin-top: 10px; margin-bottom: 10px;">
+    <div style="margin: 5px 0; padding-left: 10px;">
+        <strong style="font-size: 8.5pt;">Type d'application ou service:</strong>
+        <div class="checkbox-container" style="margin-left: 10px; margin-top: 6px; margin-bottom: 6px;">
             @if($habilitation->applications && count($habilitation->applications) > 0)
                 @foreach($habilitation->applications as $app)
                 <div class="checkbox-row" style="margin-left: 0;">
@@ -330,9 +412,9 @@
                 @endforeach
             @endif
             @if($habilitation->other_application)
-            <div class="checkbox-row" style="margin-left: 0;">
+            <div style="margin: 3px 0;">
                 <span class="checkbox-box checked"></span>
-                <span class="checkbox-text">Autres</span>
+                <span class="checkbox-text">Autre (préciser)</span>
                 <span class="other-app-text">{{ $habilitation->other_application }}</span>
             </div>
             @endif
@@ -340,45 +422,45 @@
     </div>
 
     <!-- Autres champs -->
-    <div style="padding-left: 15px; margin-top: 8px;">
+    <div style="padding-left: 10px; margin-top: 5px;">
         <div class="field-row">
             <span class="field-label">Autre (préciser):</span>
-            <span class="field-value">{{ $habilitation->other_application ?? '' }}</span>
+            <span class="field-value-long">{{ $habilitation->other_application ?? '' }}</span>
         </div>
         <div class="field-row">
             <span class="field-label">Profil Actuel (préciser):</span>
-            <span class="field-value">{{ $habilitation->current_profile ?? '' }}</span>
+            <span class="field-value-long">{{ $habilitation->current_profile ?? '' }}</span>
         </div>
         <div class="field-row">
             <span class="field-label">Profil demandé (préciser):</span>
-            <span class="field-value">{{ $habilitation->requested_profile ?? '' }}</span>
+            <span class="field-value-long">{{ $habilitation->requested_profile ?? '' }}</span>
         </div>
         <div class="field-row">
             <span class="field-label">Date d'implémentation souhaitée:</span>
-            <span class="field-value">{{ $habilitation->desired_implementation_date ? \Carbon\Carbon::parse($habilitation->desired_implementation_date)->format('d/m/Y') : '' }}</span>
+            <span class="field-value-long">{{ $habilitation->desired_implementation_date ? \Carbon\Carbon::parse($habilitation->desired_implementation_date)->format('d/m/Y') : '' }}</span>
         </div>
     </div>
 
     <!-- Type de profil -->
-    <div style="margin: 7px 0; padding-left: 15px;">
-        <strong style="font-size: 9pt;">Type de profil:</strong>
-        <div style="margin-left: 15px; margin-top: 5px;">
+    <div style="margin: 3px 0; padding-left: 10px;">
+        <strong style="font-size: 8.5pt;">Type de profil:</strong>
+        <div style="margin-left: 10px; margin-top: 2px;">
             @if($habilitation->profile_type)
             <div>
                 <span class="checkbox-box checked"></span>
                 <span class="checkbox-text">{{ $habilitation->profile_type }}</span>
             </div>
             @if($habilitation->specific_profile)
-            <div style="margin-left: 20px; margin-top: 3px; font-size: 8.5pt;">{{ $habilitation->specific_profile }}</div>
+            <div style="margin-left: 15px; margin-top: 2px; font-size: 7.5pt;">{{ $habilitation->specific_profile }}</div>
             @endif
             @endif
         </div>
     </div>
 
     <!-- Période de validité -->
-    <div style="margin: 7px 0; padding-left: 15px;">
-        <strong style="font-size: 9pt;">Période de validité:</strong>
-        <div style="margin-left: 15px; margin-top: 5px;">
+    <div style="margin: 3px 0; padding-left: 10px;">
+        <strong style="font-size: 8.5pt;">Période de validité:</strong>
+        <div style="margin-left: 10px; margin-top: 2px;">
             @if($habilitation->validity_period === 'Permanent')
             <div>
                 <span class="checkbox-box checked"></span>

@@ -34,7 +34,7 @@ import { toUrl, urlIsActive } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import type { BreadcrumbItem, NavItem } from '@/types';
 import { InertiaLinkProps, Link, usePage } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid, Menu, Search, Users, ShieldCheck, FileCheck, UserCog, Building2, MapPin, Building } from 'lucide-vue-next';
+import { BookOpen, Folder, LayoutGrid, Menu, Search, Users, ShieldCheck, FileCheck, UserCog, Building2, MapPin, Building, Layers } from 'lucide-vue-next';
 import { computed } from 'vue';
 
 interface Props {
@@ -78,7 +78,7 @@ const mainNavItems = computed<NavItem[]>(() => {
                 icon: UserCog,
             },
             {
-                title: 'Profils',
+                title: 'Enroulement staff',
                 href: '/profils',
                 icon: Users,
             },
@@ -103,6 +103,11 @@ const mainNavItems = computed<NavItem[]>(() => {
                 icon: Building,
             },
             {
+                title: 'Applications',
+                href: '/applications',
+                icon: Layers,
+            },
+            {
                 title: 'Habilitations',
                 href: '/habilitations',
                 icon: FileCheck,
@@ -113,7 +118,7 @@ const mainNavItems = computed<NavItem[]>(() => {
     else if (auth.value?.isRh) {
         items.push(
             {
-                title: 'Profils',
+                title: 'Enroulement staff',
                 href: '/profils',
                 icon: Users,
             },
@@ -188,7 +193,7 @@ const rightNavItems: NavItem[] = [
                             >
                             <SheetHeader class="flex justify-start text-left">
                                 <AppLogoIcon
-                                    class="size-6 fill-current text-black dark:text-white"
+                                    class="h-14 w-auto object-contain"
                                 />
                             </SheetHeader>
                             <div
@@ -258,7 +263,7 @@ const rightNavItems: NavItem[] = [
                                     <component
                                         v-if="item.icon"
                                         :is="item.icon"
-                                        class="mr-2 h-4 w-4"
+                                        class="mr-2 h-5 w-5"
                                     />
                                     {{ item.title }}
                                 </Link>

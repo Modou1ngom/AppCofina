@@ -33,6 +33,8 @@ class Habilitation extends Model
         'end_date',
         'request_reason',
         'subsidiary',
+        'messagerie_email',
+        'messagerie_nom_affichage',
         'status',
         'validator_n1_id',
         'validated_n1_at',

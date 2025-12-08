@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import InputError from '@/components/InputError.vue';
+import FormSection from '@/components/FormSection.vue';
+import { Code } from 'lucide-vue-next';
 
 interface Role {
     id: number;
@@ -61,68 +63,67 @@ const submit = () => {
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex flex-col gap-6 p-6">
-            <h1 class="text-2xl font-bold">Créer un utilisateur</h1>
+            <div class="flex items-center gap-2">
+                <h1 class="text-3xl font-bold text-gray-900">Créer un utilisateur</h1>
+                <Code class="h-5 w-5 text-gray-500" />
+            </div>
 
             <form @submit.prevent="submit" class="flex flex-col gap-6">
-                <div class="rounded-lg border border-sidebar-border bg-card p-6">
-                    <div class="flex flex-col gap-4">
-                        <div>
-                            <Label for="name">Nom complet *</Label>
-                            <Input
-                                id="name"
-                                v-model="form.name"
-                                type="text"
-                                required
-                                class="mt-1"
-                                placeholder="Nom complet"
-                            />
-                            <InputError :message="form.errors.name" />
-                        </div>
-
-                        <div>
-                            <Label for="email">Email *</Label>
-                            <Input
-                                id="email"
-                                v-model="form.email"
-                                type="email"
-                                required
-                                class="mt-1"
-                                placeholder="email@example.com"
-                            />
-                            <InputError :message="form.errors.email" />
-                        </div>
-
-                        <div>
-                            <Label for="password">Mot de passe *</Label>
-                            <Input
-                                id="password"
-                                v-model="form.password"
-                                type="password"
-                                required
-                                class="mt-1"
-                                placeholder="Minimum 8 caractères"
-                            />
-                            <InputError :message="form.errors.password" />
-                        </div>
-
-                        <div>
-                            <Label for="password_confirmation">Confirmer le mot de passe *</Label>
-                            <Input
-                                id="password_confirmation"
-                                v-model="form.password_confirmation"
-                                type="password"
-                                required
-                                class="mt-1"
-                                placeholder="Répétez le mot de passe"
-                            />
-                            <InputError :message="form.errors.password_confirmation" />
-                        </div>
+                <FormSection :columns="2">
+                    <div>
+                        <Label for="name" class="text-base font-medium text-gray-700">First Name</Label>
+                        <Input
+                            id="name"
+                            v-model="form.name"
+                            type="text"
+                            required
+                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
+                            placeholder="John"
+                        />
+                        <InputError :message="form.errors.name" />
                     </div>
-                </div>
 
-                <div class="rounded-lg border border-sidebar-border bg-card p-6">
-                    <h2 class="mb-4 text-lg font-semibold">Rôles</h2>
-                    
+                    <div>
+                        <Label for="email" class="text-base font-medium text-gray-700">Email</Label>
+                        <Input
+                            id="email"
+                            v-model="form.email"
+                            type="email"
+                            required
+                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
+                            placeholder="johndoe@email.com"
+                        />
+                        <InputError :message="form.errors.email" />
+                    </div>
+
+                    <div>
+                        <Label for="password" class="text-base font-medium text-gray-700">Password</Label>
+                        <Input
+                            id="password"
+                            v-model="form.password"
+                            type="password"
+                            required
+                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
+                            placeholder="Minimum 8 caractères"
+                        />
+                        <InputError :message="form.errors.password" />
+                    </div>
+
+                    <div>
+                        <Label for="password_confirmation" class="text-base font-medium text-gray-700">Confirm Password</Label>
+                        <Input
+                            id="password_confirmation"
+                            v-model="form.password_confirmation"
+                            type="password"
+                            required
+                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
+                            placeholder="Répétez le mot de passe"
+                        />
+                        <InputError :message="form.errors.password_confirmation" />
+                    </div>
+                </FormSection>
+
+                <FormSection title="Rôles" :columns="1">
                     <div class="flex flex-col gap-2">
                         <div
                             v-for="role in props.roles"
@@ -136,7 +137,7 @@ const submit = () => {
                                 @update:checked="(checked: boolean) => toggleRole(role.id, checked)"
                                 @click.stop
                             />
-                            <Label :for="`role-${role.id}`" class="font-normal cursor-pointer">
+                            <Label :for="`role-${role.id}`" class="font-normal cursor-pointer text-sm text-gray-700">
                                 {{ role.nom }}
                             </Label>
                         </div>
@@ -145,6 +146,11 @@ const submit = () => {
                         </p>
                     </div>
                     <InputError :message="form.errors.roles" />
+                </FormSection>
+
+                <div class="flex items-center gap-2">
+                    <Checkbox id="remember" />
+                    <Label for="remember" class="text-sm font-normal text-gray-700 cursor-pointer">Remember me</Label>
                 </div>
 
                 <div class="flex justify-end gap-2">

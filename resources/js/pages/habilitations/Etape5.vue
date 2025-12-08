@@ -183,7 +183,7 @@ const submit = () => {
                                     name="action"
                                     value="approuver"
                                     v-model="actionSelected"
-                                    class="h-4 w-4 text-primary"
+                                    class="h-5 w-5 text-primary"
                                 />
                                 <Label for="action_approuver" class="cursor-pointer flex-1">
                                     <div class="font-medium">Approuver</div>
@@ -202,7 +202,7 @@ const submit = () => {
                                     name="action"
                                     value="rejeter"
                                     v-model="actionSelected"
-                                    class="h-4 w-4 text-destructive"
+                                    class="h-5 w-5 text-destructive"
                                 />
                                 <Label for="action_rejeter" class="cursor-pointer flex-1">
                                     <div class="font-medium">Rejeter</div>
@@ -225,7 +225,7 @@ const submit = () => {
                                 name="comment_control"
                                 rows="4"
                                 required
-                                class="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                class="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-base text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                                 placeholder="Expliquer le motif du rejet de la demande"
                             ></textarea>
                             <InputError :message="form.errors.comment_control" />
@@ -243,7 +243,7 @@ const submit = () => {
                                 v-model="form.comment_control"
                                 name="comment_control"
                                 rows="4"
-                                class="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                class="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-base text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                                 placeholder="Ajouter un commentaire si nécessaire"
                             ></textarea>
                             <InputError :message="form.errors.comment_control" />

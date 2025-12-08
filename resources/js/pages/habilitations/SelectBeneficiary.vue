@@ -4,8 +4,17 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { CheckCircle, AlertCircle, X } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onMounted } from 'vue';
 
 interface Profil {
     id: number;
@@ -29,6 +38,13 @@ const page = usePage();
 const showAlert = ref(false);
 const alertMessage = ref('');
 const alertType = ref<'success' | 'error' | null>(null);
+const isDialogOpen = ref(true);
+const selectedBeneficiary = ref<number | null>(null);
+
+// Ouvrir le modal au chargement de la page
+onMounted(() => {
+    isDialogOpen.value = true;
+});
 
 // Surveiller les messages flash
 watch(() => page.props.flash, (flash: any) => {
@@ -62,6 +78,18 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 const selectBeneficiary = (beneficiaryId: number) => {
     router.visit(`/habilitations/create?beneficiary_id=${beneficiaryId}`);
+};
+
+const handleSelect = () => {
+    if (selectedBeneficiary.value) {
+        selectBeneficiary(selectedBeneficiary.value);
+        isDialogOpen.value = false;
+        selectedBeneficiary.value = null;
+    }
+};
+
+const handleCancel = () => {
+    router.visit('/habilitations');
 };
 </script>
 
@@ -115,52 +143,45 @@ const selectBeneficiary = (beneficiaryId: number) => {
                 </Alert>
             </Transition>
 
-            <div>
-                <h1 class="text-2xl font-bold">Sélectionner le bénéficiaire</h1>
-                <p class="mt-2 text-muted-foreground">
-                    Veuillez sélectionner le collaborateur (N-1) pour qui vous souhaitez créer une demande d'habilitation.
-                </p>
-            </div>
-
-            <div v-if="props.subordonnes.length === 0" class="rounded-lg border border-sidebar-border bg-card p-6 text-center">
-                <p class="text-muted-foreground">Vous n'avez aucun subordonné (N-1) dans votre département.</p>
-                <Link href="/habilitations" class="mt-4 inline-block">
-                    <Button variant="outline">Retour à la liste</Button>
-                </Link>
-            </div>
-
-            <div v-else class="rounded-lg border border-sidebar-border bg-card">
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-primary text-primary-foreground">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-sm font-medium">Matricule</th>
-                                <th class="px-4 py-3 text-left text-sm font-medium">Nom complet</th>
-                                <th class="px-4 py-3 text-left text-sm font-medium">Fonction</th>
-                                <th class="px-4 py-3 text-left text-sm font-medium">Département</th>
-                                <th class="px-4 py-3 text-left text-sm font-medium">Email</th>
-                                <th class="px-4 py-3 text-left text-sm font-medium">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-sidebar-border">
-                            <tr v-for="subordonne in props.subordonnes" :key="subordonne.id">
-                                <td class="px-4 py-3 text-sm font-medium">{{ subordonne.matricule }}</td>
-                                <td class="px-4 py-3 text-sm">
-                                    {{ subordonne.prenom }} {{ subordonne.nom }}
-                                </td>
-                                <td class="px-4 py-3 text-sm">{{ subordonne.fonction || '-' }}</td>
-                                <td class="px-4 py-3 text-sm">{{ subordonne.departement || '-' }}</td>
-                                <td class="px-4 py-3 text-sm">{{ subordonne.email || '-' }}</td>
-                                <td class="px-4 py-3">
-                                    <Button @click="selectBeneficiary(subordonne.id)" size="sm">
-                                        Sélectionner
-                                    </Button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <!-- Modal de sélection du bénéficiaire -->
+            <Dialog v-model:open="isDialogOpen">
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Sélectionner le bénéficiaire</DialogTitle>
+                        <DialogDescription>
+                            Veuillez sélectionner le bénéficiaire que vous souhaitez créer une demande d'habilitation.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div class="grid gap-4 py-4">
+                        <div v-if="props.subordonnes.length === 0" class="text-center py-4">
+                            <p class="text-muted-foreground">Vous n'avez aucun subordonné dans votre département.</p>
+                        </div>
+                        <div v-else class="grid gap-2">
+                            <Label for="beneficiary">Bénéficiaire *</Label>
+                            <select
+                                id="beneficiary"
+                                v-model="selectedBeneficiary"
+                                class="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                <option :value="null" disabled>Sélectionner un bénéficiaire</option>
+                                <option
+                                    v-for="subordonne in props.subordonnes"
+                                    :key="subordonne.id"
+                                    :value="subordonne.id"
+                                >
+                                    {{ subordonne.prenom }} {{ subordonne.nom }} ({{ subordonne.matricule }})
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" @click="handleCancel">Annuler</Button>
+                        <Button @click="handleSelect" :disabled="!selectedBeneficiary || props.subordonnes.length === 0">
+                            Continuer
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     </AppLayout>
 </template>

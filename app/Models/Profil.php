@@ -83,7 +83,7 @@ class Profil extends Model
     public static function generateMatricule(): string
     {
         $year = date('Y');
-        $prefix = 'MAT';
+        $prefix = 'M';
         
         // Trouver le dernier matricule de l'année en cours
         $lastMatricule = self::where('matricule', 'like', "{$prefix}-{$year}-%")

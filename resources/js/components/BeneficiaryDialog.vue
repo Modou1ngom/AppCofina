@@ -40,12 +40,12 @@ const handleCancel = () => {
             <DialogHeader>
                 <DialogTitle>Sélectionner le bénéficiaire</DialogTitle>
                 <DialogDescription>
-                    Veuillez sélectionner le collaborateur (N-1) pour qui vous souhaitez créer une demande d'habilitation.
+                    Veuillez sélectionner le bénéficiaire que vous souhaitez créer une demande d'habilitation.
                 </DialogDescription>
             </DialogHeader>
             <div class="grid gap-4 py-4">
                 <div class="grid gap-2">
-                    <Label for="beneficiary">Bénéficiaire (N-1) *</Label>
+                    <Label for="beneficiary">Bénéficiaire *</Label>
                     <select
                         id="beneficiary"
                         v-model="selectedBeneficiary"

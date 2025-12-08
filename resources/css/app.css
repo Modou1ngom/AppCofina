@@ -169,4 +169,17 @@
     body {
         @apply bg-background text-foreground;
     }
+    select {
+        background-color: white !important;
+        color: rgb(17 24 39) !important;
+        border: 1px solid rgb(209 213 219) !important;
+    }
+    select option {
+        background-color: white !important;
+        color: rgb(17 24 39) !important;
+    }
+    select:not([class*="bg-white"]):not([class*="bg-gray"]):not([class*="bg-background"]) {
+        background-color: white !important;
+        color: rgb(17 24 39) !important;
+    }
 }

@@ -3,6 +3,9 @@ import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
+import DataTable, { type Column } from '@/components/DataTable.vue';
+import { Code, Eye, Pencil, Trash2 } from 'lucide-vue-next';
+import { computed } from 'vue';
 
 interface Filiale {
     id: number;
@@ -16,7 +19,48 @@ interface Props {
     filiales: Filiale[];
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
+
+const getStatusBadge = (actif: boolean) => {
+    if (actif) {
+        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+    }
+    return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
+};
+
+const getStatusLabel = (actif: boolean) => {
+    return actif ? 'Actif' : 'Inactif';
+};
+
+const columns: Column[] = [
+    {
+        key: 'nom',
+        title: 'NAME',
+        sortable: true,
+    },
+    {
+        key: 'description',
+        title: 'DESCRIPTION',
+    },
+    {
+        key: 'actif',
+        title: 'STATUS',
+    },
+    {
+        key: 'actions',
+        title: 'ACTIONS',
+    },
+];
+
+const tableData = computed(() => {
+    return props.filiales.map(filiale => ({
+        id: filiale.id,
+        nom: filiale.nom,
+        description: filiale.description || '-',
+        actif: filiale.actif,
+        filiale: filiale,
+    }));
+});
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -38,66 +82,68 @@ const deleteFiliale = (id: number) => {
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex flex-col gap-6 p-6">
             <div class="flex items-center justify-between">
-                <h1 class="text-2xl font-bold">Gestion des filiales</h1>
+                <div class="flex items-center gap-2">
+                    <h1 class="text-3xl font-bold text-gray-900">Liste des filiales</h1>
+                    <Code class="h-5 w-5 text-gray-500" />
+                </div>
                 <Link href="/filiales/create">
                     <Button>Nouvelle filiale</Button>
                 </Link>
             </div>
 
-            <div class="rounded-lg border border-sidebar-border bg-card">
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-muted">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-sm font-medium">Nom</th>
-                                <th class="px-4 py-3 text-left text-sm font-medium">Description</th>
-                                <th class="px-4 py-3 text-left text-sm font-medium">Statut</th>
-                                <th class="px-4 py-3 text-left text-sm font-medium">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-sidebar-border">
-                            <tr v-for="filiale in filiales" :key="filiale.id">
-                                <td class="px-4 py-3 text-sm font-medium">{{ filiale.nom }}</td>
-                                <td class="px-4 py-3 text-sm">{{ filiale.description || '-' }}</td>
-                                <td class="px-4 py-3">
-                                    <span
-                                        :class="[
-                                            'rounded-full px-2 py-1 text-xs font-medium',
-                                            filiale.actif
-                                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                                : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
-                                        ]"
-                                    >
-                                        {{ filiale.actif ? 'Actif' : 'Inactif' }}
-                                    </span>
-                                </td>
-                                <td class="px-4 py-3">
-                                    <div class="flex items-center gap-2">
-                                        <Link
-                                            :href="`/filiales/${filiale.id}`"
-                                            class="text-primary hover:underline text-sm"
-                                        >
-                                            Voir
-                                        </Link>
-                                        <Link
-                                            :href="`/filiales/${filiale.id}/edit`"
-                                            class="text-primary hover:underline text-sm"
-                                        >
-                                            Modifier
-                                        </Link>
-                                        <button
-                                            @click="deleteFiliale(filiale.id)"
-                                            class="text-destructive hover:underline text-sm"
-                                        >
-                                            Supprimer
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <DataTable
+                :headers="columns"
+                :items="tableData"
+                :current-page="1"
+                :items-per-page="5"
+                :total-items="tableData.length"
+                show-select
+            >
+                <template #item.nom="{ item }">
+                    <span class="text-gray-900 font-medium">{{ item.nom }}</span>
+                </template>
+
+                <template #item.description="{ item }">
+                    <span class="text-gray-900">{{ item.description }}</span>
+                </template>
+
+                <template #item.actif="{ item }">
+                    <span
+                        :class="[
+                            'rounded-full px-3 py-1 text-xs font-medium',
+                            getStatusBadge(item.actif),
+                        ]"
+                    >
+                        {{ getStatusLabel(item.actif) }}
+                    </span>
+                </template>
+
+                <template #item.actions="{ item }">
+                    <div class="flex items-center gap-1">
+                        <Link
+                            :href="`/filiales/${item.id}`"
+                            class="inline-flex items-center justify-center rounded-md p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                            title="Voir"
+                        >
+                            <Eye class="h-5 w-5" />
+                        </Link>
+                        <Link
+                            :href="`/filiales/${item.id}/edit`"
+                            class="inline-flex items-center justify-center rounded-md p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                            title="Modifier"
+                        >
+                            <Pencil class="h-5 w-5" />
+                        </Link>
+                        <button
+                            @click="deleteFiliale(item.id)"
+                            class="inline-flex items-center justify-center rounded-md p-2 text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"
+                            title="Supprimer"
+                        >
+                            <Trash2 class="h-5 w-5" />
+                        </button>
+                    </div>
+                </template>
+            </DataTable>
         </div>
     </AppLayout>
 </template>

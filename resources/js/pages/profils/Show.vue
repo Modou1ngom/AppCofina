@@ -17,18 +17,24 @@ interface Props {
         site?: string;
         type_contrat: string;
         statut: string;
-        n_plus1?: {
+        n_plus_1?: {
             id: number;
             prenom: string;
             nom: string;
             matricule: string;
         };
-        n_plus2?: {
+        n_plus_2?: {
             id: number;
             prenom: string;
             nom: string;
             matricule: string;
         };
+        subordonnes?: Array<{
+            id: number;
+            prenom: string;
+            nom: string;
+            matricule: string;
+        }>;
     };
 }
 
@@ -124,31 +130,39 @@ const breadcrumbs: BreadcrumbItem[] = [
                                 </span>
                             </dd>
                         </div>
-                        <div v-if="profil.n_plus1">
+                        <div v-if="profil.n_plus_1">
                             <dt class="text-muted-foreground text-sm font-medium">N+1</dt>
                             <dd class="mt-1 text-sm">
-                                <Link
-                                    :href="`/profils/${profil.n_plus1.id}`"
-                                    class="text-primary hover:underline"
-                                >
-                                    {{ profil.n_plus1.prenom }} {{ profil.n_plus1.nom }}
-                                    ({{ profil.n_plus1.matricule }})
-                                </Link>
+                                {{ profil.n_plus_1.prenom }} {{ profil.n_plus_1.nom }}
+                                ({{ profil.n_plus_1.matricule }})
                             </dd>
                         </div>
-                        <div v-if="profil.n_plus2">
+                        <div v-if="profil.n_plus_2">
                             <dt class="text-muted-foreground text-sm font-medium">N+2</dt>
                             <dd class="mt-1 text-sm">
-                                <Link
-                                    :href="`/profils/${profil.n_plus2.id}`"
-                                    class="text-primary hover:underline"
-                                >
-                                    {{ profil.n_plus2.prenom }} {{ profil.n_plus2.nom }}
-                                    ({{ profil.n_plus2.matricule }})
-                                </Link>
+                                {{ profil.n_plus_2.prenom }} {{ profil.n_plus_2.nom }}
+                                ({{ profil.n_plus_2.matricule }})
                             </dd>
                         </div>
                     </dl>
+                </div>
+
+                <div v-if="profil.subordonnes && profil.subordonnes.length > 0" class="rounded-lg border border-sidebar-border bg-card p-6">
+                    <h2 class="mb-4 text-lg font-semibold">Subordonnés</h2>
+                    <ul class="space-y-2">
+                        <li
+                            v-for="subordonne in profil.subordonnes"
+                            :key="subordonne.id"
+                            class="text-sm"
+                        >
+                            <Link
+                                :href="`/profils/${subordonne.id}`"
+                                class="text-primary hover:underline"
+                            >
+                                {{ subordonne.prenom }} {{ subordonne.nom }} ({{ subordonne.matricule }})
+                            </Link>
+                        </li>
+                    </ul>
                 </div>
             </div>
         </div>

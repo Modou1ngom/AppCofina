@@ -12,9 +12,10 @@ class DepartementController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $departements = Departement::orderBy('nom')->get();
+        $perPage = (int) $request->get('per_page', 5);
+        $departements = Departement::orderBy('nom')->paginate($perPage);
         
         // Compter le nombre de profils par département
         $departements->each(function ($departement) {

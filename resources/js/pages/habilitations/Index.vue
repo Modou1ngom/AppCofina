@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { Head, Link, usePage } from '@inertiajs/vue3';
+import { Head, Link, usePage, router } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
 import { create, etape3, etape4, etape5, etape6 } from '@/routes/habilitations';
 import { computed, ref, watch } from 'vue';
 import { useBeneficiaryDialog } from '@/composables/useBeneficiaryDialog';
+import DataTable, { type Column } from '@/components/DataTable.vue';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { getInitials } from '@/composables/useInitials';
+import { Code, Eye, CheckCircle, Shield, Play, FileCheck, Filter } from 'lucide-vue-next';
+import { Input } from '@/components/ui/input';
 
 interface Habilitation {
     id: number;
@@ -40,7 +45,11 @@ interface Props {
     habilitations: {
         data: Habilitation[];
         links: any;
-        meta: any;
+        meta?: any;
+        total?: number;
+        current_page?: number;
+        per_page?: number;
+        last_page?: number;
     };
     filter?: string;
     subordonnes?: Profil[];
@@ -102,6 +111,55 @@ const filterLabel = computed(() => {
     return labels[filter] || 'Toutes les habilitations';
 });
 
+// Filtres avancés
+const filters = ref({
+    status: '',
+    request_type: '',
+    search: '',
+});
+
+const applyFilters = () => {
+    const params = new URLSearchParams(window.location.search);
+    
+    // Préserver le filtre existant si présent
+    if (props.filter && props.filter !== 'all') {
+        params.set('filter', props.filter);
+    }
+    
+    // Ajouter les nouveaux filtres
+    if (filters.value.status) {
+        params.set('status', filters.value.status);
+    } else {
+        params.delete('status');
+    }
+    
+    if (filters.value.request_type) {
+        params.set('request_type', filters.value.request_type);
+    } else {
+        params.delete('request_type');
+    }
+    
+    if (filters.value.search) {
+        params.set('search', filters.value.search);
+    } else {
+        params.delete('search');
+    }
+    
+    params.set('page', '1');
+    router.visit(`/habilitations?${params.toString()}`, { preserveScroll: true });
+};
+
+// Initialiser les filtres depuis l'URL
+const initializeFilters = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    filters.value.status = urlParams.get('status') || '';
+    filters.value.request_type = urlParams.get('request_type') || '';
+    filters.value.search = urlParams.get('search') || '';
+};
+
+// Initialiser au chargement
+initializeFilters();
+
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: filterLabel.value,
@@ -137,6 +195,108 @@ const getStatutLabel = (status: string) => {
     return labels[status] || status;
 };
 
+const getAvatarColor = (name: string) => {
+    const colors = [
+        'bg-purple-500',
+        'bg-blue-500',
+        'bg-green-500',
+        'bg-yellow-500',
+        'bg-pink-500',
+        'bg-indigo-500',
+        'bg-red-500',
+        'bg-teal-500',
+    ];
+    const index = name.charCodeAt(0) % colors.length;
+    return colors[index];
+};
+
+const currentPage = computed(() => props.habilitations.current_page || props.habilitations.meta?.current_page || 1);
+const totalItems = computed(() => props.habilitations.total || props.habilitations.meta?.total || 0);
+const perPage = computed(() => props.habilitations.per_page || props.habilitations.meta?.per_page || 5);
+
+const columns: Column[] = [
+    {
+        key: 'id',
+        title: 'ID',
+        sortable: true,
+    },
+    {
+        key: 'beneficiary',
+        title: 'NAME',
+        sortable: true,
+    },
+    {
+        key: 'request_type',
+        title: 'TYPE',
+    },
+    {
+        key: 'requester',
+        title: 'DEMANDEUR',
+    },
+    {
+        key: 'created_at',
+        title: 'DATE',
+        sortable: true,
+    },
+    {
+        key: 'status',
+        title: 'STATUS',
+    },
+    {
+        key: 'actions',
+        title: 'ACTIONS',
+    },
+];
+
+const tableData = computed(() => {
+    return props.habilitations.data.map(habilitation => ({
+        id: habilitation.id,
+        beneficiary: `${habilitation.beneficiary.prenom} ${habilitation.beneficiary.nom}`,
+        request_type: habilitation.request_type,
+        requester: `${habilitation.requester.prenom} ${habilitation.requester.nom}`,
+        created_at: new Date(habilitation.created_at).toLocaleDateString('fr-FR'),
+        status: habilitation.status,
+        habilitation: habilitation,
+    }));
+});
+
+const handlePageChange = (page: number) => {
+    // Récupérer tous les paramètres actuels
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // Mettre à jour le paramètre page
+    urlParams.set('page', page.toString());
+    
+    // Préserver per_page s'il existe
+    if (perPage.value) {
+        urlParams.set('per_page', perPage.value.toString());
+    }
+    
+    // Construire l'URL complète
+    const newUrl = `/habilitations?${urlParams.toString()}`;
+    
+    router.get(newUrl, {}, {
+        preserveScroll: true,
+        preserveState: true,
+        only: ['habilitations'],
+        replace: false,
+    });
+};
+
+const handleItemsPerPageChange = (items: number) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('per_page', items.toString());
+    url.searchParams.set('page', '1');
+    router.visit(url.toString(), { preserveScroll: true });
+};
+
+const handleSort = (column: string, direction: 'asc' | 'desc') => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('sort', column);
+    url.searchParams.set('direction', direction);
+    router.visit(url.toString(), { preserveScroll: true });
+};
+
 </script>
 
 <template>
@@ -145,99 +305,176 @@ const getStatutLabel = (status: string) => {
     <AppLayout :breadcrumbs="breadcrumbs">
         <!-- Contenu de la page (masqué si le dialog est ouvert) -->
         <div v-if="!isDialogOpen" class="flex flex-col gap-6 p-6">
-               
-                <div class="rounded-lg border border-sidebar-border bg-card">
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-muted">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-sm font-medium">ID</th>
-                                <th class="px-4 py-3 text-left text-sm font-medium">Type</th>
-                                <th class="px-4 py-3 text-left text-sm font-medium">Demandeur</th>
-                                <th class="px-4 py-3 text-left text-sm font-medium">Bénéficiaire</th>
-                                <th class="px-4 py-3 text-left text-sm font-medium">Statut</th>
-                                <th class="px-4 py-3 text-left text-sm font-medium">Date</th>
-                                <th class="px-4 py-3 text-left text-sm font-medium">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-sidebar-border">
-                            <tr v-for="habilitation in habilitations.data" :key="habilitation.id">
-                                <td class="px-4 py-3 text-sm">#{{ habilitation.id }}</td>
-                                <td class="px-4 py-3 text-sm">{{ habilitation.request_type }}</td>
-                                <td class="px-4 py-3 text-sm">
-                                    {{ habilitation.requester.prenom }} {{ habilitation.requester.nom }}
-                                </td>
-                                <td class="px-4 py-3 text-sm">
-                                    {{ habilitation.beneficiary.prenom }} {{ habilitation.beneficiary.nom }}
-                                </td>
-                                <td class="px-4 py-3">
-                                    <span
-                                        :class="[
-                                            'rounded-full px-2 py-1 text-xs font-medium',
-                                            getStatutBadge(habilitation.status),
-                                        ]"
-                                    >
-                                        {{ getStatutLabel(habilitation.status) }}
-                                    </span>
-                                </td>
-                                <td class="px-4 py-3 text-sm">
-                                    {{ new Date(habilitation.created_at).toLocaleDateString('fr-FR') }}
-                                </td>
-                                <td class="px-4 py-3">
-                                    <div class="flex items-center gap-2">
-                                        <Link
-                                            :href="`/habilitations/${habilitation.id}`"
-                                            class="text-primary hover:underline"
-                                        >
-                                            Voir
-                                        </Link>
-                                        <Link
-                                            v-if="canValidateN1(habilitation)"
-                                            :href="etape3.url({ habilitation: habilitation.id })"
-                                        >
-                                            <Button size="sm" variant="outline">
-                                                Valider N+1
-                                            </Button>
-                                        </Link>
-                                        <Link
-                                            v-if="canValidateN2(habilitation)"
-                                            :href="etape4.url({ habilitation: habilitation.id })"
-                                        >
-                                            <Button size="sm" variant="outline">
-                                                Valider N+2
-                                            </Button>
-                                        </Link>
-                                        <Link
-                                            v-if="canValidateControl(habilitation)"
-                                            :href="etape5.url({ habilitation: habilitation.id })"
-                                        >
-                                            <Button size="sm" variant="outline">
-                                                Contrôler
-                                            </Button>
-                                        </Link>
-                                        <Link
-                                            v-if="canExecuteIT(habilitation)"
-                                            :href="etape6.url({ habilitation: habilitation.id })"
-                                        >
-                                            <Button size="sm" variant="outline">
-                                                Exécuter IT
-                                            </Button>
-                                        </Link>
-                                        <Link
-                                            v-if="habilitation.status === 'pending_control' && isControle"
-                                            :href="etape5.url({ habilitation: habilitation.id })"
-                                        >
-                                            <Button size="sm" variant="outline">
-                                                Contrôler
-                                            </Button>
-                                        </Link>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <h1 class="text-3xl font-bold text-gray-900">Liste des habilitations</h1>
+                    <Code class="h-5 w-5 text-gray-500" />
                 </div>
+            </div>
+
+            <!-- Section Filtres -->
+            <div class="rounded-lg border border-gray-200 bg-white p-4">
+                <div class="mb-4 flex items-center gap-2">
+                    <Filter class="h-5 w-5 text-gray-500" />
+                    <h2 class="text-base font-semibold text-gray-700">Filtres</h2>
                 </div>
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <div>
+                        <label class="mb-1.5 block text-base font-medium text-gray-700">Statut</label>
+                        <select
+                            v-model="filters.status"
+                            class="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
+                        >
+                            <option value="">Tous les statuts</option>
+                            <option value="draft">Brouillon</option>
+                            <option value="pending_n1">En attente N+1</option>
+                            <option value="pending_control">En attente Contrôle</option>
+                            <option value="pending_n2">En attente N+2</option>
+                            <option value="approved">Approuvée</option>
+                            <option value="rejected">Rejetée</option>
+                            <option value="in_progress">En cours d'exécution</option>
+                            <option value="completed">Terminée</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1.5 block text-base font-medium text-gray-700">Type de demande</label>
+                        <select
+                            v-model="filters.request_type"
+                            class="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
+                        >
+                            <option value="">Tous les types</option>
+                            <option value="Creation">Création</option>
+                            <option value="Modification">Modification</option>
+                            <option value="Desactivation">Désactivation</option>
+                            <option value="Suppression">Suppression</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1.5 block text-base font-medium text-gray-700">Recherche</label>
+                        <Input
+                            v-model="filters.search"
+                            type="text"
+                            placeholder="Rechercher (bénéficiaire, demandeur)"
+                            class="border-gray-300 focus-visible:border-gray-400"
+                            @keyup.enter="applyFilters"
+                        />
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center gap-2">
+                    <Button @click="applyFilters" class="bg-blue-600 hover:bg-blue-700">
+                        Appliquer les filtres
+                    </Button>
+                    <Button variant="outline" @click="() => { filters.status = ''; filters.request_type = ''; filters.search = ''; applyFilters(); }" class="border-gray-300">
+                        Réinitialiser
+                    </Button>
+                </div>
+            </div>
+
+            <DataTable
+                :headers="columns"
+                :items="tableData"
+                :current-page="currentPage"
+                :items-per-page="perPage"
+                :total-items="totalItems"
+                show-select
+                @page-change="handlePageChange"
+                @items-per-page-change="handleItemsPerPageChange"
+                @sort="handleSort"
+            >
+                <template #item.id="{ item }">
+                    <span class="text-gray-900">#{{ item.id }}</span>
+                </template>
+
+                <template #item.beneficiary="{ item }">
+                    <div class="flex items-center gap-3">
+                        <Avatar class="h-10 w-10">
+                            <AvatarImage :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(item.beneficiary)}&background=random`" />
+                            <AvatarFallback :class="getAvatarColor(item.beneficiary)">
+                                {{ getInitials(item.beneficiary) }}
+                            </AvatarFallback>
+                        </Avatar>
+                        <div>
+                            <div class="font-medium text-gray-900">{{ item.beneficiary }}</div>
+                            <div class="text-xs text-gray-500">Bénéficiaire</div>
+                        </div>
+                    </div>
+                </template>
+
+                <template #item.request_type="{ item }">
+                    <span class="text-gray-900">{{ item.request_type }}</span>
+                </template>
+
+                <template #item.requester="{ item }">
+                    <span class="text-gray-900">{{ item.requester }}</span>
+                </template>
+
+                <template #item.created_at="{ item }">
+                    <span class="text-gray-900">{{ item.created_at }}</span>
+                </template>
+
+                <template #item.status="{ item }">
+                    <span
+                        :class="[
+                            'rounded-full px-3 py-1 text-xs font-medium',
+                            getStatutBadge(item.status),
+                        ]"
+                    >
+                        {{ getStatutLabel(item.status) }}
+                    </span>
+                </template>
+
+                <template #item.actions="{ item }">
+                    <div class="flex items-center gap-1 flex-wrap">
+                        <Link
+                            :href="`/habilitations/${item.id}`"
+                            class="inline-flex items-center justify-center rounded-md p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                            title="Voir"
+                        >
+                            <Eye class="h-5 w-5" />
+                        </Link>
+                        <Link
+                            v-if="canValidateN1(item.habilitation)"
+                            :href="etape3.url({ habilitation: item.id })"
+                            class="inline-flex items-center justify-center rounded-md p-2 text-blue-600 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                            title="Valider N+1"
+                        >
+                            <CheckCircle class="h-5 w-5" />
+                        </Link>
+                        <Link
+                            v-if="canValidateN2(item.habilitation)"
+                            :href="etape4.url({ habilitation: item.id })"
+                            class="inline-flex items-center justify-center rounded-md p-2 text-blue-600 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                            title="Valider N+2"
+                        >
+                            <CheckCircle class="h-5 w-5" />
+                        </Link>
+                        <Link
+                            v-if="canValidateControl(item.habilitation)"
+                            :href="etape5.url({ habilitation: item.id })"
+                            class="inline-flex items-center justify-center rounded-md p-2 text-yellow-600 hover:bg-yellow-50 hover:text-yellow-700 transition-colors"
+                            title="Contrôler"
+                        >
+                            <Shield class="h-5 w-5" />
+                        </Link>
+                        <Link
+                            v-if="canExecuteIT(item.habilitation)"
+                            :href="etape6.url({ habilitation: item.id })"
+                            class="inline-flex items-center justify-center rounded-md p-2 text-green-600 hover:bg-green-50 hover:text-green-700 transition-colors"
+                            title="Exécuter IT"
+                        >
+                            <Play class="h-5 w-5" />
+                        </Link>
+                        <Link
+                            v-if="item.status === 'pending_control' && isControle"
+                            :href="etape5.url({ habilitation: item.id })"
+                            class="inline-flex items-center justify-center rounded-md p-2 text-yellow-600 hover:bg-yellow-50 hover:text-yellow-700 transition-colors"
+                            title="Contrôler"
+                        >
+                            <FileCheck class="h-5 w-5" />
+                        </Link>
+                    </div>
+                </template>
+            </DataTable>
         </div>
     </AppLayout>
 </template>

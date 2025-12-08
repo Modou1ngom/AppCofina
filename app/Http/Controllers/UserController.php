@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Role;
 use App\Models\Profil;
+use App\Models\Filiale;
+use App\Models\Departement;
+use App\Models\Agence;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -15,14 +18,86 @@ class UserController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $users = User::with(['profil', 'roles'])
-            ->orderBy('name')
-            ->paginate(15);
+        $perPage = (int) $request->get('per_page', 5);
+        
+        $query = User::with(['profil', 'roles']);
+
+        // Filtre par recherche (nom, email)
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        // Filtre par activation
+        if ($request->has('activation') && $request->activation !== '') {
+            $query->where('is_active', (bool) $request->activation);
+        }
+
+        // Filtre par rôle
+        if ($request->has('role') && $request->role) {
+            $query->whereHas('roles', function($q) use ($request) {
+                $q->where('roles.id', $request->role);
+            });
+        }
+
+        // Filtre par profil
+        if ($request->has('profil') && $request->profil) {
+            $query->whereHas('profil', function($q) use ($request) {
+                $q->where('profiles.id', $request->profil);
+            });
+        }
+
+        // Filtre par agence (via profil)
+        if ($request->has('agence') && $request->agence) {
+            $agence = Agence::find($request->agence);
+            if ($agence) {
+                $query->whereHas('profil', function($q) use ($agence) {
+                    $q->where('profiles.site', $agence->nom);
+                });
+            }
+        }
+
+        // Filtre par département (via profil)
+        if ($request->has('departement') && $request->departement) {
+            $departement = Departement::find($request->departement);
+            if ($departement) {
+                $query->whereHas('profil', function($q) use ($departement) {
+                    $q->where('profiles.departement', $departement->nom);
+                });
+            }
+        }
+
+        // Filtre par environnement (filiale via profil)
+        if ($request->has('environnement') && $request->environnement) {
+            $filiale = Filiale::find($request->environnement);
+            if ($filiale) {
+                $query->whereHas('profil', function($q) use ($filiale) {
+                    $q->where('profiles.site', $filiale->nom);
+                });
+            }
+        }
+
+        $users = $query->orderBy('name')->paginate($perPage);
+
+        // Récupérer les données pour les filtres
+        $roles = Role::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
+        $profils = Profil::orderBy('nom')->orderBy('prenom')->get(['id', 'nom', 'prenom', 'matricule']);
+        $agences = Agence::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
+        $departements = Departement::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
+        $filiales = Filiale::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
 
         return Inertia::render('users/Index', [
             'users' => $users,
+            'roles' => $roles,
+            'profils' => $profils,
+            'agences' => $agences,
+            'departements' => $departements,
+            'environnements' => $filiales, // Utiliser filiales comme environnements
         ]);
     }
 
@@ -84,13 +159,15 @@ class UserController extends Controller
     public function edit(User $user)
     {
         $roles = Role::where('actif', true)->orderBy('nom')->get();
-        $profils = Profil::orderBy('nom')->orderBy('prenom')->get(['id', 'nom', 'prenom', 'matricule', 'email']);
+        $profils = Profil::orderBy('nom')->orderBy('prenom')->get(['id', 'nom', 'prenom', 'matricule', 'email', 'site']);
+        $filiales = Filiale::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
         $user->load(['roles', 'profil']);
         
         return Inertia::render('users/Edit', [
             'user' => $user,
             'roles' => $roles,
             'profils' => $profils,
+            'filiales' => $filiales,
         ]);
     }
 

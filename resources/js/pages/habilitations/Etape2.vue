@@ -140,7 +140,7 @@ const submit = () => {
                                 name="requested_profile"
                                 rows="4"
                                 required
-                                class="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                class="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-base text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                                 placeholder="Décrire en détail le profil demandé pour le bénéficiaire"
                             ></textarea>
                             <InputError :message="form.errors.requested_profile" />
@@ -159,7 +159,7 @@ const submit = () => {
                                     v-model="form.profile_type"
                                     name="profile_type"
                                     required
-                                    class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                    class="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     <option value="">Sélectionner un type</option>
                                     <option value="Consultation simple">Consultation simple</option>
@@ -234,7 +234,7 @@ const submit = () => {
                                 v-model="form.comment_n1"
                                 name="comment_n1"
                                 rows="4"
-                                class="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                class="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                                 placeholder="Ajouter un commentaire si nécessaire"
                             ></textarea>
                             <InputError :message="form.errors.comment_n1" />

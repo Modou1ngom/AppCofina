@@ -83,13 +83,37 @@ class HabilitationController extends Controller
         }
         // Si filter === 'all', pas de filtre supplémentaire
 
-        $habilitations = $query->orderBy('created_at', 'desc')->paginate(15);
+        // Filtre par statut spécifique
+        if ($request->has('status') && $request->status) {
+            $query->where('status', $request->status);
+        }
+
+        // Filtre par type de demande
+        if ($request->has('request_type') && $request->request_type) {
+            $query->where('request_type', $request->request_type);
+        }
+
+        // Filtre par recherche (bénéficiaire ou demandeur)
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->whereHas('beneficiary', function($subQ) use ($search) {
+                    $subQ->where('nom', 'like', "%{$search}%")
+                         ->orWhere('prenom', 'like', "%{$search}%");
+                })
+                ->orWhereHas('requester', function($subQ) use ($search) {
+                    $subQ->where('nom', 'like', "%{$search}%")
+                         ->orWhere('prenom', 'like', "%{$search}%");
+                });
+            });
+        }
+
+        $habilitations = $query->orderBy('created_at', 'desc')->paginate($request->get('per_page', 5));
 
         // Récupérer les membres du département si l'utilisateur a un profil avec un département
         $subordonnes = collect([]);
         if ($profil && $profil->departement) {
             $subordonnes = Profil::where('departement', $profil->departement)
-                ->where('id', '!=', $profil->id) // Exclure l'utilisateur lui-même
                 ->where('statut', 'actif')
                 ->orderBy('nom')
                 ->orderBy('prenom')
@@ -122,9 +146,8 @@ class HabilitationController extends Controller
             return response()->json(['error' => 'Aucun département associé trouvé.'], 404);
         }
         
-        // Récupérer tous les profils du même département sauf l'utilisateur lui-même
+        // Récupérer tous les profils du même département (y compris l'utilisateur lui-même)
         $subordonnes = Profil::where('departement', $profil->departement)
-            ->where('id', '!=', $profil->id) // Exclure l'utilisateur lui-même
             ->where('statut', 'actif')
             ->orderBy('nom')
             ->orderBy('prenom')
@@ -155,9 +178,8 @@ class HabilitationController extends Controller
                 ->with('error', 'Aucun département associé trouvé.');
         }
         
-        // Récupérer tous les profils du même département sauf l'utilisateur lui-même
+        // Récupérer tous les profils du même département (y compris l'utilisateur lui-même)
         $subordonnes = Profil::where('departement', $profil->departement)
-            ->where('id', '!=', $profil->id) // Exclure l'utilisateur lui-même
             ->where('statut', 'actif')
             ->orderBy('nom')
             ->orderBy('prenom')
@@ -199,7 +221,7 @@ class HabilitationController extends Controller
         
         $beneficiary = Profil::find($beneficiaryId);
         // Vérifier que le bénéficiaire est bien du même département que l'utilisateur
-        if (!$beneficiary || $beneficiary->departement !== $profil->departement || $beneficiary->id === $profil->id) {
+        if (!$beneficiary || $beneficiary->departement !== $profil->departement) {
             return redirect()->route('habilitations.select-beneficiary')
                 ->with('error', 'Le bénéficiaire sélectionné n\'est pas valide.');
         }
@@ -209,10 +231,20 @@ class HabilitationController extends Controller
             ->orderBy('nom')
             ->get(['id', 'nom']);
         
+        // Récupérer les applications
+        $applications = $this->getApplicationsList();
+        
+        // Debug: vérifier que les applications sont bien récupérées
+        \Log::info('HabilitationController::create - Applications récupérées', [
+            'count' => count($applications),
+            'applications' => $applications,
+            'user_id' => $user->id,
+        ]);
+        
         return Inertia::render('habilitations/Create', [
             'demandeur' => $profil,
             'beneficiaire' => $beneficiary,
-            'applications' => $this->getApplicationsList(),
+            'applications' => $applications,
             'filiales' => $filiales,
         ]);
     }
@@ -309,7 +341,18 @@ class HabilitationController extends Controller
             'end_date' => 'nullable|date|after:start_date|required_if:validity_period,Temporaire',
             'request_reason' => 'nullable|string',
             'subsidiary' => 'nullable|string|max:255',
+            // Champs spécifiques pour Messagerie
+            'messagerie_email' => 'nullable|email|max:255',
+            'messagerie_nom_affichage' => 'nullable|string|max:255',
         ]);
+
+        // Validation personnalisée pour les champs Messagerie
+        $hasMessagerie = in_array('Messagerie', $applications) || in_array('Outlook', $applications);
+        if ($hasMessagerie) {
+            $request->validate([
+                'messagerie_email' => 'required|email|max:255',
+            ]);
+        }
 
         // S'assurer que applications est un tableau même si NULL
         $data = $validated;
@@ -793,10 +836,15 @@ class HabilitationController extends Controller
      */
     private function getApplicationsList(): array
     {
-        return Application::actives()
+        $applications = Application::actives()
             ->ordered()
             ->pluck('nom')
             ->toArray();
+        
+        // Debug: logger pour vérifier
+        \Log::info('Applications listées', ['count' => count($applications), 'applications' => $applications]);
+        
+        return $applications;
     }
 
     /**

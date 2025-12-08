@@ -23,6 +23,7 @@ use App\Http\Controllers\DepartementController;
 use App\Http\Controllers\AgenceController;
 use App\Http\Controllers\FilialeController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\ApplicationController;
 
 // Routes pour les profils - Admin et RH peuvent créer/éditer/supprimer
 Route::middleware(['auth'])->group(function () {
@@ -31,6 +32,17 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('departements', DepartementController::class)->middleware('role:admin');
     Route::resource('agences', AgenceController::class)->middleware('role:admin');
     Route::resource('filiales', FilialeController::class)->middleware('role:admin');
+    Route::resource('applications', ApplicationController::class)
+        ->middleware('role:admin')
+        ->names([
+            'index' => 'applications.index',
+            'create' => 'applications.create',
+            'store' => 'applications.store',
+            'show' => 'applications.show',
+            'edit' => 'applications.edit',
+            'update' => 'applications.update',
+            'destroy' => 'applications.destroy',
+        ]);
     Route::resource('users', UserController::class)->middleware('role:admin');
     Route::post('users/{user}/toggle', [UserController::class, 'toggle'])->name('users.toggle')->middleware('role:admin');
 

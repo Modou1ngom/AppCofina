@@ -82,7 +82,7 @@ const inputEmail = ref(props.email);
                 >
                     <LoaderCircle
                         v-if="processing"
-                        class="h-4 w-4 animate-spin"
+                        class="h-5 w-5 animate-spin"
                     />
                     Reset password
                 </Button>

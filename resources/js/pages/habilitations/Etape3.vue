@@ -159,7 +159,7 @@ const submit = (action: 'approuver' | 'rejeter') => {
                                 v-model="form.comment_n1"
                                 name="comment_n1"
                                 rows="4"
-                                class="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                class="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-base text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                                 placeholder="Ajouter un commentaire si nécessaire (obligatoire pour rejeter)"
                             ></textarea>
                             <InputError :message="form.errors.comment_n1" />

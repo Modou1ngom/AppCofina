@@ -82,12 +82,23 @@ const form = useForm({
     end_date: '',
     request_reason: '',
     subsidiary: 'SENEGAL',
+    // Champs spécifiques pour Messagerie
+    messagerie_email: '',
+    messagerie_nom_affichage: '',
 });
 
 const showAutreApplication = computed(() => form.applications.includes('Autres'));
 const showProfilSpecifique = computed(() => form.profile_type === 'Profil Specifique');
 const showDatesTemporaire = computed(() => form.validity_period === 'Temporaire');
 const showProfilActuel = computed(() => form.request_type === 'Modification');
+const showMessagerieFields = computed(() => form.applications.includes('Messagerie') || form.applications.includes('Outlook'));
+
+// Computed pour les applications avec fallback
+const applications = computed(() => {
+    const apps = props.applications || [];
+    console.log('Applications computed:', apps);
+    return apps;
+});
 
 // Watcher pour remplir automatiquement les informations du demandeur
 watch(() => form.requester_profile_id, (newProfileId) => {
@@ -123,6 +134,12 @@ watch(() => form.beneficiary_profile_id, (newProfileId) => {
             form.beneficiary_email = selectedProfil.email || '';
             form.beneficiary_telephone = selectedProfil.telephone || '';
             form.beneficiary_site = selectedProfil.site || '';
+            
+            // Pré-remplir les champs de messagerie si disponibles
+            if (showMessagerieFields.value) {
+                form.messagerie_email = selectedProfil.email || '';
+                form.messagerie_nom_affichage = `${selectedProfil.prenom} ${selectedProfil.nom}`.trim();
+            }
         }
     } else {
         // Réinitialiser les champs si aucun profil n'est sélectionné
@@ -130,6 +147,19 @@ watch(() => form.beneficiary_profile_id, (newProfileId) => {
         form.beneficiary_email = '';
         form.beneficiary_telephone = '';
         form.beneficiary_site = '';
+    }
+});
+
+// Watcher pour pré-remplir les champs de messagerie quand Messagerie est sélectionnée
+watch(() => showMessagerieFields.value, (isMessagerieSelected) => {
+    if (isMessagerieSelected && props.beneficiaire) {
+        // Pré-remplir avec les informations du bénéficiaire si disponibles
+        if (!form.messagerie_email && props.beneficiaire.email) {
+            form.messagerie_email = props.beneficiaire.email;
+        }
+        if (!form.messagerie_nom_affichage && props.beneficiaire.prenom && props.beneficiaire.nom) {
+            form.messagerie_nom_affichage = `${props.beneficiaire.prenom} ${props.beneficiaire.nom}`.trim();
+        }
     }
 });
 
@@ -227,7 +257,7 @@ const submit = () => {
                                     v-model="form.requester_profile_id"
                                     name="requester_profile_id"
                                     required
-                                    class="block w-full h-9 rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                    class="block w-full h-9 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     <option value="" disabled selected>Sélectionner un profil</option>
                                     <option
@@ -297,7 +327,7 @@ const submit = () => {
                                     v-model="form.beneficiary_profile_id"
                                     name="beneficiary_profile_id"
                                     required
-                                    class="block w-full h-9 rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                    class="block w-full h-9 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     <option value="" disabled selected>Sélectionner un profil</option>
                                     <option
@@ -375,7 +405,7 @@ const submit = () => {
                                     v-model="form.request_type"
                                     name="request_type"
                                     required
-                                    class="block w-full h-9 rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                    class="block w-full h-9 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     <option value="Creation">Création</option>
                                     <option value="Modification">Modification</option>
@@ -392,7 +422,7 @@ const submit = () => {
                                     id="subsidiary"
                                     v-model="form.subsidiary"
                                     name="subsidiary"
-                                    class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                    class="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     <option value="SENEGAL">SENEGAL</option>
                                     <option
@@ -413,7 +443,7 @@ const submit = () => {
                                     v-model="form.current_profile"
                                     name="current_profile"
                                     rows="3"
-                                    class="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                    class="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-base text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                                     placeholder="Décrire le profil actuel du bénéficiaire"
                                 ></textarea>
                                 <InputError :message="form.errors.current_profile" />
@@ -426,7 +456,7 @@ const submit = () => {
                                     v-model="form.requested_profile"
                                     name="requested_profile"
                                     rows="3"
-                                    class="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                    class="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-base text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                                     placeholder="Décrire le profil demandé"
                                 ></textarea>
                                 <InputError :message="form.errors.requested_profile" />
@@ -449,7 +479,13 @@ const submit = () => {
                     <div class="space-y-4">
                         <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Applications / Services demandés *</h2>
                         
-                        <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                        <div v-if="!applications || applications.length === 0" class="text-sm text-muted-foreground p-4 border border-dashed rounded-md">
+                            <p>Aucune application disponible. Veuillez contacter l'administrateur.</p>
+                            <p class="text-xs mt-2">Debug: applications = {{ JSON.stringify(applications) }}</p>
+                            <p class="text-xs">props.applications = {{ JSON.stringify(props.applications) }}</p>
+                        </div>
+                        
+                        <div v-else class="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                             <div
                                 v-for="app in applications"
                                 :key="app"
@@ -485,6 +521,36 @@ const submit = () => {
                             />
                             <InputError :message="form.errors.other_application" />
                         </div>
+
+                        <!-- Champs spécifiques pour Messagerie -->
+                        <div v-if="showMessagerieFields" class="mt-6 space-y-4 border-t pt-4">
+                            <h3 class="text-base font-semibold text-gray-700">Informations complémentaires pour la messagerie</h3>
+                            <div class="grid gap-4 md:grid-cols-2">
+                                <div class="grid gap-2">
+                                    <Label for="messagerie_email">Email adresse *</Label>
+                                    <Input
+                                        id="messagerie_email"
+                                        v-model="form.messagerie_email"
+                                        type="email"
+                                        name="messagerie_email"
+                                        placeholder="email@example.com"
+                                        required
+                                    />
+                                    <InputError :message="form.errors.messagerie_email" />
+                                </div>
+
+                                <div class="grid gap-2">
+                                    <Label for="messagerie_nom_affichage">Nom d'affichage</Label>
+                                    <Input
+                                        id="messagerie_nom_affichage"
+                                        v-model="form.messagerie_nom_affichage"
+                                        name="messagerie_nom_affichage"
+                                        placeholder="Nom d'affichage"
+                                    />
+                                    <InputError :message="form.errors.messagerie_nom_affichage" />
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Section Type de profil -->
@@ -498,7 +564,7 @@ const submit = () => {
                                     id="profile_type"
                                     v-model="form.profile_type"
                                     name="profile_type"
-                                    class="block w-full h-9 rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                    class="block w-full h-9 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     <option value="">Sélectionner un type</option>
                                     <option value="Consultation simple">Consultation simple</option>
@@ -532,7 +598,7 @@ const submit = () => {
                                     id="validity_period"
                                     v-model="form.validity_period"
                                     name="validity_period"
-                                    class="block w-full h-9 rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                    class="block w-full h-9 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     <option value="Permanent">Permanent</option>
                                     <option value="Temporaire">Temporaire</option>
@@ -577,7 +643,7 @@ const submit = () => {
                                 v-model="form.request_reason"
                                 name="request_reason"
                                 rows="4"
-                                class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-base text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                                 placeholder="Expliquer le motif de la demande d'habilitation"
                             ></textarea>
                             <InputError :message="form.errors.request_reason" />

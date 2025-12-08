@@ -26,4 +26,12 @@ class Filiale extends Model
     {
         return Profil::where('site', $this->nom);
     }
+
+    /**
+     * Relation avec les agences
+     */
+    public function agences()
+    {
+        return $this->hasMany(Agence::class, 'filiale_id');
+    }
 }

@@ -173,7 +173,7 @@ const submit = () => {
                                 v-model="form.comment_it"
                                 name="comment_it"
                                 rows="4"
-                                class="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                class="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-base text-foreground shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                                 placeholder="Ajouter un commentaire sur l'exécution si nécessaire"
                             ></textarea>
                             <InputError :message="form.errors.comment_it" />
