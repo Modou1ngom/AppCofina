@@ -7,7 +7,7 @@ import DataTable, { type Column } from '@/components/DataTable.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/composables/useInitials';
 import { computed } from 'vue';
-import { Code, Eye, Pencil, Trash2, Filter } from 'lucide-vue-next';
+import { Code, Eye, Pencil, Trash2, Filter, Upload } from 'lucide-vue-next';
 import { Input } from '@/components/ui/input';
 import { ref } from 'vue';
 
@@ -200,6 +200,21 @@ const tableData = computed(() => {
                 <div class="flex items-center gap-2">
                     <h1 class="text-3xl font-bold text-gray-900">Liste des profils</h1>
                     <Code class="h-5 w-5 text-gray-500" />
+                </div>
+                <div class="flex items-center gap-3">
+                    <Button
+                        @click="router.visit('/profils/import')"
+                        class="bg-green-600 hover:bg-green-700"
+                    >
+                        <Upload class="mr-2 h-4 w-4" />
+                        Importer Excel
+                    </Button>
+                    <Link
+                        href="/profils/create"
+                        class="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    >
+                        Créer un profil
+                    </Link>
                 </div>
             </div>
 

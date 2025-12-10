@@ -71,6 +71,7 @@ const form = useForm({
     site: '',
     type_contrat: 'CDI' as 'CDI' | 'CDD' | 'Stagiaire' | 'Autre',
     statut: 'actif' as 'actif' | 'inactif',
+    type_office: '' as '' | 'Back Office' | 'Front Office',
     n_plus_1_id: null as string | number | null,
 });
 
@@ -287,6 +288,20 @@ const submit = () => {
                             <option value="inactif">Inactif</option>
                         </select>
                         <InputError :message="form.errors.statut" />
+                    </div>
+
+                    <div>
+                        <Label for="type_office" class="text-base font-medium text-gray-700">Back/Front Office</Label>
+                        <select
+                            id="type_office"
+                            v-model="form.type_office"
+                            class="mt-1.5 flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
+                        >
+                            <option value="">Sélectionner un type</option>
+                            <option value="Back Office">Back Office</option>
+                            <option value="Front Office">Front Office</option>
+                        </select>
+                        <InputError :message="form.errors.type_office" />
                     </div>
 
                     <div>

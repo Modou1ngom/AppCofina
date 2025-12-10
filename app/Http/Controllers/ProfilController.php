@@ -9,6 +9,9 @@ use App\Models\Agence;
 use App\Models\Filiale;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ProfilController extends Controller
 {
@@ -133,6 +136,7 @@ class ProfilController extends Controller
                 'site' => 'nullable|string|max:100',
                 'type_contrat' => 'nullable|in:CDI,CDD,Stagiaire,Autre',
                 'statut' => 'nullable|in:actif,inactif',
+                'type_office' => 'nullable|in:Back Office,Front Office',
                 'n_plus_1_id' => 'nullable|exists:profiles,id',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -162,6 +166,7 @@ class ProfilController extends Controller
             'site' => $validated['site'] ?? null,
             'type_contrat' => $validated['type_contrat'] ?? 'CDI',
             'statut' => $validated['statut'] ?? 'actif',
+            'type_office' => $validated['type_office'] ?? null,
             'n_plus_1_id' => $validated['n_plus_1_id'] ?? null,
             'n_plus_2_id' => $nPlus2Id,
         ];
@@ -236,6 +241,7 @@ class ProfilController extends Controller
             'site' => 'nullable|string|max:100',
             'type_contrat' => 'nullable|in:CDI,CDD,Stagiaire,Autre',
             'statut' => 'nullable|in:actif,inactif',
+            'type_office' => 'nullable|in:Back Office,Front Office',
             'n_plus_1_id' => 'nullable|exists:profiles,id',
         ]);
 
@@ -280,5 +286,198 @@ class ProfilController extends Controller
         
         return redirect()->route('profils.index')
             ->with('success', 'Profil supprimé avec succès !');
+    }
+
+    /**
+     * Show the import form.
+     */
+    public function showImport()
+    {
+        return Inertia::render('profils/Import');
+    }
+
+    /**
+     * Import profiles from Excel file.
+     */
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls|max:10240', // 10MB max
+        ]);
+
+        try {
+            $file = $request->file('file');
+            $data = Excel::toArray([], $file);
+            
+            if (empty($data) || empty($data[0])) {
+                return back()->withErrors(['file' => 'Le fichier Excel est vide.']);
+            }
+
+            $rows = $data[0];
+            $header = array_shift($rows); // Première ligne = en-têtes
+            
+            // Normaliser les en-têtes (minuscules, sans espaces)
+            $headerMap = [];
+            foreach ($header as $index => $col) {
+                $normalized = strtolower(trim($col));
+                $headerMap[$normalized] = $index;
+            }
+
+            // Mapping des colonnes possibles
+            $columnMapping = [
+                'nom' => ['nom', 'name', 'lastname', 'last_name'],
+                'prenom' => ['prenom', 'firstname', 'first_name', 'prénom'],
+                'matricule' => ['matricule', 'mat', 'id', 'employee_id'],
+                'email' => ['email', 'e-mail', 'mail'],
+                'telephone' => ['telephone', 'tel', 'phone', 'téléphone', 'mobile'],
+                'fonction' => ['fonction', 'function', 'poste', 'job', 'position'],
+                'departement' => ['departement', 'department', 'département', 'dept'],
+                'site' => ['site', 'agence', 'agency', 'location'],
+                'type_contrat' => ['type_contrat', 'type contrat', 'contract_type', 'contrat'],
+                'statut' => ['statut', 'status', 'etat', 'état'],
+                'type_office' => ['type_office', 'type office', 'back front office', 'back/front office', 'office', 'back office', 'front office'],
+            ];
+
+            $mappedColumns = [];
+            foreach ($columnMapping as $dbColumn => $possibleNames) {
+                foreach ($possibleNames as $name) {
+                    if (isset($headerMap[$name])) {
+                        $mappedColumns[$dbColumn] = $headerMap[$name];
+                        break;
+                    }
+                }
+            }
+
+            // Vérifier que les colonnes obligatoires sont présentes
+            if (!isset($mappedColumns['nom']) || !isset($mappedColumns['prenom'])) {
+                return back()->withErrors(['file' => 'Le fichier doit contenir au moins les colonnes "Nom" et "Prénom".']);
+            }
+
+            $imported = 0;
+            $skipped = 0;
+            $errors = [];
+
+            DB::beginTransaction();
+
+            try {
+                foreach ($rows as $rowIndex => $row) {
+                    // Ignorer les lignes vides
+                    if (empty(array_filter($row))) {
+                        continue;
+                    }
+
+                    $nom = trim($row[$mappedColumns['nom']] ?? '');
+                    $prenom = trim($row[$mappedColumns['prenom'] ?? ''] ?? '');
+
+                    // Ignorer si nom ou prénom est vide
+                    if (empty($nom) || empty($prenom)) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    // Récupérer les valeurs
+                    $matricule = isset($mappedColumns['matricule']) ? trim($row[$mappedColumns['matricule']] ?? '') : null;
+                    $email = isset($mappedColumns['email']) ? trim($row[$mappedColumns['email']] ?? '') : null;
+                    $telephone = isset($mappedColumns['telephone']) ? trim($row[$mappedColumns['telephone']] ?? '') : null;
+                    $fonction = isset($mappedColumns['fonction']) ? trim($row[$mappedColumns['fonction']] ?? '') : null;
+                    $departement = isset($mappedColumns['departement']) ? trim($row[$mappedColumns['departement']] ?? '') : null;
+                    $site = isset($mappedColumns['site']) ? trim($row[$mappedColumns['site']] ?? '') : null;
+                    $typeContrat = isset($mappedColumns['type_contrat']) ? trim($row[$mappedColumns['type_contrat']] ?? '') : 'CDI';
+                    $statut = isset($mappedColumns['statut']) ? trim($row[$mappedColumns['statut']] ?? '') : 'actif';
+                    $typeOffice = isset($mappedColumns['type_office']) ? trim($row[$mappedColumns['type_office']] ?? '') : null;
+
+                    // Valider le type de contrat
+                    if (!in_array($typeContrat, ['CDI', 'CDD', 'Stagiaire', 'Autre'])) {
+                        $typeContrat = 'CDI';
+                    }
+
+                    // Valider le statut
+                    if (!in_array(strtolower($statut), ['actif', 'inactif'])) {
+                        $statut = 'actif';
+                    } else {
+                        $statut = strtolower($statut);
+                    }
+
+                    // Valider le type_office
+                    if ($typeOffice) {
+                        $typeOfficeNormalized = trim($typeOffice);
+                        // Normaliser les variations possibles
+                        if (stripos($typeOfficeNormalized, 'back') !== false && stripos($typeOfficeNormalized, 'office') !== false) {
+                            $typeOfficeNormalized = 'Back Office';
+                        } elseif (stripos($typeOfficeNormalized, 'front') !== false && stripos($typeOfficeNormalized, 'office') !== false) {
+                            $typeOfficeNormalized = 'Front Office';
+                        } else {
+                            // Si ce n'est pas une valeur valide, mettre à null
+                            if (!in_array($typeOfficeNormalized, ['Back Office', 'Front Office'])) {
+                                $typeOfficeNormalized = null;
+                            }
+                        }
+                        $typeOffice = $typeOfficeNormalized;
+                    } else {
+                        $typeOffice = null;
+                    }
+
+                    // Gérer le matricule : utiliser celui du fichier s'il existe, sinon générer automatiquement
+                    if (empty($matricule)) {
+                        // Générer le matricule automatiquement si absent
+                        $matricule = Profil::generateMatricule();
+                    } else {
+                        // Vérifier si le matricule existe déjà dans la base de données
+                        if (Profil::where('matricule', $matricule)->exists()) {
+                            $skipped++;
+                            $errors[] = "Ligne " . ($rowIndex + 2) . ": Matricule déjà existant ($matricule)";
+                            continue;
+                        }
+                    }
+
+                    // Vérifier si l'email existe déjà (si fourni)
+                    if ($email && Profil::where('email', $email)->exists()) {
+                        $skipped++;
+                        $errors[] = "Ligne " . ($rowIndex + 2) . ": Email déjà existant ($email)";
+                        continue;
+                    }
+
+                    // Créer le profil
+                    Profil::create([
+                        'nom' => $nom,
+                        'prenom' => $prenom,
+                        'matricule' => $matricule,
+                        'email' => $email ?: null,
+                        'telephone' => $telephone ?: null,
+                        'fonction' => $fonction ?: null,
+                        'departement' => $departement ?: null,
+                        'site' => $site ?: null,
+                        'type_contrat' => $typeContrat,
+                        'statut' => $statut,
+                        'type_office' => $typeOffice,
+                    ]);
+
+                    $imported++;
+                }
+
+                DB::commit();
+
+                $message = "$imported profil(s) importé(s) avec succès.";
+                if ($skipped > 0) {
+                    $message .= " $skipped ligne(s) ignorée(s).";
+                }
+                if (!empty($errors)) {
+                    $message .= "\n\nErreurs rencontrées:\n" . implode("\n", $errors);
+                }
+
+                return redirect()->route('profils.index')
+                    ->with('success', $message)
+                    ->with('import_errors', $errors);
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                Log::error('Erreur lors de l\'import Excel: ' . $e->getMessage());
+                return back()->withErrors(['file' => 'Erreur lors de l\'import: ' . $e->getMessage()]);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la lecture du fichier Excel: ' . $e->getMessage());
+            return back()->withErrors(['file' => 'Erreur lors de la lecture du fichier: ' . $e->getMessage()]);
+        }
     }
 }

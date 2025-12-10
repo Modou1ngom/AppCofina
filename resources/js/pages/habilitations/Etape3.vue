@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import InputError from '@/components/InputError.vue';
 import { validerEtape3 } from '@/routes/habilitations';
 import { ref, computed } from 'vue';
+import SignaturePad from '@/components/SignaturePad.vue';
 
 interface Profil {
     id: number;
@@ -50,13 +51,24 @@ const breadcrumbs: BreadcrumbItem[] = [
 const form = useForm({
     action: '' as 'approuver' | 'rejeter' | '',
     comment_n1: '',
+    signature_n1: '',
 });
+
+const signatureRef = ref<InstanceType<typeof SignaturePad> | null>(null);
 
 const submit = (action: 'approuver' | 'rejeter') => {
     // Si rejet, vérifier qu'un commentaire est fourni
     if (action === 'rejeter' && !form.comment_n1) {
         form.setError('comment_n1', 'Un commentaire est obligatoire pour rejeter la demande.');
         return;
+    }
+
+    // Sauvegarder la signature si elle existe
+    if (signatureRef.value) {
+        const signature = signatureRef.value.save();
+        if (signature) {
+            form.signature_n1 = signature;
+        }
     }
 
     // Réinitialiser les erreurs précédentes
@@ -164,6 +176,19 @@ const submit = (action: 'approuver' | 'rejeter') => {
                             ></textarea>
                             <InputError :message="form.errors.comment_n1" />
                         </div>
+                    </div>
+
+                    <!-- Signature électronique -->
+                    <div class="space-y-4">
+                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Signature électronique</h2>
+                        <p class="text-sm text-muted-foreground">Veuillez signer dans le champ ci-dessous</p>
+                        <SignaturePad
+                            ref="signatureRef"
+                            v-model="form.signature_n1"
+                            :width="500"
+                            :height="200"
+                        />
+                        <InputError :message="form.errors.signature_n1" />
                     </div>
 
                     <!-- Actions -->

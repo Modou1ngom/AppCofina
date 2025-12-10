@@ -60,6 +60,7 @@ class HandleInertiaRequests extends Middleware
                 'isMetier' => $user ? $user->isMetier() : false,
                 'isControle' => $user ? $user->isControle() : false,
                 'isRh' => $user ? $user->isRh() : false,
+                'isExecuteurIt' => $user ? $user->isExecuteurIt() : false,
                 'isResponsableDepartement' => $user ? $user->isResponsableDepartement() : false,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',

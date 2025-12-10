@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import InputError from '@/components/InputError.vue';
 import { validerEtape4 } from '@/routes/habilitations';
 import { ref, computed } from 'vue';
+import SignaturePad from '@/components/SignaturePad.vue';
 
 interface Profil {
     id: number;
@@ -58,15 +59,25 @@ const breadcrumbs: BreadcrumbItem[] = [
 const form = useForm({
     action: '' as 'approuver' | 'rejeter' | '',
     comment_n2: '',
+    signature_n2: '',
 });
 
 const actionSelected = ref<'approuver' | 'rejeter' | ''>('');
 const showCommentField = computed(() => actionSelected.value === 'rejeter');
+const signatureRef = ref<InstanceType<typeof SignaturePad> | null>(null);
 
 const submit = () => {
     if (!actionSelected.value) {
         form.setError('action', 'Veuillez sélectionner une action.');
         return;
+    }
+
+    // Sauvegarder la signature si elle existe
+    if (signatureRef.value) {
+        const signature = signatureRef.value.save();
+        if (signature) {
+            form.signature_n2 = signature;
+        }
     }
 
     form.action = actionSelected.value;
@@ -233,6 +244,19 @@ const submit = () => {
                             ></textarea>
                             <InputError :message="form.errors.comment_n2" />
                         </div>
+                    </div>
+
+                    <!-- Signature électronique -->
+                    <div class="space-y-4">
+                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Signature électronique</h2>
+                        <p class="text-sm text-muted-foreground">Veuillez signer dans le champ ci-dessous</p>
+                        <SignaturePad
+                            ref="signatureRef"
+                            v-model="form.signature_n2"
+                            :width="500"
+                            :height="200"
+                        />
+                        <InputError :message="form.errors.signature_n2" />
                     </div>
 
                     <!-- Actions -->

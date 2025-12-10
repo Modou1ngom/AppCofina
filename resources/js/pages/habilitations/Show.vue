@@ -3,7 +3,7 @@ import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
-import { etape2, etape3, etape4, etape5, etape6, show } from '@/routes/habilitations';
+import { etape2, etape3, etape4, etape5, etape6, show, prendreEnCharge } from '@/routes/habilitations';
 import { computed } from 'vue';
 import { Printer } from 'lucide-vue-next';
 
@@ -44,6 +44,7 @@ interface Habilitation {
     validator_control?: User;
     validator_n2?: User;
     executor_it?: User;
+    executor_it_id?: number | null;
     validated_n1_at?: string;
     validated_control_at?: string;
     validated_n2_at?: string;
@@ -104,10 +105,10 @@ const getStatutLabel = (status: string) => {
     return labels[status] || status;
 };
 
-// Admin peut voir toutes les étapes, les autres utilisateurs selon le statut
 // Étape 2 : Définir les droits - accessible uniquement si le statut est 'draft'
+// Le bouton ne doit s'afficher que sur l'étape 2 (statut draft)
 const canAccessEtape2 = computed(() => 
-    isAdmin.value || props.habilitation.status === 'draft'
+    props.habilitation.status === 'draft'
 );
 
 // Étape 3 : Validation N+1 - accessible uniquement si l'utilisateur est le N+1 du bénéficiaire
@@ -143,10 +144,46 @@ const canAccessEtape5 = computed(() => {
     return true;
 });
 
-// Étape 6 : Exécution IT - accessible uniquement aux admins
-const canAccessEtape6 = computed(() => 
-    isAdmin.value && (props.habilitation.status === 'approved' || props.habilitation.status === 'in_progress')
-);
+// Étape 6 : Exécution IT - accessible aux admins et exécuteurs IT
+const isExecuteurIt = computed(() => (page.props.auth as any)?.isExecuteurIt || false);
+const currentUserId = computed(() => (page.props.auth as any)?.user?.id);
+
+const canAccessEtape6 = computed(() => {
+    const status = props.habilitation.status;
+    const executorId = props.habilitation.executor_it_id || props.habilitation.executor_it?.id || null;
+    
+    // Peut prendre en charge si approuvée et pas encore d'exécuteur
+    const canTakeCharge = (isAdmin.value || isExecuteurIt.value) && 
+                         status === 'approved' && 
+                         !executorId;
+    
+    // Peut terminer si en cours et l'utilisateur est l'exécuteur assigné ou admin
+    const canComplete = (isAdmin.value || isExecuteurIt.value) && 
+                       status === 'in_progress' && 
+                       (executorId === currentUserId.value || isAdmin.value);
+    
+    return canTakeCharge || canComplete;
+});
+
+// Détermine le texte du bouton et l'action
+const etape6ButtonText = computed(() => {
+    const status = props.habilitation.status;
+    // Vérifier executor_it_id directement ou via la relation executor_it
+    const executorId = props.habilitation.executor_it_id || props.habilitation.executor_it?.id || null;
+    
+    // Si approuvée et pas d'exécuteur assigné
+    if (status === 'approved' && (!executorId || executorId === null || executorId === undefined)) {
+        return 'Prendre en charge';
+    }
+    
+    // Si en cours d'exécution
+    if (status === 'in_progress') {
+        return 'Terminer';
+    }
+    
+    // Fallback par défaut (ne devrait normalement pas s'afficher)
+    return 'Exécuter IT';
+});
 
 // Le bouton d'impression est disponible si le contrôle a validé
 const canDownloadPdf = computed(() => 
@@ -176,6 +213,37 @@ const confirmDelete = () => {
                 alert('Une erreur est survenue lors de la suppression de la demande.');
             }
         });
+    }
+};
+
+// Fonction pour prendre en charge une habilitation
+const handlePrendreEnCharge = () => {
+    router.post(prendreEnCharge.url({ habilitation: props.habilitation.id }), {}, {
+        preserveScroll: false,
+        onSuccess: () => {
+            // La redirection est gérée par le contrôleur
+        },
+        onError: (errors) => {
+            console.error('Erreur lors de la prise en charge:', errors);
+            alert('Une erreur est survenue lors de la prise en charge de la demande.');
+        }
+    });
+};
+
+// Fonction pour terminer (redirige vers l'étape 6)
+const terminer = () => {
+    router.visit(etape6.url({ habilitation: props.habilitation.id }));
+};
+
+// Fonction pour gérer l'action du bouton IT
+const handleEtape6Action = () => {
+    const status = props.habilitation.status;
+    const executorId = props.habilitation.executor_it_id || props.habilitation.executor_it?.id || null;
+    
+    if (status === 'approved' && (!executorId || executorId === null || executorId === undefined)) {
+        handlePrendreEnCharge();
+    } else if (status === 'in_progress') {
+        terminer();
     }
 };
 </script>
@@ -240,9 +308,13 @@ const confirmDelete = () => {
                     <Link v-if="canAccessEtape5" :href="etape5.url({ habilitation: habilitation.id })">
                         <Button>Valider Contrôle</Button>
                     </Link>
-                    <Link v-if="canAccessEtape6" :href="etape6.url({ habilitation: habilitation.id })">
-                        <Button variant="outline">Exécuter IT</Button>
-                    </Link>
+                    <Button 
+                        v-if="canAccessEtape6" 
+                        variant="outline"
+                        @click="handleEtape6Action"
+                    >
+                        {{ etape6ButtonText }}
+                    </Button>
                 </div>
             </div>
 

@@ -5,9 +5,7 @@ use Inertia\Inertia;
 use Laravel\Fortify\Features;
 
 Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'canRegister' => Features::enabled(Features::registration()),
-    ]);
+    return redirect()->route('login');
 })->name('home');
 
 Route::get('dashboard', function () {
@@ -27,6 +25,8 @@ use App\Http\Controllers\ApplicationController;
 
 // Routes pour les profils - Admin et RH peuvent créer/éditer/supprimer
 Route::middleware(['auth'])->group(function () {
+    Route::get('profils/import', [ProfilController::class, 'showImport'])->name('profils.import')->middleware('role:admin,rh');
+    Route::post('profils/import', [ProfilController::class, 'import'])->name('profils.import.store')->middleware('role:admin,rh');
     Route::resource('profils', ProfilController::class)->middleware('role:admin,rh');
     Route::resource('roles', RoleController::class)->middleware('role:admin');
     Route::resource('departements', DepartementController::class)->middleware('role:admin');
@@ -50,6 +50,7 @@ Route::middleware(['auth'])->group(function () {
     // IMPORTANT: Cette route doit être définie AVANT la route resource pour éviter les conflits
     Route::get('habilitations/select-beneficiary', [HabilitationController::class, 'selectBeneficiary'])->name('habilitations.select-beneficiary');
     Route::get('api/habilitations/subordonnes', [HabilitationController::class, 'getSubordonnes'])->name('habilitations.api.subordonnes')->middleware('auth');
+    Route::get('habilitations/espace-it', [HabilitationController::class, 'espaceIt'])->name('habilitations.espace-it')->middleware('role:admin,executeur_it,it');
     Route::resource('habilitations', HabilitationController::class);
     Route::get('habilitations/{habilitation}/etape2', [HabilitationController::class, 'etape2'])->name('habilitations.etape2');
     Route::put('habilitations/{habilitation}/etape2', [HabilitationController::class, 'updateEtape2'])->name('habilitations.update-etape2');
@@ -59,7 +60,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('habilitations/{habilitation}/valider-etape4', [HabilitationController::class, 'validerEtape4'])->name('habilitations.valider-etape4');
     Route::get('habilitations/{habilitation}/etape5', [HabilitationController::class, 'etape5'])->name('habilitations.etape5')->middleware('role:controle');
     Route::post('habilitations/{habilitation}/valider-etape5', [HabilitationController::class, 'validerEtape5'])->name('habilitations.valider-etape5')->middleware('role:controle');
-    Route::get('habilitations/{habilitation}/etape6', [HabilitationController::class, 'etape6'])->name('habilitations.etape6')->middleware('role:admin');
-    Route::post('habilitations/{habilitation}/executer-etape6', [HabilitationController::class, 'executerEtape6'])->name('habilitations.executer-etape6')->middleware('role:admin');
+    Route::post('habilitations/{habilitation}/prendre-en-charge', [HabilitationController::class, 'prendreEnCharge'])->name('habilitations.prendre-en-charge')->middleware('role:admin,executeur_it,it');
+    Route::get('habilitations/{habilitation}/etape6', [HabilitationController::class, 'etape6'])->name('habilitations.etape6')->middleware('role:admin,executeur_it,it');
+    Route::post('habilitations/{habilitation}/executer-etape6', [HabilitationController::class, 'executerEtape6'])->name('habilitations.executer-etape6')->middleware('role:admin,executeur_it,it');
     Route::get('habilitations/{habilitation}/pdf', [HabilitationController::class, 'downloadPdf'])->name('habilitations.pdf');
 });

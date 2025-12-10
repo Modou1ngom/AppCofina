@@ -22,6 +22,7 @@ class Profil extends Model
         'site',
         'type_contrat',
         'statut',
+        'type_office',
         'n_plus_1_id',
         'n_plus_2_id'
     ];
@@ -69,6 +70,14 @@ class Profil extends Model
         return $this->habilitationsEnTantQueBeneficiaire();
     }
 
+    /**
+     * Relation avec les rôles (many-to-many)
+     */
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class, 'profile_role', 'profile_id', 'role_id');
+    }
+
     public function getFullNameAttribute()
     {
         return "{$this->prenom} {$this->nom}";
@@ -76,33 +85,44 @@ class Profil extends Model
 
     /**
      * Génère un matricule unique automatiquement
-     * Format: MAT-YYYY-XXXX (ex: MAT-2025-0001)
+     * Format: M suivi d'un numéro incrémenté (ex: M1, M2, M3, etc.)
      * 
      * @return string
      */
     public static function generateMatricule(): string
     {
-        $year = date('Y');
         $prefix = 'M';
         
-        // Trouver le dernier matricule de l'année en cours
-        $lastMatricule = self::where('matricule', 'like', "{$prefix}-{$year}-%")
-            ->orderBy('matricule', 'desc')
-            ->value('matricule');
+        // Récupérer tous les matricules qui commencent par "M"
+        $matricules = self::where('matricule', 'like', "{$prefix}%")
+            ->pluck('matricule')
+            ->toArray();
         
-        if ($lastMatricule) {
-            // Extraire le numéro séquentiel
-            $parts = explode('-', $lastMatricule);
-            $lastNumber = isset($parts[2]) ? (int)$parts[2] : 0;
-            $nextNumber = $lastNumber + 1;
-        } else {
-            // Premier matricule de l'année
-            $nextNumber = 1;
+        $maxNumber = 0;
+        
+        foreach ($matricules as $matricule) {
+            // Extraire le numéro après "M"
+            // Gère les formats: M1, M-2025-0001, etc.
+            $numberPart = substr($matricule, 1); // Enlève le "M"
+            
+            // Si le format est M-YYYY-XXXX, extraire le dernier nombre
+            if (preg_match('/-(\d+)$/', $numberPart, $matches)) {
+                $number = (int) $matches[1];
+            } elseif (preg_match('/^(\d+)/', $numberPart, $matches)) {
+                // Format simple M1, M2, etc.
+                $number = (int) $matches[1];
+            } else {
+                // Essayer de convertir directement en extrayant tous les chiffres
+                $number = (int) preg_replace('/[^0-9]/', '', $numberPart);
+            }
+            
+            if ($number > $maxNumber) {
+                $maxNumber = $number;
+            }
         }
         
-        // Formater avec 4 chiffres (0001, 0002, etc.)
-        $formattedNumber = str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+        $nextNumber = $maxNumber + 1;
         
-        return "{$prefix}-{$year}-{$formattedNumber}";
+        return "{$prefix}{$nextNumber}";
     }
 }

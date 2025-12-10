@@ -11,32 +11,37 @@ defineProps<{
 
 <template>
     <div
-        class="flex min-h-svh flex-col items-center justify-center gap-6 bg-background p-6 md:p-10"
+        class="flex min-h-svh items-center justify-center bg-gray-100 p-6 md:p-10"
     >
-        <div class="w-full max-w-sm">
-            <div class="flex flex-col gap-8">
-                <div class="flex flex-col items-center gap-4">
+        <div class="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden">
+            <!-- Login avec fond gris -->
+            <div class="bg-gradient-to-br from-gray-700 to-gray-800 p-10 md:p-12 relative overflow-hidden">
+                <!-- Formes abstraites décoratives -->
+                <div class="absolute inset-0 overflow-hidden pointer-events-none">
+                    <div class="absolute -top-20 -right-20 w-64 h-64 bg-gray-900/40 rounded-full blur-3xl"></div>
+                    <div class="absolute top-1/2 -left-16 w-48 h-48 bg-gray-600/30 rounded-full blur-2xl"></div>
+                    <div class="absolute bottom-0 right-0 w-40 h-40 bg-gray-900/50 rounded-full blur-2xl"></div>
+                </div>
+                
+                <div class="relative z-10">
+                    <!-- Logo COFINA -->
                     <Link
                         :href="home()"
-                        class="flex flex-col items-center gap-2 font-medium"
+                        class="flex items-center justify-center mb-6 group"
                     >
-                        <div
-                            class="mb-1 flex h-20 w-20 items-center justify-center rounded-md"
-                        >
+                        <div class="bg-white/20 backdrop-blur-sm rounded-2xl p-4 shadow-lg group-hover:bg-white/30 transition-all duration-300">
                             <AppLogoIcon
-                                class="h-20 w-auto object-contain"
+                                class="h-16 w-auto object-contain"
                             />
                         </div>
-                        <span class="sr-only">{{ title }}</span>
                     </Link>
-                    <div class="space-y-2 text-center">
-                        <h1 class="text-xl font-medium">{{ title }}</h1>
-                        <p class="text-center text-sm text-muted-foreground">
-                            {{ description }}
-                        </p>
-                    </div>
+                    
+                    <h1 class="text-4xl font-bold text-white mb-2 text-center">Bienvenue</h1>
+                    <p class="text-gray-100 text-sm mb-8 text-center">
+                        {{ description || "Connectez-vous pour accéder à votre espace de gestion des habilitations COFINA" }}
+                    </p>
+                    <slot />
                 </div>
-                <slot />
             </div>
         </div>
     </div>

@@ -4,8 +4,10 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -31,6 +33,7 @@ class FortifyServiceProvider extends ServiceProvider
         $this->configureActions();
         $this->configureViews();
         $this->configureRateLimiting();
+        $this->configureAuthentication();
     }
 
     /**
@@ -51,6 +54,7 @@ class FortifyServiceProvider extends ServiceProvider
             'canResetPassword' => Features::enabled(Features::resetPasswords()),
             'canRegister' => Features::enabled(Features::registration()),
             'status' => $request->session()->get('status'),
+            'error' => $request->session()->get('error'),
         ]));
 
         Fortify::resetPasswordView(fn (Request $request) => Inertia::render('auth/ResetPassword', [
@@ -86,6 +90,40 @@ class FortifyServiceProvider extends ServiceProvider
             $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
 
             return Limit::perMinute(5)->by($throttleKey);
+        });
+    }
+
+    /**
+     * Configure authentication to prevent inactive users from logging in.
+     */
+    private function configureAuthentication(): void
+    {
+        Fortify::authenticateUsing(function (Request $request) {
+            // Vérifier d'abord si l'utilisateur existe (actif ou non)
+            $userExists = User::where('email', $request->email)->exists();
+            
+            if ($userExists) {
+                // Vérifier si l'utilisateur est actif
+                $user = User::where('email', $request->email)
+                    ->where('is_active', true)
+                    ->first();
+
+                // Si l'utilisateur existe mais n'est pas actif
+                if (!$user) {
+                    $request->session()->flash('error', 'Votre compte utilisateur a été désactivé. Vous ne pouvez pas vous connecter. Veuillez contacter votre administrateur système pour réactiver votre compte.');
+                    return null;
+                }
+
+                // Vérifier le mot de passe
+                if (Auth::validate([
+                    'email' => $request->email,
+                    'password' => $request->password,
+                ])) {
+                    return $user;
+                }
+            }
+
+            return null;
         });
     }
 }

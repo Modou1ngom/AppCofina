@@ -9,7 +9,7 @@ import { useBeneficiaryDialog } from '@/composables/useBeneficiaryDialog';
 import DataTable, { type Column } from '@/components/DataTable.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/composables/useInitials';
-import { Code, Eye, CheckCircle, Shield, Play, FileCheck, Filter } from 'lucide-vue-next';
+import { Code, Eye, CheckCircle, Shield, Play, FileCheck, Filter, UserCheck } from 'lucide-vue-next';
 import { Input } from '@/components/ui/input';
 
 interface Habilitation {
@@ -74,6 +74,7 @@ watch(() => page.url, (url) => {
 const isControle = computed(() => (page.props.auth as any)?.isControle || false);
 const isMetier = computed(() => (page.props.auth as any)?.isMetier || false);
 const isAdmin = computed(() => (page.props.auth as any)?.isAdmin || false);
+const isExecuteurIt = computed(() => (page.props.auth as any)?.isExecuteurIt || false);
 const currentProfil = computed(() => (page.props.auth as any)?.profil || null);
 
 // Fonction pour vérifier si l'utilisateur peut valider N+1 (admin peut voir mais pas valider)
@@ -95,9 +96,14 @@ const canValidateControl = (habilitation: Habilitation) => {
     return isControle.value && habilitation.status === 'pending_control';
 };
 
-// Fonction pour vérifier si l'utilisateur peut exécuter IT (uniquement admin)
+// Fonction pour vérifier si l'utilisateur peut prendre en charge une habilitation (exécuteur IT)
+const canTakeCharge = (habilitation: Habilitation) => {
+    return isExecuteurIt.value && habilitation.status === 'approved';
+};
+
+// Fonction pour vérifier si l'utilisateur peut exécuter IT (admin ou exécuteur IT)
 const canExecuteIT = (habilitation: Habilitation) => {
-    return isAdmin.value && (habilitation.status === 'approved' || habilitation.status === 'in_progress');
+    return (isAdmin.value || isExecuteurIt.value) && (habilitation.status === 'approved' || habilitation.status === 'in_progress');
 };
 
 const filterLabel = computed(() => {
@@ -159,6 +165,19 @@ const initializeFilters = () => {
 
 // Initialiser au chargement
 initializeFilters();
+
+// Fonction pour prendre en charge une habilitation
+const prendreEnCharge = (habilitationId: number) => {
+    if (confirm('Voulez-vous prendre en charge cette habilitation ?')) {
+        router.post(`/habilitations/${habilitationId}/prendre-en-charge`, {}, {
+            preserveScroll: true,
+            onSuccess: () => {
+                // Recharger la page pour mettre à jour les données
+                router.reload({ only: ['habilitations'] });
+            },
+        });
+    }
+};
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -456,14 +475,14 @@ const handleSort = (column: string, direction: 'asc' | 'desc') => {
                         >
                             <Shield class="h-5 w-5" />
                         </Link>
-                        <Link
-                            v-if="canExecuteIT(item.habilitation)"
-                            :href="etape6.url({ habilitation: item.id })"
-                            class="inline-flex items-center justify-center rounded-md p-2 text-green-600 hover:bg-green-50 hover:text-green-700 transition-colors"
-                            title="Exécuter IT"
+                        <button
+                            v-if="canTakeCharge(item.habilitation)"
+                            @click="prendreEnCharge(item.id)"
+                            class="inline-flex items-center justify-center rounded-md p-2 text-purple-600 hover:bg-purple-50 hover:text-purple-700 transition-colors"
+                            title="Prendre en charge"
                         >
-                            <Play class="h-5 w-5" />
-                        </Link>
+                            <UserCheck class="h-5 w-5" />
+                        </button>
                         <Link
                             v-if="item.status === 'pending_control' && isControle"
                             :href="etape5.url({ habilitation: item.id })"

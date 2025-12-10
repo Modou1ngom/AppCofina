@@ -14,7 +14,7 @@ import {
 import { dashboard } from '@/routes';
 import { type NavItem } from '@/types';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid, Users, ShieldCheck, FileCheck, Building2, MapPin, Building, UserCog, Layers } from 'lucide-vue-next';
+import { BookOpen, Folder, LayoutGrid, Users, ShieldCheck, FileCheck, Building2, MapPin, Building, UserCog, Layers, Server } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { useBeneficiaryDialog } from '@/composables/useBeneficiaryDialog';
 import AppLogo from './AppLogo.vue';
@@ -150,6 +150,28 @@ const mainNavItems = computed<NavItem[]>(() => {
                 ],
             }
         );
+
+        // Ajouter l'Espace IT pour l'admin s'il a aussi le rôle exécuteur IT
+        if (auth.value?.isExecuteurIt) {
+            items.push({
+                title: 'Espace IT',
+                icon: Server,
+                items: [
+                    {
+                        title: 'Approuvées',
+                        href: '/habilitations/espace-it?filter=approuvees',
+                    },
+                    {
+                        title: 'En cours',
+                        href: '/habilitations/espace-it?filter=en_cours',
+                    },
+                    {
+                        title: 'Terminées',
+                        href: '/habilitations/espace-it?filter=terminees',
+                    },
+                ],
+            });
+        }
     }
     // RH voit les profils et les habilitations qui le concernent
     else if (auth.value?.isRh) {
@@ -278,6 +300,27 @@ const mainNavItems = computed<NavItem[]>(() => {
                 {
                     title: 'Rejeté',
                     href: '/habilitations?filter=rejete',
+                },
+            ],
+        });
+    }
+    // Exécuteur IT voit son espace dédié
+    else if (auth.value?.isExecuteurIt) {
+        items.push({
+            title: 'Espace IT',
+            icon: Server,
+            items: [
+                {
+                    title: 'Approuvées',
+                    href: '/habilitations/espace-it?filter=approuvees',
+                },
+                {
+                    title: 'En cours',
+                    href: '/habilitations/espace-it?filter=en_cours',
+                },
+                {
+                    title: 'Terminées',
+                    href: '/habilitations/espace-it?filter=terminees',
                 },
             ],
         });

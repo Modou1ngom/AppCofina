@@ -48,6 +48,10 @@ class Habilitation extends Model
         'executor_it_id',
         'executed_it_at',
         'comment_it',
+        'signature_n1',
+        'signature_n2',
+        'signature_control',
+        'signature_it',
         'notify_requester',
         'notify_n1',
     ];

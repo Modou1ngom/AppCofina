@@ -7,41 +7,55 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AuthBase from '@/layouts/AuthLayout.vue';
 import { register } from '@/routes';
+import { Link } from '@inertiajs/vue3';
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
 import { Form, Head } from '@inertiajs/vue3';
-import { LoaderCircle } from 'lucide-vue-next';
+import { LoaderCircle, Mail, Lock, AlertCircle, CheckCircle2 } from 'lucide-vue-next';
 
-defineProps<{
+const props = defineProps<{
     status?: string;
     canResetPassword: boolean;
     canRegister: boolean;
+    error?: string;
 }>();
 </script>
 
 <template>
-    <AuthBase
-        title="Log in to your account"
-        description="Enter your email and password below to log in"
-    >
-        <Head title="Log in" />
+    <AuthBase>
+        <Head title="Connexion - COFINA Habilitations" />
 
+        <!-- Message de succès -->
         <div
             v-if="status"
-            class="mb-4 text-center text-sm font-medium text-green-600"
+            class="mb-6 flex items-center gap-3 rounded-lg bg-green-500/90 backdrop-blur-sm p-4 text-sm text-white shadow-lg"
         >
-            {{ status }}
+            <CheckCircle2 class="h-5 w-5 flex-shrink-0 text-white" />
+            <p class="font-medium">{{ status }}</p>
+        </div>
+
+        <!-- Message d'erreur -->
+        <div
+            v-if="props.error"
+            class="mb-6 flex items-start gap-3 rounded-lg bg-red-500/90 backdrop-blur-sm p-4 text-sm text-white shadow-lg"
+        >
+            <AlertCircle class="h-5 w-5 flex-shrink-0 text-white mt-0.5" />
+            <div class="flex-1">
+                <p class="font-semibold mb-1">Accès refusé</p>
+                <p class="text-xs leading-relaxed text-white/90">{{ props.error }}</p>
+            </div>
         </div>
 
         <Form
             v-bind="store.form()"
             :reset-on-success="['password']"
             v-slot="{ errors, processing }"
-            class="flex flex-col gap-6"
+            class="flex flex-col gap-5"
         >
-            <div class="grid gap-6">
-                <div class="grid gap-2">
-                    <Label for="email">Email address</Label>
+            <!-- Champ Email -->
+            <div class="grid gap-2">
+                <div class="relative">
+                    <Mail class="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-500 z-10" />
                     <Input
                         id="email"
                         type="email"
@@ -50,23 +64,20 @@ defineProps<{
                         autofocus
                         :tabindex="1"
                         autocomplete="email"
-                        placeholder="email@example.com"
+                        placeholder="Adresse email"
+                        :class="[
+                            'pl-11 h-12 bg-white border-gray-300 rounded-lg transition-all duration-200 focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-500/20',
+                            errors.email ? 'border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/20' : ''
+                        ]"
                     />
-                    <InputError :message="errors.email" />
                 </div>
+                <InputError :message="errors.email" class="text-red-200" />
+            </div>
 
-                <div class="grid gap-2">
-                    <div class="flex items-center justify-between">
-                        <Label for="password">Password</Label>
-                        <TextLink
-                            v-if="canResetPassword"
-                            :href="request()"
-                            class="text-sm"
-                            :tabindex="5"
-                        >
-                            Forgot password?
-                        </TextLink>
-                    </div>
+            <!-- Champ Mot de passe -->
+            <div class="grid gap-2">
+                <div class="relative">
+                    <Lock class="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-500 z-10" />
                     <Input
                         id="password"
                         type="password"
@@ -74,40 +85,48 @@ defineProps<{
                         required
                         :tabindex="2"
                         autocomplete="current-password"
-                        placeholder="Password"
+                        placeholder="Mot de passe"
+                        :class="[
+                            'pl-11 h-12 bg-white border-gray-300 rounded-lg transition-all duration-200 focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-500/20',
+                            errors.password ? 'border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/20' : ''
+                        ]"
                     />
-                    <InputError :message="errors.password" />
                 </div>
+                <InputError :message="errors.password" class="text-red-200" />
+            </div>
 
-                <div class="flex items-center justify-between">
-                    <Label for="remember" class="flex items-center space-x-3">
-                        <Checkbox id="remember" name="remember" :tabindex="3" />
-                        <span>Remember me</span>
-                    </Label>
-                </div>
-
-                <Button
-                    type="submit"
-                    class="mt-4 w-full"
-                    :tabindex="4"
-                    :disabled="processing"
-                    data-test="login-button"
+            <!-- Se souvenir de moi et Mot de passe oublié -->
+            <div class="flex items-center justify-between">
+                <Label for="remember" class="flex cursor-pointer items-center gap-2 text-sm text-white">
+                    <Checkbox id="remember" name="remember" :tabindex="3" class="border-white/50 data-[state=checked]:bg-white data-[state=checked]:border-white" />
+                    <span>Se souvenir de moi</span>
+                </Label>
+                <TextLink
+                    v-if="canResetPassword"
+                    :href="request()"
+                    class="text-sm text-white/90 hover:text-white hover:underline transition-colors duration-200"
+                    :tabindex="5"
                 >
-                    <LoaderCircle
-                        v-if="processing"
-                        class="h-5 w-5 animate-spin"
-                    />
-                    Log in
-                </Button>
+                    Mot de passe oublié ?
+                </TextLink>
             </div>
 
-            <div
-                class="text-center text-sm text-muted-foreground"
-                v-if="canRegister"
+            <!-- Bouton de connexion -->
+            <Button
+                type="submit"
+                class="mt-2 w-full h-12 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+                :tabindex="4"
+                :disabled="processing"
+                data-test="login-button"
             >
-                Don't have an account?
-                <TextLink :href="register()" :tabindex="5">Sign up</TextLink>
-            </div>
+                <LoaderCircle
+                    v-if="processing"
+                    class="mr-2 h-5 w-5 animate-spin"
+                />
+                <span v-if="processing">Connexion en cours...</span>
+                <span v-else>Se connecter</span>
+            </Button>
         </Form>
+
     </AuthBase>
 </template>

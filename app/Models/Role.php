@@ -27,4 +27,12 @@ class Role extends Model
     {
         return $this->belongsToMany(User::class, 'user_role', 'role_id', 'user_id');
     }
+
+    /**
+     * Relation avec les profils (many-to-many)
+     */
+    public function profils()
+    {
+        return $this->belongsToMany(Profil::class, 'profile_role', 'role_id', 'profile_id');
+    }
 }

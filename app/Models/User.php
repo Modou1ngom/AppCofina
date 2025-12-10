@@ -117,6 +117,41 @@ class User extends Authenticatable
     }
 
     /**
+     * Vérifie si l'utilisateur est exécuteur IT (basé sur le profil)
+     */
+    public function isExecuteurIt(): bool
+    {
+        if (!$this->profil) {
+            return false;
+        }
+
+        $profil = $this->profil;
+        
+        // Vérifier si le département contient "IT" ou "informatique"
+        if ($profil->departement) {
+            $departement = strtolower($profil->departement);
+            if (str_contains($departement, 'it') || 
+                str_contains($departement, 'informatique') || 
+                str_contains($departement, 'technique')) {
+                return true;
+            }
+        }
+
+        // Vérifier si la fonction contient "IT" ou "informatique"
+        if ($profil->fonction) {
+            $fonction = strtolower($profil->fonction);
+            if (str_contains($fonction, 'it') || 
+                str_contains($fonction, 'informatique') || 
+                str_contains($fonction, 'technique')) {
+                return true;
+            }
+        }
+
+        // Vérifier aussi les rôles pour compatibilité
+        return $this->hasRole('executeur_it') || $this->hasRole('it');
+    }
+
+    /**
      * Vérifie si l'utilisateur est responsable d'un département
      */
     public function isResponsableDepartement(): bool

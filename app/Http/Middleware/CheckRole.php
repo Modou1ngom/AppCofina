@@ -22,7 +22,14 @@ class CheckRole
         }
 
         // Vérifier si l'utilisateur a au moins un des rôles requis
-        if (!$user->hasAnyRole($roles)) {
+        $hasRole = $user->hasAnyRole($roles);
+        
+        // Pour les rôles executeur_it ou it, vérifier aussi le profil IT
+        if (!$hasRole && (in_array('executeur_it', $roles) || in_array('it', $roles))) {
+            $hasRole = $user->isExecuteurIt();
+        }
+
+        if (!$hasRole) {
             abort(403, 'Accès non autorisé. Vous n\'avez pas les permissions nécessaires.');
         }
 

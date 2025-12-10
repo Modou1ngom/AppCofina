@@ -28,6 +28,14 @@ class HabilitationController extends Controller
         if ($user && $user->isAdmin()) {
             // Pas de restriction pour l'admin
         } 
+        // Exécuteur IT voit les habilitations approuvées par le contrôle (statut 'approved' ou 'in_progress')
+        elseif ($user && $user->isExecuteurIt()) {
+            $query->where(function($q) {
+                $q->where('status', 'approved')
+                  ->orWhere('status', 'in_progress')
+                  ->orWhere('executor_it_id', '!=', null);
+            });
+        }
         // Controle voit les habilitations en attente de contrôle et celles déjà contrôlées
         elseif ($user && $user->isControle()) {
             $query->where(function($q) {
@@ -526,6 +534,7 @@ class HabilitationController extends Controller
         $validated = $request->validate([
             'action' => 'required|in:approuver,rejeter',
             'comment_n1' => 'nullable|string|required_if:action,rejeter',
+            'signature_n1' => 'nullable|string',
         ]);
 
         if ($validated['action'] === 'approuver') {
@@ -533,6 +542,7 @@ class HabilitationController extends Controller
                 'validator_n1_id' => Auth::id() ?? null,
                 'validated_n1_at' => now(),
                 'comment_n1' => $validated['comment_n1'] ?? null,
+                'signature_n1' => $validated['signature_n1'] ?? null,
                 'status' => 'pending_n2',
             ]);
 
@@ -543,6 +553,7 @@ class HabilitationController extends Controller
                 'validator_n1_id' => Auth::id() ?? null,
                 'validated_n1_at' => now(),
                 'comment_n1' => $validated['comment_n1'] ?? null,
+                'signature_n1' => $validated['signature_n1'] ?? null,
                 'status' => 'rejected',
             ]);
 
@@ -604,6 +615,7 @@ class HabilitationController extends Controller
         $validated = $request->validate([
             'action' => 'required|in:approuver,rejeter',
             'comment_n2' => 'nullable|string|required_if:action,rejeter',
+            'signature_n2' => 'nullable|string',
         ]);
 
         if ($validated['action'] === 'approuver') {
@@ -611,6 +623,7 @@ class HabilitationController extends Controller
                 'validator_n2_id' => Auth::id() ?? null,
                 'validated_n2_at' => now(),
                 'comment_n2' => $validated['comment_n2'] ?? null,
+                'signature_n2' => $validated['signature_n2'] ?? null,
                 'status' => 'pending_control',
             ]);
 
@@ -621,6 +634,7 @@ class HabilitationController extends Controller
                 'validator_n2_id' => Auth::id() ?? null,
                 'validated_n2_at' => now(),
                 'comment_n2' => $validated['comment_n2'] ?? null,
+                'signature_n2' => $validated['signature_n2'] ?? null,
                 'status' => 'rejected',
             ]);
 
@@ -710,6 +724,7 @@ class HabilitationController extends Controller
         $validated = $request->validate([
             'action' => 'required|in:approuver,rejeter',
             'comment_control' => 'nullable|string|required_if:action,rejeter',
+            'signature_control' => 'nullable|string',
         ]);
 
         if ($validated['action'] === 'approuver') {
@@ -717,6 +732,7 @@ class HabilitationController extends Controller
                 'validator_control_id' => Auth::id() ?? null,
                 'validated_control_at' => now(),
                 'comment_control' => $validated['comment_control'] ?? null,
+                'signature_control' => $validated['signature_control'] ?? null,
                 'status' => 'approved',
             ]);
 
@@ -727,6 +743,7 @@ class HabilitationController extends Controller
                 'validator_control_id' => Auth::id() ?? null,
                 'validated_control_at' => now(),
                 'comment_control' => $validated['comment_control'] ?? null,
+                'signature_control' => $validated['signature_control'] ?? null,
                 'status' => 'rejected',
             ]);
 
@@ -741,8 +758,8 @@ class HabilitationController extends Controller
     public function etape6(Habilitation $habilitation)
     {
         $user = Auth::user();
-        // Admin peut accéder à toutes les étapes
-        if (!$user || !$user->isAdmin()) {
+        // Admin et exécuteur IT peuvent accéder à cette étape
+        if (!$user || (!$user->isAdmin() && !$user->isExecuteurIt())) {
             if ($habilitation->status !== 'approved' && $habilitation->status !== 'in_progress') {
                 return redirect()->route('habilitations.show', $habilitation->id)
                     ->with('error', 'Cette étape n\'est pas accessible actuellement.');
@@ -763,10 +780,129 @@ class HabilitationController extends Controller
     }
 
     /**
+     * Espace IT - Liste des habilitations pour l'exécuteur IT
+     */
+    public function espaceIt(Request $request)
+    {
+        $user = Auth::user();
+        
+        // Vérifier que l'utilisateur est exécuteur IT ou admin
+        if (!$user || (!$user->isAdmin() && !$user->isExecuteurIt())) {
+            return redirect()->route('habilitations.index')
+                ->with('error', 'Vous n\'êtes pas autorisé à accéder à cet espace.');
+        }
+
+        $filter = $request->query('filter', 'approuvees'); // approuvees, en_cours, terminees
+
+        $query = Habilitation::with([
+            'requester',
+            'beneficiary',
+            'validatorN1',
+            'validatorN2',
+            'validatorControl',
+            'executorIt'
+        ]);
+
+        // Filtrer selon le statut
+        if ($filter === 'approuvees') {
+            $query->where('status', 'approved');
+        } elseif ($filter === 'en_cours') {
+            $query->where('status', 'in_progress')
+                  ->where('executor_it_id', $user->id);
+        } elseif ($filter === 'terminees') {
+            $query->where('status', 'completed')
+                  ->where('executor_it_id', $user->id);
+        }
+
+        // Filtre par recherche
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->whereHas('beneficiary', function($subQ) use ($search) {
+                    $subQ->where('nom', 'like', "%{$search}%")
+                         ->orWhere('prenom', 'like', "%{$search}%");
+                })
+                ->orWhereHas('requester', function($subQ) use ($search) {
+                    $subQ->where('nom', 'like', "%{$search}%")
+                         ->orWhere('prenom', 'like', "%{$search}%");
+                });
+            });
+        }
+
+        $habilitations = $query->orderBy('created_at', 'desc')
+            ->paginate($request->get('per_page', 10));
+
+        // Statistiques
+        $stats = [
+            'approuvees' => Habilitation::where('status', 'approved')->count(),
+            'en_cours' => Habilitation::where('status', 'in_progress')
+                ->where('executor_it_id', $user->id)
+                ->count(),
+            'terminees' => Habilitation::where('status', 'completed')
+                ->where('executor_it_id', $user->id)
+                ->count(),
+        ];
+
+        return Inertia::render('habilitations/EspaceIt', [
+            'habilitations' => $habilitations,
+            'filter' => $filter,
+            'stats' => $stats,
+        ]);
+    }
+
+    /**
+     * Prendre en charge une habilitation (changer le statut de 'approved' à 'in_progress')
+     */
+    public function prendreEnCharge(Habilitation $habilitation)
+    {
+        $user = Auth::user();
+        
+        // Vérifier que l'utilisateur est admin ou exécuteur IT
+        if (!$user || (!$user->isAdmin() && !$user->isExecuteurIt())) {
+            return redirect()->route('habilitations.index')
+                ->with('error', 'Vous n\'êtes pas autorisé à prendre en charge cette demande.');
+        }
+
+        // Vérifier que l'habilitation est approuvée
+        if ($habilitation->status !== 'approved') {
+            return redirect()->route('habilitations.show', $habilitation->id)
+                ->with('error', 'Cette demande n\'est pas prête pour être prise en charge.');
+        }
+
+        $habilitation->update([
+            'status' => 'in_progress',
+            'executor_it_id' => Auth::id(),
+        ]);
+
+        // Rediriger vers l'espace IT si l'utilisateur est exécuteur IT, sinon vers la page de détails
+        if ($user->isExecuteurIt() && !$user->isAdmin()) {
+            return redirect()->route('habilitations.espace-it', ['filter' => 'en_cours'])
+                ->with('success', 'Habilitation prise en charge. Vous pouvez maintenant procéder à l\'exécution.');
+        }
+
+        return redirect()->route('habilitations.show', $habilitation->id)
+            ->with('success', 'Habilitation prise en charge. Vous pouvez maintenant procéder à l\'exécution.');
+    }
+
+    /**
      * Étape 6: Exécution IT - Exécution et notification
      */
     public function executerEtape6(Request $request, Habilitation $habilitation)
     {
+        $user = Auth::user();
+        
+        // Vérifier que l'utilisateur est admin ou exécuteur IT
+        if (!$user || (!$user->isAdmin() && !$user->isExecuteurIt())) {
+            return redirect()->route('habilitations.show', $habilitation->id)
+                ->with('error', 'Vous n\'êtes pas autorisé à exécuter cette demande.');
+        }
+
+        // Vérifier que l'habilitation est approuvée
+        if ($habilitation->status !== 'approved' && $habilitation->status !== 'in_progress') {
+            return redirect()->route('habilitations.show', $habilitation->id)
+                ->with('error', 'Cette demande n\'est pas prête pour l\'exécution.');
+        }
+
         $validated = $request->validate([
             'comment_it' => 'nullable|string',
             'notify_requester' => 'boolean',
