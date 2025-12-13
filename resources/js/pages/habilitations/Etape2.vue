@@ -29,6 +29,8 @@ interface Habilitation {
     other_application?: string;
     comment_n1?: string;
     status: string;
+    messagerie_email?: string;
+    messagerie_nom_affichage?: string;
 }
 
 interface Props {
@@ -62,6 +64,7 @@ const form = useForm({
 const selectedApplications = ref<string[]>(props.habilitation.applications || []);
 const showAutreApplication = computed(() => selectedApplications.value.includes('Autres'));
 const showProfilSpecifique = computed(() => form.profile_type === 'Profil Specifique');
+const showMessagerieFields = computed(() => selectedApplications.value.includes('Messagerie') || selectedApplications.value.includes('Outlook'));
 
 // Les applications sont en lecture seule à l'étape 2, elles ne peuvent pas être modifiées
 // Elles sont déjà définies à l'étape 1
@@ -220,6 +223,26 @@ const submit = () => {
                                 placeholder="Nom de l'application"
                             />
                             <InputError :message="form.errors.other_application" />
+                        </div>
+
+                        <!-- Informations complémentaires pour Messagerie -->
+                        <div v-if="showMessagerieFields" class="mt-6 space-y-4 border-t pt-4">
+                            <h3 class="text-base font-semibold text-gray-700">Informations complémentaires pour la messagerie</h3>
+                            <div class="grid gap-4 md:grid-cols-2">
+                                <div class="grid gap-2">
+                                    <Label for="messagerie_email">Email adresse</Label>
+                                    <div class="flex h-9 items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground">
+                                        {{ habilitation.messagerie_email || 'Non renseigné' }}
+                                    </div>
+                                </div>
+
+                                <div class="grid gap-2">
+                                    <Label for="messagerie_nom_affichage">Nom d'affichage</Label>
+                                    <div class="flex h-9 items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground">
+                                        {{ habilitation.messagerie_nom_affichage || 'Non renseigné' }}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 

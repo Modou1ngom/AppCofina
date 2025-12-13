@@ -43,7 +43,7 @@ class HandleInertiaRequests extends Middleware
         $roles = [];
 
         if ($user) {
-            $user->load('roles');
+            $user->load('roles', 'profil');
             $profil = $user->profil;
             $roles = $user->roles->pluck('slug')->toArray();
         }

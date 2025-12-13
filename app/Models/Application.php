@@ -14,6 +14,7 @@ class Application extends Model
         'description',
         'actif',
         'ordre',
+        'filiale_id',
     ];
 
     protected $casts = [
@@ -35,5 +36,13 @@ class Application extends Model
     public function scopeOrdered($query)
     {
         return $query->orderBy('ordre')->orderBy('nom');
+    }
+
+    /**
+     * Relation avec la filiale
+     */
+    public function filiale()
+    {
+        return $this->belongsTo(Filiale::class, 'filiale_id');
     }
 }

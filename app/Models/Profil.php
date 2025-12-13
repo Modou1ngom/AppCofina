@@ -24,7 +24,8 @@ class Profil extends Model
         'statut',
         'type_office',
         'n_plus_1_id',
-        'n_plus_2_id'
+        'n_plus_2_id',
+        'filiale_id'
     ];
 
     // Relations
@@ -78,9 +79,47 @@ class Profil extends Model
         return $this->belongsToMany(Role::class, 'profile_role', 'profile_id', 'role_id');
     }
 
+    /**
+     * Relation avec la filiale
+     */
+    public function filiale()
+    {
+        return $this->belongsTo(Filiale::class, 'filiale_id');
+    }
+
     public function getFullNameAttribute()
     {
         return "{$this->prenom} {$this->nom}";
+    }
+
+    /**
+     * Normalise "informatique" en "IT" pour le département
+     */
+    public function getDepartementAttribute($value)
+    {
+        if (!$value) {
+            return $value;
+        }
+        
+        // Normaliser "informatique" en "IT" (insensible à la casse)
+        $normalized = preg_replace('/informatique/i', 'IT', $value);
+        
+        return $normalized;
+    }
+
+    /**
+     * Normalise "informatique" en "IT" pour la fonction
+     */
+    public function getFonctionAttribute($value)
+    {
+        if (!$value) {
+            return $value;
+        }
+        
+        // Normaliser "informatique" en "IT" (insensible à la casse)
+        $normalized = preg_replace('/informatique/i', 'IT', $value);
+        
+        return $normalized;
     }
 
     /**

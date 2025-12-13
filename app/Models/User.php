@@ -118,9 +118,20 @@ class User extends Authenticatable
 
     /**
      * Vérifie si l'utilisateur est exécuteur IT (basé sur le profil)
+     * Note: "informatique" est automatiquement normalisé en "IT" via les accessors du modèle Profil
      */
     public function isExecuteurIt(): bool
     {
+        // Vérifier d'abord les rôles pour compatibilité
+        if ($this->hasRole('executeur_it') || $this->hasRole('it')) {
+            return true;
+        }
+
+        // Recharger le profil si nécessaire
+        if (!$this->relationLoaded('profil')) {
+            $this->load('profil');
+        }
+
         if (!$this->profil) {
             return false;
         }
@@ -128,27 +139,29 @@ class User extends Authenticatable
         $profil = $this->profil;
         
         // Vérifier si le département contient "IT" ou "informatique"
-        if ($profil->departement) {
-            $departement = strtolower($profil->departement);
-            if (str_contains($departement, 'it') || 
-                str_contains($departement, 'informatique') || 
-                str_contains($departement, 'technique')) {
+        // On vérifie la valeur brute directement pour éviter les problèmes avec les accessors
+        $departement = $profil->getRawOriginal('departement') ?? $profil->departement;
+        if ($departement) {
+            $departementLower = strtolower($departement);
+            if (str_contains($departementLower, 'it') || 
+                str_contains($departementLower, 'informatique') ||
+                str_contains($departementLower, 'technique')) {
                 return true;
             }
         }
 
         // Vérifier si la fonction contient "IT" ou "informatique"
-        if ($profil->fonction) {
-            $fonction = strtolower($profil->fonction);
-            if (str_contains($fonction, 'it') || 
-                str_contains($fonction, 'informatique') || 
-                str_contains($fonction, 'technique')) {
+        $fonction = $profil->getRawOriginal('fonction') ?? $profil->fonction;
+        if ($fonction) {
+            $fonctionLower = strtolower($fonction);
+            if (str_contains($fonctionLower, 'it') || 
+                str_contains($fonctionLower, 'informatique') ||
+                str_contains($fonctionLower, 'technique')) {
                 return true;
             }
         }
 
-        // Vérifier aussi les rôles pour compatibilité
-        return $this->hasRole('executeur_it') || $this->hasRole('it');
+        return false;
     }
 
     /**

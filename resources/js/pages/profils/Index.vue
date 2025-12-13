@@ -7,7 +7,7 @@ import DataTable, { type Column } from '@/components/DataTable.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/composables/useInitials';
 import { computed } from 'vue';
-import { Code, Eye, Pencil, Trash2, Filter, Upload } from 'lucide-vue-next';
+import { Code, Eye, Pencil, Trash2, Filter, Upload, Download } from 'lucide-vue-next';
 import { Input } from '@/components/ui/input';
 import { ref } from 'vue';
 
@@ -60,6 +60,16 @@ const applyFilters = () => {
     });
     params.set('page', '1');
     router.visit(`/profils?${params.toString()}`, { preserveScroll: true });
+};
+
+const exportProfils = () => {
+    const params = new URLSearchParams();
+    Object.entries(filters.value).forEach(([key, value]) => {
+        if (value) {
+            params.set(key, value);
+        }
+    });
+    window.location.href = `/profils/export?${params.toString()}`;
 };
 
 // Initialiser les filtres depuis l'URL
@@ -202,6 +212,13 @@ const tableData = computed(() => {
                     <Code class="h-5 w-5 text-gray-500" />
                 </div>
                 <div class="flex items-center gap-3">
+                    <Button
+                        @click="exportProfils"
+                        class="bg-purple-600 hover:bg-purple-700"
+                    >
+                        <Download class="mr-2 h-4 w-4" />
+                        Exporter Excel
+                    </Button>
                     <Button
                         @click="router.visit('/profils/import')"
                         class="bg-green-600 hover:bg-green-700"

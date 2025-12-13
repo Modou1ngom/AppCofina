@@ -22,7 +22,12 @@ interface User {
 
 interface Habilitation {
     id: number;
-    requester: Profil;
+    requester: Profil & {
+        n_plus_1_id?: number | null;
+        n_plus_2_id?: number | null;
+        n_plus_1?: Profil;
+        n_plus_2?: Profil;
+    };
     beneficiary: Profil & {
         n_plus_1_id?: number | null;
         n_plus_2_id?: number | null;
@@ -111,20 +116,20 @@ const canAccessEtape2 = computed(() =>
     props.habilitation.status === 'draft'
 );
 
-// Étape 3 : Validation N+1 - accessible uniquement si l'utilisateur est le N+1 du bénéficiaire
-// L'admin ne voit ce bouton que s'il est lui-même le N+1 du bénéficiaire
+// Étape 3 : Validation N+1 - accessible uniquement si l'utilisateur est le N+1 du demandeur
+// L'admin ne voit ce bouton que s'il est lui-même le N+1 du demandeur
 const canAccessEtape3 = computed(() => {
     if (props.habilitation.status !== 'pending_n1') return false;
-    if (!currentProfil.value || !props.habilitation.beneficiary) return false;
-    return props.habilitation.beneficiary.n_plus_1_id === currentProfil.value.id;
+    if (!currentProfil.value || !props.habilitation.requester) return false;
+    return props.habilitation.requester.n_plus_1_id === currentProfil.value.id;
 });
 
-// Étape 4 : Validation N+2 - accessible uniquement si l'utilisateur est le N+2 du bénéficiaire
-// L'admin ne voit ce bouton que s'il est lui-même le N+2 du bénéficiaire
+// Étape 4 : Validation N+2 - accessible uniquement si l'utilisateur est le N+2 du demandeur
+// L'admin ne voit ce bouton que s'il est lui-même le N+2 du demandeur
 const canAccessEtape4 = computed(() => {
     if (props.habilitation.status !== 'pending_n2') return false;
-    if (!currentProfil.value || !props.habilitation.beneficiary) return false;
-    return props.habilitation.beneficiary.n_plus_2_id === currentProfil.value.id;
+    if (!currentProfil.value || !props.habilitation.requester) return false;
+    return props.habilitation.requester.n_plus_2_id === currentProfil.value.id;
 });
 
 // Étape 5 : Validation Contrôle - accessible uniquement si l'utilisateur a le rôle Contrôle

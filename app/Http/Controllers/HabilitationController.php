@@ -6,10 +6,12 @@ use App\Models\Habilitation;
 use App\Models\Profil;
 use App\Models\Application;
 use App\Models\Filiale;
+use App\Mail\HabilitationPriseEnChargeMail;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 
 class HabilitationController extends Controller
 {
@@ -22,7 +24,7 @@ class HabilitationController extends Controller
         $profil = $user?->profil;
         $filter = $request->query('filter', 'all'); // all, encours, termine, rejete
 
-        $query = Habilitation::with(['requester', 'beneficiary', 'beneficiary.nPlus1', 'beneficiary.nPlus2', 'validatorN1', 'validatorControl', 'validatorN2', 'executorIt']);
+        $query = Habilitation::with(['requester', 'requester.nPlus1', 'requester.nPlus2', 'beneficiary', 'beneficiary.nPlus1', 'beneficiary.nPlus2', 'validatorN1', 'validatorControl', 'validatorN2', 'executorIt']);
 
         // Admin voit toutes les habilitations
         if ($user && $user->isAdmin()) {
@@ -64,14 +66,14 @@ class HabilitationController extends Controller
                   ->orWhereIn('beneficiary_profile_id', $subordonnesIds)
                   ->orWhere('validator_n1_id', $profil->id)
                   ->orWhere('validator_n2_id', $profil->id)
-                  // Habilitations où le bénéficiaire a l'utilisateur comme N+1 et le statut est pending_n1
+                  // Habilitations où le demandeur a l'utilisateur comme N+1 et le statut est pending_n1
                   ->orWhere(function($subQ) use ($profilsNPlus1) {
-                      $subQ->whereIn('beneficiary_profile_id', $profilsNPlus1)
+                      $subQ->whereIn('requester_profile_id', $profilsNPlus1)
                            ->where('status', 'pending_n1');
                   })
-                  // Habilitations où le bénéficiaire a l'utilisateur comme N+2 et le statut est pending_n2
+                  // Habilitations où le demandeur a l'utilisateur comme N+2 et le statut est pending_n2
                   ->orWhere(function($subQ) use ($profilsNPlus2) {
-                      $subQ->whereIn('beneficiary_profile_id', $profilsNPlus2)
+                      $subQ->whereIn('requester_profile_id', $profilsNPlus2)
                            ->where('status', 'pending_n2');
                   });
             });
@@ -490,15 +492,15 @@ class HabilitationController extends Controller
                     ->with('error', 'Cette étape n\'est pas accessible actuellement.');
             }
             
-            // Vérifier que l'utilisateur est le N+1 du bénéficiaire
-            $beneficiary = $habilitation->beneficiary;
-            if (!$beneficiary || !$profil || $beneficiary->n_plus_1_id !== $profil->id) {
+            // Vérifier que l'utilisateur est le N+1 du demandeur
+            $requester = $habilitation->requester;
+            if (!$requester || !$profil || $requester->n_plus_1_id !== $profil->id) {
                 return redirect()->route('habilitations.show', $habilitation->id)
-                    ->with('error', 'Vous n\'êtes pas autorisé à valider cette demande. Seul le N+1 du bénéficiaire peut valider.');
+                    ->with('error', 'Vous n\'êtes pas autorisé à valider cette demande. Seul le N+1 du demandeur peut valider.');
             }
         }
 
-        $habilitation->load(['requester', 'beneficiary', 'beneficiary.nPlus1']);
+        $habilitation->load(['requester', 'requester.nPlus1', 'beneficiary']);
 
         return Inertia::render('habilitations/Etape3', [
             'habilitation' => $habilitation,
@@ -522,12 +524,12 @@ class HabilitationController extends Controller
                 ->with('error', 'Cette demande n\'est plus en attente de validation N+1.');
         }
         
-        // Vérifier que l'utilisateur est le N+1 du bénéficiaire (sauf admin)
+        // Vérifier que l'utilisateur est le N+1 du demandeur (sauf admin)
         if (!$user || !$user->isAdmin()) {
-            $beneficiary = $habilitation->beneficiary;
-            if (!$beneficiary || !$profil || $beneficiary->n_plus_1_id !== $profil->id) {
+            $requester = $habilitation->requester;
+            if (!$requester || !$profil || $requester->n_plus_1_id !== $profil->id) {
                 return redirect()->route('habilitations.show', $habilitation->id)
-                    ->with('error', 'Vous n\'êtes pas autorisé à valider cette demande. Seul le N+1 du bénéficiaire peut valider.');
+                    ->with('error', 'Vous n\'êtes pas autorisé à valider cette demande. Seul le N+1 du demandeur peut valider.');
             }
         }
         
@@ -577,15 +579,15 @@ class HabilitationController extends Controller
                     ->with('error', 'Cette étape n\'est pas accessible actuellement.');
             }
             
-            // Vérifier que l'utilisateur est le N+2 du bénéficiaire
-            $beneficiary = $habilitation->beneficiary;
-            if (!$beneficiary || !$profil || $beneficiary->n_plus_2_id !== $profil->id) {
+            // Vérifier que l'utilisateur est le N+2 du demandeur
+            $requester = $habilitation->requester;
+            if (!$requester || !$profil || $requester->n_plus_2_id !== $profil->id) {
                 return redirect()->route('habilitations.show', $habilitation->id)
-                    ->with('error', 'Vous n\'êtes pas autorisé à valider cette demande. Seul le N+2 du bénéficiaire peut valider.');
+                    ->with('error', 'Vous n\'êtes pas autorisé à valider cette demande. Seul le N+2 du demandeur peut valider.');
             }
         }
 
-        $habilitation->load(['requester', 'beneficiary', 'beneficiary.nPlus2', 'validatorN1']);
+        $habilitation->load(['requester', 'requester.nPlus2', 'beneficiary', 'validatorN1']);
 
         return Inertia::render('habilitations/Etape4', [
             'habilitation' => $habilitation,
@@ -600,15 +602,15 @@ class HabilitationController extends Controller
         $user = Auth::user();
         $profil = $user?->profil;
         
-        // Charger le bénéficiaire avec ses relations
-        $habilitation->load('beneficiary');
+        // Charger le demandeur avec ses relations
+        $habilitation->load('requester');
         
-        // Vérifier que l'utilisateur est le N+2 du bénéficiaire (sauf admin)
+        // Vérifier que l'utilisateur est le N+2 du demandeur (sauf admin)
         if (!$user || !$user->isAdmin()) {
-            $beneficiary = $habilitation->beneficiary;
-            if (!$beneficiary || !$profil || $beneficiary->n_plus_2_id !== $profil->id) {
+            $requester = $habilitation->requester;
+            if (!$requester || !$profil || $requester->n_plus_2_id !== $profil->id) {
                 return redirect()->route('habilitations.show', $habilitation->id)
-                    ->with('error', 'Vous n\'êtes pas autorisé à valider cette demande.');
+                    ->with('error', 'Vous n\'êtes pas autorisé à valider cette demande. Seul le N+2 du demandeur peut valider.');
             }
         }
         
@@ -874,6 +876,97 @@ class HabilitationController extends Controller
             'executor_it_id' => Auth::id(),
         ]);
 
+        // Charger les relations nécessaires
+        $habilitation->load(['requester', 'beneficiary']);
+
+        // Envoyer un email au demandeur
+        // Utiliser d'abord requester_email s'il existe, sinon l'email du profil
+        $requesterEmail = $habilitation->requester_email 
+            ?? ($habilitation->requester && $habilitation->requester->email ? $habilitation->requester->email : null);
+        
+        if ($requesterEmail) {
+            $mailer = config('mail.default');
+            
+            // Vérifier si le mailer est configuré pour envoyer des emails réels
+            // Si c'est "log", on log juste l'information sans essayer d'envoyer
+            if ($mailer === 'log') {
+                \Log::info('Email de prise en charge (mode log - email simulé)', [
+                    'habilitation_id' => $habilitation->id,
+                    'email' => $requesterEmail,
+                    'executor' => $user->name,
+                    'message' => 'L\'email serait envoyé à: ' . $requesterEmail,
+                    'note' => 'Pour envoyer de vrais emails, configurez MAIL_MAILER=smtp dans .env'
+                ]);
+            } else {
+                // Essayer d'envoyer l'email uniquement si le mailer n'est pas "log"
+                try {
+                    Mail::to($requesterEmail)->send(
+                        new HabilitationPriseEnChargeMail($habilitation, $user)
+                    );
+                    
+                    \Log::info('Email de prise en charge envoyé avec succès', [
+                        'habilitation_id' => $habilitation->id,
+                        'email' => $requesterEmail,
+                        'executor' => $user->name,
+                        'mailer' => $mailer
+                    ]);
+                } catch (\Illuminate\Mail\Exceptions\TransportException $e) {
+                    // Erreur de connexion SMTP spécifique
+                    $errorMessage = $e->getMessage();
+                    $suggestions = [];
+                    
+                    // Détecter le type d'erreur et proposer des solutions
+                    if (str_contains($errorMessage, 'Authentication unsuccessful') || str_contains($errorMessage, '535')) {
+                        $suggestions = [
+                            '1. Vérifiez que le mot de passe dans .env est correct',
+                            '2. Si l\'authentification à deux facteurs (2FA) est activée, créez un "Mot de passe d\'application" dans les paramètres de sécurité Microsoft',
+                            '3. Vérifiez que l\'authentification SMTP est activée pour ce compte dans Office 365',
+                            '4. Contactez votre administrateur IT pour vérifier les permissions SMTP du compte',
+                            '5. Assurez-vous que le compte n\'est pas verrouillé ou suspendu'
+                        ];
+                    } elseif (str_contains($errorMessage, 'Connection') || str_contains($errorMessage, 'timeout')) {
+                        $suggestions = [
+                            '1. Vérifiez votre connexion Internet',
+                            '2. Vérifiez que MAIL_HOST=smtp.office365.com dans .env',
+                            '3. Vérifiez que le port 587 n\'est pas bloqué par un firewall',
+                            '4. Essayez avec MAIL_ENCRYPTION=starttls au lieu de tls'
+                        ];
+                    } else {
+                        $suggestions = [
+                            '1. Vérifiez votre configuration SMTP dans le fichier .env',
+                            '2. Utilisez MAIL_MAILER=log pour le développement',
+                            '3. Consultez les logs Laravel pour plus de détails'
+                        ];
+                    }
+                    
+                    \Log::error('Erreur lors de l\'envoi de l\'email de prise en charge', [
+                        'habilitation_id' => $habilitation->id,
+                        'email' => $requesterEmail,
+                        'error' => $errorMessage,
+                        'mailer' => $mailer,
+                        'mail_host' => config('mail.mailers.smtp.host'),
+                        'mail_port' => config('mail.mailers.smtp.port'),
+                        'mail_username' => config('mail.mailers.smtp.username'),
+                        'suggestions' => $suggestions,
+                    ]);
+                } catch (\Exception $e) {
+                    // Autres erreurs
+                    \Log::error('Erreur lors de l\'envoi de l\'email de prise en charge', [
+                        'habilitation_id' => $habilitation->id,
+                        'email' => $requesterEmail,
+                        'error' => $e->getMessage(),
+                        'mailer' => $mailer,
+                        'trace' => $e->getTraceAsString(),
+                    ]);
+                }
+            }
+        } else {
+            \Log::warning('Impossible d\'envoyer l\'email de prise en charge : aucun email trouvé pour le demandeur', [
+                'habilitation_id' => $habilitation->id,
+                'requester_id' => $habilitation->requester_profile_id,
+            ]);
+        }
+
         // Rediriger vers l'espace IT si l'utilisateur est exécuteur IT, sinon vers la page de détails
         if ($user->isExecuteurIt() && !$user->isAdmin()) {
             return redirect()->route('habilitations.espace-it', ['filter' => 'en_cours'])
@@ -934,6 +1027,9 @@ class HabilitationController extends Controller
         
         $habilitation->load([
             'requester',
+            'requester.nPlus1',
+            'requester.nPlus2',
+            'beneficiary',
             'beneficiary.nPlus1',
             'beneficiary.nPlus2',
             'validatorN1',

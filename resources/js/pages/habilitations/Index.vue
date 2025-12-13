@@ -19,6 +19,8 @@ interface Habilitation {
     requester: {
         nom: string;
         prenom: string;
+        n_plus_1_id?: number | null;
+        n_plus_2_id?: number | null;
     };
     beneficiary: {
         nom: string;
@@ -80,15 +82,15 @@ const currentProfil = computed(() => (page.props.auth as any)?.profil || null);
 // Fonction pour vérifier si l'utilisateur peut valider N+1 (admin peut voir mais pas valider)
 const canValidateN1 = (habilitation: Habilitation) => {
     if (habilitation.status !== 'pending_n1') return false;
-    if (!currentProfil.value || !habilitation.beneficiary) return false;
-    return habilitation.beneficiary.n_plus_1_id === currentProfil.value.id;
+    if (!currentProfil.value || !habilitation.requester) return false;
+    return habilitation.requester.n_plus_1_id === currentProfil.value.id;
 };
 
 // Fonction pour vérifier si l'utilisateur peut valider N+2 (admin peut voir mais pas valider)
 const canValidateN2 = (habilitation: Habilitation) => {
     if (habilitation.status !== 'pending_n2') return false;
-    if (!currentProfil.value || !habilitation.beneficiary) return false;
-    return habilitation.beneficiary.n_plus_2_id === currentProfil.value.id;
+    if (!currentProfil.value || !habilitation.requester) return false;
+    return habilitation.requester.n_plus_2_id === currentProfil.value.id;
 };
 
 // Fonction pour vérifier si l'utilisateur peut valider le Contrôle (admin peut voir mais pas valider)

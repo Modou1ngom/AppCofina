@@ -26,7 +26,7 @@ const { openDialog } = useBeneficiaryDialog();
 const mainNavItems = computed<NavItem[]>(() => {
     const items: NavItem[] = [
         {
-            title: 'Dashboard',
+            title: 'Tableau de matière',
             href: dashboard(),
             icon: LayoutGrid,
         },

@@ -344,7 +344,7 @@
         <div class="column">
             <div class="section-header">DEMANDEUR</div>
             <div class="field-row">
-                <span class="field-label">Direction / Département / Service:</span>
+                <span class="field-label">Département</span>
                 <span class="field-value"style="border-bottom: none;">{{ $habilitation->requester_direction ?? '' }}</span>
             </div>
             <div class="field-row">
@@ -359,17 +359,17 @@
                 <span class="field-label">E-mail:</span>
                 <span class="field-value"style="border-bottom: none;">{{ $habilitation->requester_email ?? $habilitation->requester->email ?? '' }}</span>
             </div>
-            <div class="field-row">
+            <!--<div class="field-row">
                 <span class="field-label">Téléphone:</span>
                 <span class="field-value"style="border-bottom: none;">{{ $habilitation->requester_telephone ?? $habilitation->requester->telephone ?? '' }}</span>
-            </div>
+            </div>-->
         </div>
 
         <!-- Colonne droite: BÉNÉFICIAIRE -->
         <div class="column">
             <div class="section-header">BÉNÉFICIAIRE</div>
             <div class="field-row">
-                <span class="field-label">Direction / Département / Service:</span>
+                <span class="field-label">Département</span>
                 <span class="field-value" style="border-bottom: none;">{{ $habilitation->beneficiary_direction ?? '' }}</span>
             </div>
             <div class="field-row">
@@ -388,10 +388,10 @@
                 <span class="field-label">Site:</span>
                 <span class="field-value"style="border-bottom: none;"   >{{ $habilitation->beneficiary_site ?? '' }}</span>
             </div>
-            <div class="field-row">
+            <!--<div class="field-row">
                 <span class="field-label">Téléphone:</span>
                 <span class="field-value"style="border-bottom: none;"   >{{ $habilitation->beneficiary_telephone ?? $habilitation->beneficiary->telephone ?? '' }}</span>
-            </div>
+            </div>-->
         </div>
     </div>
 
@@ -417,7 +417,7 @@
     <!-- Type d'application ou service - UNIQUEMENT LES APPLICATIONS SÉLECTIONNÉES -->
     <div style="margin: 2px 0; padding-left: 10px;">
         <strong style="font-size: 8.5pt;">Type d'application ou service:</strong>
-        <div class="checkbox-container" style="margin-left: 10px; margin-top: 3px; margin-bottom: 3px;">
+        <div class="checkbox-container" style="margin-left: 2px; margin-top: 1px; margin-bottom: 2px;">
             @if($habilitation->applications && count($habilitation->applications) > 0)
                 @foreach($habilitation->applications as $app)
                 <div class="checkbox-row" style="margin-left: 0;">
@@ -434,10 +434,10 @@
             </div>
             @endif
         </div>
-        <div class="field-row">
+        <!--<div class="field-row">
             <span class="field-label">Autre (préciser):</span>
             <span class="field-value-long"style="border-bottom: none;">{{ $habilitation->other_application ?? '' }}</span>
-        </div>
+        </div>-->
     </div>
 
     <!-- Bande rouge -->

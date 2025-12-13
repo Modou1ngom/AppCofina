@@ -83,8 +83,10 @@ const form = useForm({
     request_reason: '',
     subsidiary: 'SENEGAL',
     // Champs spécifiques pour Messagerie
-    messagerie_email: '',
-    messagerie_nom_affichage: '',
+    messagerie_email: props.beneficiaire?.email || '',
+    messagerie_nom_affichage: props.beneficiaire?.prenom && props.beneficiaire?.nom 
+        ? `${props.beneficiaire.prenom} ${props.beneficiaire.nom}`.trim() 
+        : '',
 });
 
 const showAutreApplication = computed(() => form.applications.includes('Autres'));
@@ -135,10 +137,14 @@ watch(() => form.beneficiary_profile_id, (newProfileId) => {
             form.beneficiary_telephone = selectedProfil.telephone || '';
             form.beneficiary_site = selectedProfil.site || '';
             
-            // Pré-remplir les champs de messagerie si disponibles
+            // Pré-remplir les champs de messagerie si disponibles et si Messagerie est sélectionnée
             if (showMessagerieFields.value) {
-                form.messagerie_email = selectedProfil.email || '';
-                form.messagerie_nom_affichage = `${selectedProfil.prenom} ${selectedProfil.nom}`.trim();
+                if (!form.messagerie_email && selectedProfil.email) {
+                    form.messagerie_email = selectedProfil.email;
+                }
+                if (!form.messagerie_nom_affichage && selectedProfil.prenom && selectedProfil.nom) {
+                    form.messagerie_nom_affichage = `${selectedProfil.prenom} ${selectedProfil.nom}`.trim();
+                }
             }
         }
     } else {
@@ -152,14 +158,41 @@ watch(() => form.beneficiary_profile_id, (newProfileId) => {
 
 // Watcher pour pré-remplir les champs de messagerie quand Messagerie est sélectionnée
 watch(() => showMessagerieFields.value, (isMessagerieSelected) => {
-    if (isMessagerieSelected && props.beneficiaire) {
+    if (isMessagerieSelected) {
+        // Récupérer le bénéficiaire depuis props ou depuis le formulaire
+        let beneficiaire = props.beneficiaire;
+        
+        // Si pas de bénéficiaire dans props, chercher dans les profils via le formulaire
+        if (!beneficiaire && form.beneficiary_profile_id && props.profils) {
+            const selectedProfil = props.profils.find(p => p.id === Number(form.beneficiary_profile_id));
+            if (selectedProfil) {
+                beneficiaire = selectedProfil;
+            }
+        }
+        
         // Pré-remplir avec les informations du bénéficiaire si disponibles
-        if (!form.messagerie_email && props.beneficiaire.email) {
-            form.messagerie_email = props.beneficiaire.email;
+        // Ne remplir que si les champs sont vides pour ne pas écraser une saisie manuelle
+        if (beneficiaire) {
+            if (!form.messagerie_email && beneficiaire.email) {
+                form.messagerie_email = beneficiaire.email;
+            }
+            if (!form.messagerie_nom_affichage && beneficiaire.prenom && beneficiaire.nom) {
+                form.messagerie_nom_affichage = `${beneficiaire.prenom} ${beneficiaire.nom}`.trim();
+            }
         }
-        if (!form.messagerie_nom_affichage && props.beneficiaire.prenom && props.beneficiaire.nom) {
-            form.messagerie_nom_affichage = `${props.beneficiaire.prenom} ${props.beneficiaire.nom}`.trim();
+        
+        // Si toujours pas d'email, utiliser l'email du bénéficiaire du formulaire
+        if (!form.messagerie_email && form.beneficiary_email) {
+            form.messagerie_email = form.beneficiary_email;
         }
+    }
+}, { immediate: true }); // Ajouter immediate: true pour exécuter au chargement si Messagerie est déjà sélectionnée
+
+// Watcher pour mettre à jour l'email de messagerie quand l'email du bénéficiaire change
+watch(() => form.beneficiary_email, (newEmail) => {
+    // Si Messagerie est sélectionnée et que le champ messagerie_email est vide ou identique à l'ancien email
+    if (showMessagerieFields.value && newEmail && !form.messagerie_email) {
+        form.messagerie_email = newEmail;
     }
 });
 

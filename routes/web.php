@@ -3,17 +3,6 @@
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
-
-Route::get('/', function () {
-    return redirect()->route('login');
-})->name('home');
-
-Route::get('dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
-
-require __DIR__.'/settings.php';
-
 use App\Http\Controllers\ProfilController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\HabilitationController;
@@ -22,11 +11,21 @@ use App\Http\Controllers\AgenceController;
 use App\Http\Controllers\FilialeController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ApplicationController;
+use App\Http\Controllers\DashboardController;
+
+Route::get('/', function () {
+    return redirect()->route('login');
+})->name('home');
+
+Route::get('dashboard', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
+
+require __DIR__.'/settings.php';
 
 // Routes pour les profils - Admin et RH peuvent créer/éditer/supprimer
 Route::middleware(['auth'])->group(function () {
     Route::get('profils/import', [ProfilController::class, 'showImport'])->name('profils.import')->middleware('role:admin,rh');
     Route::post('profils/import', [ProfilController::class, 'import'])->name('profils.import.store')->middleware('role:admin,rh');
+    Route::get('profils/export', [ProfilController::class, 'export'])->name('profils.export')->middleware('role:admin,rh');
     Route::resource('profils', ProfilController::class)->middleware('role:admin,rh');
     Route::resource('roles', RoleController::class)->middleware('role:admin');
     Route::resource('departements', DepartementController::class)->middleware('role:admin');
