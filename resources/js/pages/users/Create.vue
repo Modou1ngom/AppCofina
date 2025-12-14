@@ -16,8 +16,14 @@ interface Role {
     slug: string;
 }
 
+interface Filiale {
+    id: number;
+    nom: string;
+}
+
 interface Props {
     roles: Role[];
+    filiales: Filiale[];
 }
 
 const props = defineProps<Props>();
@@ -39,6 +45,7 @@ const form = useForm({
     password: '',
     password_confirmation: '',
     roles: [] as number[],
+    filiales: [] as number[],
 });
 
 const toggleRole = (roleId: number, checked: boolean) => {
@@ -48,6 +55,16 @@ const toggleRole = (roleId: number, checked: boolean) => {
         }
     } else {
         form.roles = form.roles.filter(r => r !== roleId);
+    }
+};
+
+const toggleFiliale = (filialeId: number, checked: boolean) => {
+    if (checked) {
+        if (!form.filiales.includes(filialeId)) {
+            form.filiales = [...form.filiales, filialeId];
+        }
+    } else {
+        form.filiales = form.filiales.filter(f => f !== filialeId);
     }
 };
 
@@ -148,10 +165,33 @@ const submit = () => {
                     <InputError :message="form.errors.roles" />
                 </FormSection>
 
-                <div class="flex items-center gap-2">
-                    <Checkbox id="remember" />
-                    <Label for="remember" class="text-sm font-normal text-gray-700 cursor-pointer">Remember me</Label>
-                </div>
+                <FormSection title="Environnements" :columns="1">
+                    <div class="flex flex-col gap-2">
+                        <p class="text-sm text-muted-foreground mb-2">
+                            Sélectionnez les environnements (filiales) auxquels cet utilisateur aura accès.
+                        </p>
+                        <div
+                            v-for="filiale in props.filiales"
+                            :key="filiale.id"
+                            class="flex items-center gap-2 cursor-pointer"
+                            @click="toggleFiliale(filiale.id, !form.filiales.includes(filiale.id))"
+                        >
+                            <Checkbox
+                                :id="`filiale-${filiale.id}`"
+                                :checked="form.filiales.includes(filiale.id)"
+                                @update:checked="(checked: boolean) => toggleFiliale(filiale.id, checked)"
+                                @click.stop
+                            />
+                            <Label :for="`filiale-${filiale.id}`" class="font-normal cursor-pointer text-sm text-gray-700">
+                                {{ filiale.nom }}
+                            </Label>
+                        </div>
+                        <p v-if="props.filiales.length === 0" class="text-muted-foreground text-sm">
+                            Aucun environnement disponible. <a href="/filiales/create" class="text-primary hover:underline">Créer un environnement</a>
+                        </p>
+                    </div>
+                    <InputError :message="form.errors.filiales" />
+                </FormSection>
 
                 <div class="flex justify-end gap-2">
                     <Button type="button" variant="outline" @click="$inertia.visit('/users')">

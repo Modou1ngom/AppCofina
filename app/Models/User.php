@@ -69,6 +69,14 @@ class User extends Authenticatable
     }
 
     /**
+     * Relation avec les filiales/environnements (many-to-many)
+     */
+    public function filiales()
+    {
+        return $this->belongsToMany(Filiale::class, 'user_filiale', 'user_id', 'filiale_id');
+    }
+
+    /**
      * Vérifie si l'utilisateur a un rôle spécifique
      */
     public function hasRole(string $roleSlug): bool
@@ -89,7 +97,15 @@ class User extends Authenticatable
      */
     public function isAdmin(): bool
     {
-        return $this->hasRole('admin');
+        return $this->hasRole('admin') || $this->isSuperAdmin();
+    }
+
+    /**
+     * Vérifie si l'utilisateur est super admin
+     */
+    public function isSuperAdmin(): bool
+    {
+        return $this->hasRole('super_admin');
     }
 
     /**

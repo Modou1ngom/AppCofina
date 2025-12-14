@@ -20,9 +20,33 @@ class DashboardController extends Controller
         // Construire la requête de base pour les habilitations selon le rôle
         $query = Habilitation::query();
         
-        // Filtrer par filiale si une filiale est définie dans la session
+        // Distinguer super admin et admin normal
+        $isSuperAdmin = $user && $user->isSuperAdmin();
+        $isAdmin = $user && $user->isAdmin();
         $currentFilialeId = FilialeHelper::getCurrentFilialeId();
-        if ($currentFilialeId) {
+        
+        // Super admin voit tous les environnements - pas de filtre
+        if ($isSuperAdmin) {
+            // Pas de restriction pour le super admin - il voit tout
+        }
+        // Admin normal voit uniquement ses filiales assignées
+        elseif ($isAdmin && $user) {
+            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+            if (!empty($userFilialesIds)) {
+                $query->where(function($q) use ($userFilialesIds) {
+                    $q->whereHas('requester', function($subQ) use ($userFilialesIds) {
+                        $subQ->whereIn('filiale_id', $userFilialesIds);
+                    })->orWhereHas('beneficiary', function($subQ) use ($userFilialesIds) {
+                        $subQ->whereIn('filiale_id', $userFilialesIds);
+                    });
+                });
+            } else {
+                // Si l'admin n'a aucune filiale assignée, il ne voit rien
+                $query->where('id', 0);
+            }
+        }
+        // Autres utilisateurs : filtrer par filiale si une filiale est définie dans la session
+        elseif ($currentFilialeId) {
             $query->where(function($q) use ($currentFilialeId) {
                 $q->whereHas('requester', function($subQ) use ($currentFilialeId) {
                     $subQ->where('filiale_id', $currentFilialeId);
@@ -30,11 +54,6 @@ class DashboardController extends Controller
                     $subQ->where('filiale_id', $currentFilialeId);
                 });
             });
-        }
-
-        // Admin voit toutes les habilitations (mais filtrées par filiale si définie)
-        if ($user && $user->isAdmin()) {
-            // Pas de restriction supplémentaire pour l'admin
         } 
         // Exécuteur IT voit les habilitations approuvées par le contrôle
         elseif ($user && $user->isExecuteurIt()) {
@@ -102,13 +121,27 @@ class DashboardController extends Controller
         // Statistiques des profils (selon le rôle)
         $profilQuery = Profil::query();
         
-        // Filtrer par filiale si une filiale est définie
-        if ($currentFilialeId) {
+        // Super admin voit tous les environnements
+        if ($isSuperAdmin) {
+            // Pas de filtre pour le super admin
+        }
+        // Admin normal voit uniquement ses filiales assignées
+        elseif ($isAdmin && $user) {
+            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+            if (!empty($userFilialesIds)) {
+                $profilQuery->whereIn('filiale_id', $userFilialesIds);
+            } else {
+                // Si l'admin n'a aucune filiale assignée, il ne voit rien
+                $profilQuery->where('id', 0);
+            }
+        }
+        // Filtrer par filiale si une filiale est définie dans la session
+        elseif ($currentFilialeId) {
             $profilQuery->where('filiale_id', $currentFilialeId);
         }
         
         if ($user && ($user->isAdmin() || $user->isRh())) {
-            // Admin et RH voient tous les profils (mais filtrés par filiale si définie)
+            // Admin et RH voient les profils selon leurs filiales (ou tous pour super admin)
         } elseif ($profil) {
             // Métier voit son profil et ses subordonnés
             $subordonnesIds = $profil->subordonnes()->pluck('id')->toArray();
@@ -126,7 +159,23 @@ class DashboardController extends Controller
 
         // Statistiques des applications (filtrées par filiale si définie)
         $applicationQuery = Application::where('actif', true);
-        if ($currentFilialeId) {
+        
+        // Super admin voit tous les environnements
+        if ($isSuperAdmin) {
+            // Pas de filtre pour le super admin
+        }
+        // Admin normal voit uniquement ses filiales assignées
+        elseif ($isAdmin && $user) {
+            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+            if (!empty($userFilialesIds)) {
+                $applicationQuery->whereIn('filiale_id', $userFilialesIds);
+            } else {
+                // Si l'admin n'a aucune filiale assignée, il ne voit rien
+                $applicationQuery->where('id', 0);
+            }
+        }
+        // Filtrer par filiale si une filiale est définie dans la session
+        elseif ($currentFilialeId) {
             $applicationQuery->where('filiale_id', $currentFilialeId);
         }
         $statsApplications = [
@@ -146,10 +195,19 @@ class DashboardController extends Controller
         if ($user) {
             // Pour N+1 : habilitations en attente de validation N+1
             if ($profil) {
-                $habilitationsN1 = Habilitation::whereHas('requester', function($q) use ($profil, $currentFilialeId) {
+                $habilitationsN1 = Habilitation::whereHas('requester', function($q) use ($profil, $currentFilialeId, $isSuperAdmin, $isAdmin, $user) {
                     $q->where('n_plus_1_id', $profil->id);
-                    if ($currentFilialeId) {
-                        $q->where('filiale_id', $currentFilialeId);
+                    if (!$isSuperAdmin) {
+                        if ($isAdmin && $user) {
+                            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+                            if (!empty($userFilialesIds)) {
+                                $q->whereIn('filiale_id', $userFilialesIds);
+                            } else {
+                                $q->where('id', 0); // Aucune filiale assignée
+                            }
+                        } elseif ($currentFilialeId) {
+                            $q->where('filiale_id', $currentFilialeId);
+                        }
                     }
                 })
                 ->where('status', 'pending_n1')
@@ -168,10 +226,19 @@ class DashboardController extends Controller
 
             // Pour N+2 : habilitations en attente de validation N+2
             if ($profil) {
-                $habilitationsN2 = Habilitation::whereHas('requester', function($q) use ($profil, $currentFilialeId) {
+                $habilitationsN2 = Habilitation::whereHas('requester', function($q) use ($profil, $currentFilialeId, $isSuperAdmin, $isAdmin, $user) {
                     $q->where('n_plus_2_id', $profil->id);
-                    if ($currentFilialeId) {
-                        $q->where('filiale_id', $currentFilialeId);
+                    if (!$isSuperAdmin) {
+                        if ($isAdmin && $user) {
+                            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+                            if (!empty($userFilialesIds)) {
+                                $q->whereIn('filiale_id', $userFilialesIds);
+                            } else {
+                                $q->where('id', 0); // Aucune filiale assignée
+                            }
+                        } elseif ($currentFilialeId) {
+                            $q->where('filiale_id', $currentFilialeId);
+                        }
                     }
                 })
                 ->where('status', 'pending_n2')
@@ -191,14 +258,29 @@ class DashboardController extends Controller
             // Pour Contrôle : habilitations en attente de contrôle
             if ($user->isControle()) {
                 $habilitationsControlQuery = Habilitation::where('status', 'pending_control');
-                if ($currentFilialeId) {
-                    $habilitationsControlQuery->where(function($q) use ($currentFilialeId) {
-                        $q->whereHas('requester', function($subQ) use ($currentFilialeId) {
-                            $subQ->where('filiale_id', $currentFilialeId);
-                        })->orWhereHas('beneficiary', function($subQ) use ($currentFilialeId) {
-                            $subQ->where('filiale_id', $currentFilialeId);
+                if (!$isSuperAdmin) {
+                    if ($isAdmin && $user) {
+                        $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+                        if (!empty($userFilialesIds)) {
+                            $habilitationsControlQuery->where(function($q) use ($userFilialesIds) {
+                                $q->whereHas('requester', function($subQ) use ($userFilialesIds) {
+                                    $subQ->whereIn('filiale_id', $userFilialesIds);
+                                })->orWhereHas('beneficiary', function($subQ) use ($userFilialesIds) {
+                                    $subQ->whereIn('filiale_id', $userFilialesIds);
+                                });
+                            });
+                        } else {
+                            $habilitationsControlQuery->where('id', 0); // Aucune filiale assignée
+                        }
+                    } elseif ($currentFilialeId) {
+                        $habilitationsControlQuery->where(function($q) use ($currentFilialeId) {
+                            $q->whereHas('requester', function($subQ) use ($currentFilialeId) {
+                                $subQ->where('filiale_id', $currentFilialeId);
+                            })->orWhereHas('beneficiary', function($subQ) use ($currentFilialeId) {
+                                $subQ->where('filiale_id', $currentFilialeId);
+                            });
                         });
-                    });
+                    }
                 }
                 $habilitationsControl = $habilitationsControlQuery->count();
                 
@@ -215,14 +297,29 @@ class DashboardController extends Controller
             // Pour Exécuteur IT : habilitations approuvées en attente de prise en charge
             if ($user->isExecuteurIt()) {
                 $habilitationsITQuery = Habilitation::where('status', 'approved');
-                if ($currentFilialeId) {
-                    $habilitationsITQuery->where(function($q) use ($currentFilialeId) {
-                        $q->whereHas('requester', function($subQ) use ($currentFilialeId) {
-                            $subQ->where('filiale_id', $currentFilialeId);
-                        })->orWhereHas('beneficiary', function($subQ) use ($currentFilialeId) {
-                            $subQ->where('filiale_id', $currentFilialeId);
+                if (!$isSuperAdmin) {
+                    if ($isAdmin && $user) {
+                        $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+                        if (!empty($userFilialesIds)) {
+                            $habilitationsITQuery->where(function($q) use ($userFilialesIds) {
+                                $q->whereHas('requester', function($subQ) use ($userFilialesIds) {
+                                    $subQ->whereIn('filiale_id', $userFilialesIds);
+                                })->orWhereHas('beneficiary', function($subQ) use ($userFilialesIds) {
+                                    $subQ->whereIn('filiale_id', $userFilialesIds);
+                                });
+                            });
+                        } else {
+                            $habilitationsITQuery->where('id', 0); // Aucune filiale assignée
+                        }
+                    } elseif ($currentFilialeId) {
+                        $habilitationsITQuery->where(function($q) use ($currentFilialeId) {
+                            $q->whereHas('requester', function($subQ) use ($currentFilialeId) {
+                                $subQ->where('filiale_id', $currentFilialeId);
+                            })->orWhereHas('beneficiary', function($subQ) use ($currentFilialeId) {
+                                $subQ->where('filiale_id', $currentFilialeId);
+                            });
                         });
-                    });
+                    }
                 }
                 $habilitationsIT = $habilitationsITQuery->count();
                 

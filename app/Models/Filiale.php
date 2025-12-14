@@ -34,4 +34,12 @@ class Filiale extends Model
     {
         return $this->hasMany(Agence::class, 'filiale_id');
     }
+
+    /**
+     * Relation avec les utilisateurs (many-to-many)
+     */
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'user_filiale', 'filiale_id', 'user_id');
+    }
 }

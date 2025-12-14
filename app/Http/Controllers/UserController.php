@@ -10,6 +10,7 @@ use App\Models\Departement;
 use App\Models\Agence;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -21,8 +22,66 @@ class UserController extends Controller
     public function index(Request $request)
     {
         $perPage = (int) $request->get('per_page', 5);
+        $user = Auth::user();
         
-        $query = User::with(['profil', 'roles']);
+        $query = User::with(['profil', 'roles', 'filiales']);
+
+        // Filtrage automatique selon le rôle de l'utilisateur connecté
+        $isSuperAdmin = $user && $user->isSuperAdmin();
+        $isAdmin = $user && $user->isAdmin();
+        
+        // Super admin voit tous les utilisateurs
+        if (!$isSuperAdmin) {
+            // Admin normal voit uniquement les utilisateurs de ses filiales assignées
+            if ($isAdmin && $user) {
+                $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+                if (!empty($userFilialesIds)) {
+                    // Filtrer les utilisateurs qui ont au moins une filiale en commun avec l'admin
+                    // Soit via la table pivot user_filiale, soit via leur profil (filiale_id)
+                    $query->where(function($q) use ($userFilialesIds) {
+                        $q->whereHas('filiales', function($subQ) use ($userFilialesIds) {
+                            $subQ->whereIn('filiales.id', $userFilialesIds);
+                        })->orWhereHas('profil', function($subQ) use ($userFilialesIds) {
+                            $subQ->whereIn('profiles.filiale_id', $userFilialesIds);
+                        });
+                    });
+                } else {
+                    // Si l'admin n'a aucune filiale assignée, il ne voit rien
+                    $query->where('id', 0);
+                }
+            }
+            // Pour les autres utilisateurs, filtrer par leurs filiales assignées ou leur profil
+            else {
+                $userFilialesIds = [];
+                
+                // Récupérer les filiales assignées à l'utilisateur
+                if ($user) {
+                    $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+                    
+                    // Si l'utilisateur a un profil avec une filiale_id, l'ajouter aussi
+                    $userProfil = $user->profil;
+                    if ($userProfil && $userProfil->filiale_id) {
+                        if (!in_array($userProfil->filiale_id, $userFilialesIds)) {
+                            $userFilialesIds[] = $userProfil->filiale_id;
+                        }
+                    }
+                }
+                
+                if (!empty($userFilialesIds)) {
+                    // Filtrer les utilisateurs qui ont au moins une filiale en commun
+                    $query->where(function($q) use ($userFilialesIds) {
+                        $q->whereHas('filiales', function($subQ) use ($userFilialesIds) {
+                            $subQ->whereIn('filiales.id', $userFilialesIds);
+                        })->orWhereHas('profil', function($subQ) use ($userFilialesIds) {
+                            $subQ->whereIn('profiles.filiale_id', $userFilialesIds);
+                        });
+                    });
+                } else {
+                    // Si l'utilisateur n'a aucune filiale assignée, il ne voit que lui-même
+                    $query->where('id', $user ? $user->id : 0);
+                }
+            }
+        }
 
         // Filtre par recherche (nom, email)
         if ($request->has('search') && $request->search) {
@@ -72,13 +131,29 @@ class UserController extends Controller
             }
         }
 
-        // Filtre par environnement (filiale via profil)
+        // Filtre par environnement (filiale) - seulement si l'utilisateur n'est pas super admin
+        // Le super admin peut filtrer manuellement, mais les admins normaux sont déjà filtrés par leurs filiales
         if ($request->has('environnement') && $request->environnement) {
             $filiale = Filiale::find($request->environnement);
             if ($filiale) {
-                $query->whereHas('profil', function($q) use ($filiale) {
-                    $q->where('profiles.site', $filiale->nom);
-                });
+                // Pour le super admin, on peut filtrer par filiale via profil
+                // Pour les admins normaux, on filtre parmi leurs filiales assignées
+                if ($isSuperAdmin) {
+                    $query->whereHas('profil', function($q) use ($filiale) {
+                        $q->where('profiles.filiale_id', $filiale->id);
+                    });
+                } elseif ($isAdmin && $user) {
+                    // Vérifier que la filiale demandée fait partie des filiales assignées à l'admin
+                    $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+                    if (in_array($filiale->id, $userFilialesIds)) {
+                        $query->whereHas('filiales', function($q) use ($filiale) {
+                            $q->where('filiales.id', $filiale->id);
+                        });
+                    } else {
+                        // Si la filiale demandée n'est pas dans les filiales assignées, aucun résultat
+                        $query->where('id', 0);
+                    }
+                }
             }
         }
 
@@ -87,7 +162,44 @@ class UserController extends Controller
         // Récupérer les données pour les filtres
         $roles = Role::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
         $profils = Profil::orderBy('nom')->orderBy('prenom')->get(['id', 'nom', 'prenom', 'matricule']);
-        $agences = Agence::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
+        // Filtrer les agences selon l'environnement de l'utilisateur
+        $isSuperAdmin = $user && $user->isSuperAdmin();
+        $isAdmin = $user && $user->isAdmin();
+        $isRh = $user && $user->isRh();
+        
+        $agencesQuery = Agence::where('actif', true);
+        
+        // Super admin voit toutes les agences
+        if (!$isSuperAdmin) {
+            // Admin normal et RH voient uniquement les agences de leurs filiales assignées
+            if (($isAdmin || $isRh) && $user) {
+                $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+                if (!empty($userFilialesIds)) {
+                    $agencesQuery->whereIn('filiale_id', $userFilialesIds);
+                } else {
+                    $agencesQuery->where('id', 0);
+                }
+            }
+            // Les autres utilisateurs voient les agences de leurs filiales assignées ou de leur profil
+            elseif ($user) {
+                $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+                $userProfil = $user->profil;
+                
+                if ($userProfil && $userProfil->filiale_id) {
+                    if (!in_array($userProfil->filiale_id, $userFilialesIds)) {
+                        $userFilialesIds[] = $userProfil->filiale_id;
+                    }
+                }
+                
+                if (!empty($userFilialesIds)) {
+                    $agencesQuery->whereIn('filiale_id', $userFilialesIds);
+                } else {
+                    $agencesQuery->where('id', 0);
+                }
+            }
+        }
+        
+        $agences = $agencesQuery->orderBy('nom')->get(['id', 'nom']);
         $departements = Departement::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
         $filiales = Filiale::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
 
@@ -107,9 +219,11 @@ class UserController extends Controller
     public function create()
     {
         $roles = Role::where('actif', true)->orderBy('nom')->get();
+        $filiales = Filiale::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
         
         return Inertia::render('users/Create', [
             'roles' => $roles,
+            'filiales' => $filiales,
         ]);
     }
 
@@ -124,6 +238,8 @@ class UserController extends Controller
             'password' => 'required|string|min:8|confirmed',
             'roles' => 'nullable|array',
             'roles.*' => 'required|integer|exists:roles,id',
+            'filiales' => 'nullable|array',
+            'filiales.*' => 'required|integer|exists:filiales,id',
         ]);
 
         $user = User::create([
@@ -137,6 +253,11 @@ class UserController extends Controller
             $user->roles()->sync(array_map('intval', $validated['roles']));
         }
 
+        // Attacher les filiales/environnements si fournis
+        if (!empty($validated['filiales']) && is_array($validated['filiales'])) {
+            $user->filiales()->sync(array_map('intval', $validated['filiales']));
+        }
+
         return redirect()->route('users.index')
             ->with('success', 'Utilisateur créé avec succès !');
     }
@@ -146,7 +267,7 @@ class UserController extends Controller
      */
     public function show(User $user)
     {
-        $user->load(['profil', 'roles']);
+        $user->load(['profil', 'roles', 'filiales']);
         
         return Inertia::render('users/Show', [
             'user' => $user,
@@ -161,7 +282,7 @@ class UserController extends Controller
         $roles = Role::where('actif', true)->orderBy('nom')->get();
         $profils = Profil::orderBy('nom')->orderBy('prenom')->get(['id', 'nom', 'prenom', 'matricule', 'email', 'site']);
         $filiales = Filiale::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
-        $user->load(['roles', 'profil']);
+        $user->load(['roles', 'profil', 'filiales']);
         
         return Inertia::render('users/Edit', [
             'user' => $user,
@@ -183,6 +304,8 @@ class UserController extends Controller
             'roles' => 'nullable|array',
             'roles.*' => 'required|integer|exists:roles,id',
             'profil_id' => 'nullable|integer|exists:profiles,id',
+            'filiales' => 'nullable|array',
+            'filiales.*' => 'required|integer|exists:filiales,id',
         ]);
 
         $data = [
@@ -202,6 +325,13 @@ class UserController extends Controller
             $user->roles()->sync(array_map('intval', $validated['roles']));
         } else {
             $user->roles()->sync([]);
+        }
+
+        // Synchroniser les filiales/environnements
+        if (isset($validated['filiales']) && is_array($validated['filiales'])) {
+            $user->filiales()->sync(array_map('intval', $validated['filiales']));
+        } else {
+            $user->filiales()->sync([]);
         }
 
         // Associer ou dissocier le profil

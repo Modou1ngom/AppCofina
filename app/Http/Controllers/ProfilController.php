@@ -17,6 +17,133 @@ use Illuminate\Support\Facades\Log;
 class ProfilController extends Controller
 {
     /**
+     * Applique le filtrage par filiale selon le rôle de l'utilisateur
+     */
+    private function applyFilialeFilter($query, $user)
+    {
+        $isSuperAdmin = $user && $user->isSuperAdmin();
+        $isAdmin = $user && $user->isAdmin();
+        $isRh = $user && $user->isRh();
+        
+        // Super admin voit tous les profils
+        if ($isSuperAdmin) {
+            return $query;
+        }
+        // Admin normal et RH voient uniquement les profils de leurs filiales assignées
+        elseif (($isAdmin || $isRh) && $user) {
+            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+            if (!empty($userFilialesIds)) {
+                return $query->whereIn('filiale_id', $userFilialesIds);
+            } else {
+                // Si l'admin/RH n'a aucune filiale assignée, il ne voit rien
+                return $query->where('id', 0);
+            }
+        }
+        
+        return $query;
+    }
+
+    /**
+     * Applique le filtrage des agences par filiale selon le rôle de l'utilisateur
+     */
+    private function filterAgencesByFiliale($user)
+    {
+        $isSuperAdmin = $user && $user->isSuperAdmin();
+        $isAdmin = $user && $user->isAdmin();
+        $isRh = $user && $user->isRh();
+        
+        $query = Agence::where('actif', true);
+        
+        // Super admin voit toutes les agences
+        if ($isSuperAdmin) {
+            return $query;
+        }
+        // Admin normal et RH voient uniquement les agences de leurs filiales assignées
+        elseif (($isAdmin || $isRh) && $user) {
+            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+            if (!empty($userFilialesIds)) {
+                return $query->whereIn('filiale_id', $userFilialesIds);
+            } else {
+                // Si l'admin/RH n'a aucune filiale assignée, il ne voit rien
+                return $query->where('id', 0);
+            }
+        }
+        // Les autres utilisateurs voient les agences de leurs filiales assignées ou de leur profil
+        elseif ($user) {
+            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+            $userProfil = $user->profil;
+            
+            // Si l'utilisateur a un profil avec une filiale_id, l'ajouter aussi
+            if ($userProfil && $userProfil->filiale_id) {
+                if (!in_array($userProfil->filiale_id, $userFilialesIds)) {
+                    $userFilialesIds[] = $userProfil->filiale_id;
+                }
+            }
+            
+            if (!empty($userFilialesIds)) {
+                return $query->whereIn('filiale_id', $userFilialesIds);
+            } else {
+                // Si l'utilisateur n'a aucune filiale assignée, il ne voit rien
+                return $query->where('id', 0);
+            }
+        }
+        
+        return $query->where('id', 0);
+    }
+
+    /**
+     * Vérifie si l'utilisateur peut accéder à un profil donné
+     */
+    private function canAccessProfil(Profil $profil, $user)
+    {
+        if (!$user) {
+            return false;
+        }
+        
+        $isSuperAdmin = $user->isSuperAdmin();
+        
+        // Super admin peut accéder à tous les profils
+        if ($isSuperAdmin) {
+            return true;
+        }
+        
+        $isAdmin = $user->isAdmin();
+        $isRh = $user->isRh();
+        
+        // Admin normal et RH peuvent accéder uniquement aux profils de leurs filiales assignées
+        if (($isAdmin || $isRh)) {
+            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+            if (!empty($userFilialesIds) && $profil->filiale_id) {
+                return in_array($profil->filiale_id, $userFilialesIds);
+            }
+            return false;
+        }
+        
+        // Pour les autres utilisateurs, vérifier leurs filiales assignées ou leur profil
+        $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+        $userProfil = $user->profil;
+        
+        // Si l'utilisateur a un profil avec une filiale_id, l'ajouter aussi
+        if ($userProfil && $userProfil->filiale_id) {
+            if (!in_array($userProfil->filiale_id, $userFilialesIds)) {
+                $userFilialesIds[] = $userProfil->filiale_id;
+            }
+        }
+        
+        // Si l'utilisateur a des filiales assignées, vérifier si le profil appartient à une de ces filiales
+        if (!empty($userFilialesIds) && $profil->filiale_id) {
+            return in_array($profil->filiale_id, $userFilialesIds);
+        }
+        
+        // Sinon, vérifier s'ils peuvent voir leur propre profil ou leurs subordonnés
+        if ($userProfil) {
+            return $profil->id === $userProfil->id || $profil->n_plus_1_id === $userProfil->id;
+        }
+        
+        return false;
+    }
+
+    /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
@@ -27,13 +154,54 @@ class ProfilController extends Controller
         // Construire la requête de base
         $query = Profil::query();
         
-        // Admin et RH voient tous les profils
-        if ($user && ($user->isAdmin() || $user->isRh())) {
-            // Pas de restriction pour l'admin et RH
-        } else {
-            // Les autres voient uniquement leur propre profil et leurs subordonnés
+        // Distinguer super admin, admin normal et RH
+        $isSuperAdmin = $user && $user->isSuperAdmin();
+        $isAdmin = $user && $user->isAdmin();
+        $isRh = $user && $user->isRh();
+        
+        // Super admin voit tous les profils
+        if ($isSuperAdmin) {
+            // Pas de restriction pour le super admin
+        }
+        // Admin normal voit uniquement les profils de ses filiales assignées
+        elseif ($isAdmin && $user) {
+            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+            if (!empty($userFilialesIds)) {
+                $query->whereIn('filiale_id', $userFilialesIds);
+            } else {
+                // Si l'admin n'a aucune filiale assignée, il ne voit rien
+                $query->where('id', 0);
+            }
+        }
+        // RH voit uniquement les profils de ses filiales assignées (si applicable)
+        elseif ($isRh && $user) {
+            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+            if (!empty($userFilialesIds)) {
+                $query->whereIn('filiale_id', $userFilialesIds);
+            } else {
+                // Si le RH n'a aucune filiale assignée, il ne voit rien
+                $query->where('id', 0);
+            }
+        }
+        // Les autres utilisateurs
+        else {
             $profil = $user?->profil;
-            if ($profil) {
+            
+            // Vérifier d'abord si l'utilisateur a des filiales assignées
+            $userFilialesIds = $user ? $user->filiales()->get()->pluck('id')->toArray() : [];
+            
+            // Si l'utilisateur a un profil avec une filiale_id, l'ajouter aussi
+            if ($profil && $profil->filiale_id) {
+                if (!in_array($profil->filiale_id, $userFilialesIds)) {
+                    $userFilialesIds[] = $profil->filiale_id;
+                }
+            }
+            
+            if (!empty($userFilialesIds)) {
+                // L'utilisateur voit les profils de ses filiales assignées
+                $query->whereIn('filiale_id', $userFilialesIds);
+            } elseif ($profil) {
+                // Sinon, il voit uniquement son propre profil et ses subordonnés
                 $query->where(function($q) use ($profil) {
                     $q->where('id', $profil->id)
                       ->orWhere('n_plus_1_id', $profil->id);
@@ -91,7 +259,8 @@ class ProfilController extends Controller
 
         // Récupérer les données pour les filtres
         $departements = Departement::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
-        $agences = Agence::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
+        $agencesQuery = $this->filterAgencesByFiliale($user);
+        $agences = $agencesQuery->orderBy('nom')->get(['id', 'nom']);
         
         return Inertia::render('profils/Index', [
             'profils' => $profils,
@@ -105,12 +274,16 @@ class ProfilController extends Controller
      */
     public function create()
     {
-        $profils = Profil::orderBy('nom')->get(['id', 'nom', 'prenom', 'matricule']);
+        $user = Auth::user();
+        $profilsQuery = Profil::query();
+        $profilsQuery = $this->applyFilialeFilter($profilsQuery, $user);
+        $profils = $profilsQuery->orderBy('nom')->get(['id', 'nom', 'prenom', 'matricule']);
         $departements = Departement::where('actif', true)
             ->with('responsable:id,nom,prenom,matricule')
             ->orderBy('nom')
             ->get(['id', 'nom', 'responsable_departement_id']);
-        $agences = Agence::where('actif', true)->orderBy('nom')->get(['id', 'nom', 'filiale_id']);
+        $agencesQuery = $this->filterAgencesByFiliale($user);
+        $agences = $agencesQuery->orderBy('nom')->get(['id', 'nom', 'filiale_id']);
         $filiales = Filiale::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
         
         return Inertia::render('profils/Create', [
@@ -184,6 +357,13 @@ class ProfilController extends Controller
      */
     public function show(Profil $profil)
     {
+        $user = Auth::user();
+        
+        // Vérifier l'accès : super admin peut voir tout, sinon vérifier les filiales
+        if (!$this->canAccessProfil($profil, $user)) {
+            abort(403, 'Vous n\'avez pas accès à ce profil.');
+        }
+        
         $profil->load([
             'nPlus1:id,nom,prenom,matricule',
             'nPlus2:id,nom,prenom,matricule',
@@ -208,14 +388,23 @@ class ProfilController extends Controller
      */
     public function edit(Profil $profil)
     {
-        $profils = Profil::where('id', '!=', $profil->id)
-            ->orderBy('nom')
+        $user = Auth::user();
+        
+        // Vérifier l'accès : super admin peut voir tout, sinon vérifier les filiales
+        if (!$this->canAccessProfil($profil, $user)) {
+            abort(403, 'Vous n\'avez pas accès à ce profil.');
+        }
+        
+        $profilsQuery = Profil::where('id', '!=', $profil->id);
+        $profilsQuery = $this->applyFilialeFilter($profilsQuery, $user);
+        $profils = $profilsQuery->orderBy('nom')
             ->get(['id', 'nom', 'prenom', 'matricule']);
         $departements = Departement::where('actif', true)
             ->with('responsable:id,nom,prenom,matricule')
             ->orderBy('nom')
             ->get(['id', 'nom', 'responsable_departement_id']);
-        $agences = Agence::where('actif', true)->orderBy('nom')->get(['id', 'nom', 'filiale_id']);
+        $agencesQuery = $this->filterAgencesByFiliale($user);
+        $agences = $agencesQuery->orderBy('nom')->get(['id', 'nom', 'filiale_id']);
         $filiales = Filiale::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
         
         return Inertia::render('profils/Edit', [
@@ -232,6 +421,13 @@ class ProfilController extends Controller
      */
     public function update(Request $request, Profil $profil)
     {
+        $user = Auth::user();
+        
+        // Vérifier l'accès : super admin peut modifier tout, sinon vérifier les filiales
+        if (!$this->canAccessProfil($profil, $user)) {
+            abort(403, 'Vous n\'avez pas accès à ce profil.');
+        }
+        
         $validated = $request->validate([
             'nom' => 'sometimes|required|string|max:255',
             'prenom' => 'sometimes|required|string|max:255',
@@ -288,6 +484,13 @@ class ProfilController extends Controller
      */
     public function destroy(Profil $profil)
     {
+        $user = Auth::user();
+        
+        // Vérifier l'accès : super admin peut supprimer tout, sinon vérifier les filiales
+        if (!$this->canAccessProfil($profil, $user)) {
+            abort(403, 'Vous n\'avez pas accès à ce profil.');
+        }
+        
         $profil->delete();
         
         return redirect()->route('profils.index')
@@ -582,8 +785,10 @@ class ProfilController extends Controller
                                     $prenomN1 = trim($nameParts[0]);
                                     $nomN1 = trim($nameParts[count($nameParts) - 1]); // Dernier mot = nom
                                     
-                                    // Récupérer tous les profils et comparer en PHP (plus simple pour gérer les accents)
-                                    $allProfils = Profil::select('id', 'nom', 'prenom', 'matricule')->get();
+                                    // Récupérer les profils filtrés selon le rôle et comparer en PHP (plus simple pour gérer les accents)
+                                    $allProfilsQuery = Profil::select('id', 'nom', 'prenom', 'matricule');
+                                    $allProfilsQuery = $this->applyFilialeFilter($allProfilsQuery, $user);
+                                    $allProfils = $allProfilsQuery->get();
                                     foreach ($allProfils as $profilCandidate) {
                                         $prenomNormalized = $normalizeAccents($profilCandidate->prenom);
                                         $nomNormalized = $normalizeAccents($profilCandidate->nom);
@@ -611,7 +816,9 @@ class ProfilController extends Controller
                                     
                                     // Si toujours pas trouvé, essayer une recherche partielle sur le nom complet (insensible aux accents)
                                     if (!$nPlus1) {
-                                        $allProfils = Profil::select('id', 'nom', 'prenom', 'matricule')->get();
+                                        $allProfilsQuery = Profil::select('id', 'nom', 'prenom', 'matricule');
+                                        $allProfilsQuery = $this->applyFilialeFilter($allProfilsQuery, $user);
+                                        $allProfils = $allProfilsQuery->get();
                                         foreach ($allProfils as $profilCandidate) {
                                             $fullNameCandidate = $normalizeAccents(trim($profilCandidate->prenom . ' ' . $profilCandidate->nom));
                                             $fullNameCandidateReverse = $normalizeAccents(trim($profilCandidate->nom . ' ' . $profilCandidate->prenom));

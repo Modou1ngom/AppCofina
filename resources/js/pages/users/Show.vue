@@ -16,6 +16,10 @@ interface Props {
             nom: string;
             slug: string;
         }[];
+        filiales?: {
+            id: number;
+            nom: string;
+        }[];
         profil?: {
             id: number;
             nom: string;
@@ -113,6 +117,24 @@ const breadcrumbs: BreadcrumbItem[] = [
                         <div v-else>
                             <dt class="text-muted-foreground text-sm font-medium">Rôles</dt>
                             <dd class="mt-1 text-sm text-muted-foreground">Aucun rôle assigné</dd>
+                        </div>
+                        <div v-if="user.filiales && user.filiales.length > 0">
+                            <dt class="text-muted-foreground text-sm font-medium">Environnements</dt>
+                            <dd class="mt-1">
+                                <div class="flex flex-wrap gap-2">
+                                    <span
+                                        v-for="filiale in user.filiales"
+                                        :key="filiale.id"
+                                        class="rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                                    >
+                                        {{ filiale.nom }}
+                                    </span>
+                                </div>
+                            </dd>
+                        </div>
+                        <div v-else>
+                            <dt class="text-muted-foreground text-sm font-medium">Environnements</dt>
+                            <dd class="mt-1 text-sm text-muted-foreground">Aucun environnement assigné</dd>
                         </div>
                     </dl>
                 </div>

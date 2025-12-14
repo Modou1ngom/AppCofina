@@ -6,6 +6,7 @@ use App\Models\Agence;
 use App\Models\Profil;
 use App\Models\Filiale;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
 class AgenceController extends Controller
@@ -15,8 +16,47 @@ class AgenceController extends Controller
      */
     public function index(Request $request)
     {
+        $user = Auth::user();
         $perPage = (int) $request->get('per_page', 5);
-        $agences = Agence::orderBy('nom')->paginate($perPage);
+        
+        $query = Agence::query();
+        
+        // Filtrer selon l'environnement de l'utilisateur
+        $isSuperAdmin = $user && $user->isSuperAdmin();
+        $isAdmin = $user && $user->isAdmin();
+        $isRh = $user && $user->isRh();
+        
+        // Super admin voit toutes les agences
+        if (!$isSuperAdmin) {
+            // Admin normal et RH voient uniquement les agences de leurs filiales assignées
+            if (($isAdmin || $isRh) && $user) {
+                $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+                if (!empty($userFilialesIds)) {
+                    $query->whereIn('filiale_id', $userFilialesIds);
+                } else {
+                    $query->where('id', 0);
+                }
+            }
+            // Les autres utilisateurs voient les agences de leurs filiales assignées ou de leur profil
+            elseif ($user) {
+                $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+                $userProfil = $user->profil;
+                
+                if ($userProfil && $userProfil->filiale_id) {
+                    if (!in_array($userProfil->filiale_id, $userFilialesIds)) {
+                        $userFilialesIds[] = $userProfil->filiale_id;
+                    }
+                }
+                
+                if (!empty($userFilialesIds)) {
+                    $query->whereIn('filiale_id', $userFilialesIds);
+                } else {
+                    $query->where('id', 0);
+                }
+            }
+        }
+        
+        $agences = $query->orderBy('nom')->paginate($perPage);
         
         // Compter le nombre de profils par agence
         $agences->each(function ($agence) {
