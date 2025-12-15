@@ -130,7 +130,7 @@ class Profil extends Model
      */
     public static function generateMatricule(): string
     {
-        $prefix = 'M';
+        $prefix = 'M0';
         
         // Récupérer tous les matricules qui commencent par "M"
         $matricules = self::where('matricule', 'like', "{$prefix}%")

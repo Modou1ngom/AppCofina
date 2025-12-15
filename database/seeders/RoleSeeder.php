@@ -15,6 +15,12 @@ class RoleSeeder extends Seeder
     {
         $roles = [
             [
+                'nom' => 'Super Admin',
+                'slug' => 'super_admin',
+                'description' => 'Super administrateur avec tous les droits sans restriction sur l\'application',
+                'actif' => true,
+            ],
+            [
                 'nom' => 'Admin',
                 'slug' => 'admin',
                 'description' => 'Administrateur avec tous les droits sur l\'application',

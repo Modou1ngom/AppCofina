@@ -181,6 +181,22 @@ class User extends Authenticatable
     }
 
     /**
+     * Vérifie si l'utilisateur est Head IT
+     */
+    public function isHeadIt(): bool
+    {
+        return $this->hasRole('head_it') || $this->hasRole('chef_it');
+    }
+
+    /**
+     * Vérifie si l'utilisateur est Audit
+     */
+    public function isAudit(): bool
+    {
+        return $this->hasRole('audit') || $this->hasRole('direction_audit');
+    }
+
+    /**
      * Vérifie si l'utilisateur est responsable d'un département
      */
     public function isResponsableDepartement(): bool
