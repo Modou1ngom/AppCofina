@@ -140,26 +140,34 @@ const dashboardTitle = computed(() => {
     <Head title="Tableau de matière" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-6 overflow-x-auto rounded-xl p-6">
-            <div class="mb-4">
-                <h1 class="text-2xl font-bold">{{ dashboardTitle }}</h1>
-                <p class="text-sm text-muted-foreground mt-1">Vue d'ensemble des habilitations</p>
+        <div class="relative flex h-full flex-1 flex-col gap-6 overflow-x-auto bg-gradient-to-br from-gray-50 via-white to-gray-50 p-8">
+            <!-- Header -->
+            <div class="mb-8">
+                <div class="mb-3 flex items-center gap-3">
+                    <div class="h-1 w-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500"></div>
+                    <h1 class="text-4xl font-bold tracking-tight text-gray-900">
+                        {{ dashboardTitle }}
+                    </h1>
+                </div>
+                <p class="ml-15 text-base font-medium text-gray-600">Vue d'ensemble des habilitations et statistiques</p>
             </div>
             <!-- Actions en attente -->
-            <div v-if="actionsEnAttente && actionsEnAttente.length > 0" class="rounded-lg border border-yellow-200 bg-yellow-50 p-4 dark:border-yellow-800 dark:bg-yellow-900/20">
-                <div class="flex items-center gap-2 mb-3">
-                    <AlertCircle class="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
-                    <h3 class="font-semibold text-yellow-900 dark:text-yellow-100">Actions en attente</h3>
+            <div v-if="actionsEnAttente && actionsEnAttente.length > 0" class="mb-6 overflow-hidden rounded-xl border-2 border-yellow-200 bg-gradient-to-br from-yellow-50 to-orange-50 p-5 shadow-lg">
+                <div class="mb-4 flex items-center gap-3">
+                    <div class="rounded-full bg-gradient-to-br from-yellow-400 to-orange-400 p-2.5 shadow-md">
+                        <AlertCircle class="h-5 w-5 text-white" />
+                    </div>
+                    <h3 class="text-lg font-bold text-yellow-900">Actions en attente</h3>
                 </div>
-                <div class="space-y-2">
+                <div class="space-y-2.5">
                     <Link
                         v-for="action in actionsEnAttente"
                         :key="action.type"
                         :href="action.url"
-                        class="flex items-center justify-between rounded-md bg-white p-3 hover:bg-yellow-100 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors"
+                        class="group flex items-center justify-between rounded-lg border border-yellow-200 bg-white p-4 shadow-sm transition-all hover:border-yellow-300 hover:shadow-md"
                     >
-                        <span class="text-sm text-gray-700 dark:text-gray-300">{{ action.label }}</span>
-                        <span class="rounded-full bg-yellow-500 px-3 py-1 text-xs font-semibold text-white">
+                        <span class="text-sm font-medium text-gray-700 group-hover:text-yellow-800 transition-colors">{{ action.label }}</span>
+                        <span class="rounded-full bg-gradient-to-r from-yellow-500 to-orange-500 px-4 py-1.5 text-xs font-bold text-white shadow-md group-hover:scale-105 transition-transform">
                             {{ action.count }}
                         </span>
                     </Link>
@@ -167,277 +175,119 @@ const dashboardTitle = computed(() => {
             </div>
 
             <!-- Cartes de statistiques principales -->
-            <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div class="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
                 <!-- Total Habilitations -->
-                <div class="rounded-lg border border-sidebar-border bg-card p-6 shadow-sm">
-                    <div class="flex items-center justify-between">
+                <div class="group relative overflow-hidden rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 p-6 shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl">
+                    <div class="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-blue-200/50 blur-2xl"></div>
+                    <div class="relative flex items-center justify-between">
                         <div>
-                            <p class="text-sm font-medium text-muted-foreground">Total Habilitations</p>
-                            <p class="text-2xl font-bold">{{ statsHabilitations.total }}</p>
+                            <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-blue-700">Total Habilitations</p>
+                            <p class="text-3xl font-bold text-blue-900">{{ statsHabilitations.total }}</p>
                         </div>
-                        <div class="rounded-full bg-blue-100 p-3 dark:bg-blue-900">
-                            <FileCheck class="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                        <div class="rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 p-4 shadow-lg group-hover:scale-110 transition-transform">
+                            <FileCheck class="h-7 w-7 text-white" />
                         </div>
                     </div>
                 </div>
 
                 <!-- Habilitations en cours -->
-                <div class="rounded-lg border border-sidebar-border bg-card p-6 shadow-sm">
-                    <div class="flex items-center justify-between">
+                <div class="group relative overflow-hidden rounded-xl border border-orange-200 bg-gradient-to-br from-orange-50 to-orange-100 p-6 shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl">
+                    <div class="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-orange-200/50 blur-2xl"></div>
+                    <div class="relative flex items-center justify-between">
                         <div>
-                            <p class="text-sm font-medium text-muted-foreground">En cours</p>
-                            <p class="text-2xl font-bold">{{ totalEnCours }}</p>
+                            <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-orange-700">En cours</p>
+                            <p class="text-3xl font-bold text-orange-900">{{ totalEnCours }}</p>
                         </div>
-                        <div class="rounded-full bg-orange-100 p-3 dark:bg-orange-900">
-                            <Clock class="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                        <div class="rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 p-4 shadow-lg group-hover:scale-110 transition-transform">
+                            <Clock class="h-7 w-7 text-white" />
                         </div>
                     </div>
                 </div>
 
                 <!-- Habilitations terminées -->
-                <div class="rounded-lg border border-sidebar-border bg-card p-6 shadow-sm">
-                    <div class="flex items-center justify-between">
+                <div class="group relative overflow-hidden rounded-xl border border-green-200 bg-gradient-to-br from-green-50 to-green-100 p-6 shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl">
+                    <div class="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-green-200/50 blur-2xl"></div>
+                    <div class="relative flex items-center justify-between">
                         <div>
-                            <p class="text-sm font-medium text-muted-foreground">Terminées</p>
-                            <p class="text-2xl font-bold">{{ statsHabilitations.completed }}</p>
+                            <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-green-700">Terminées</p>
+                            <p class="text-3xl font-bold text-green-900">{{ statsHabilitations.completed }}</p>
                         </div>
-                        <div class="rounded-full bg-green-100 p-3 dark:bg-green-900">
-                            <CheckCircle class="h-6 w-6 text-green-600 dark:text-green-400" />
+                        <div class="rounded-xl bg-gradient-to-br from-green-500 to-green-600 p-4 shadow-lg group-hover:scale-110 transition-transform">
+                            <CheckCircle class="h-7 w-7 text-white" />
                         </div>
                     </div>
                 </div>
 
                 <!-- Profils actifs -->
-                <div class="rounded-lg border border-sidebar-border bg-card p-6 shadow-sm">
-                    <div class="flex items-center justify-between">
+                <div class="group relative overflow-hidden rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100 p-6 shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl">
+                    <div class="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-purple-200/50 blur-2xl"></div>
+                    <div class="relative flex items-center justify-between">
                         <div>
-                            <p class="text-sm font-medium text-muted-foreground">Profils actifs</p>
-                            <p class="text-2xl font-bold">{{ statsProfils.actifs }}</p>
+                            <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-purple-700">Profils actifs</p>
+                            <p class="text-3xl font-bold text-purple-900">{{ statsProfils.actifs }}</p>
                         </div>
-                        <div class="rounded-full bg-purple-100 p-3 dark:bg-purple-900">
-                            <Users class="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                        <div class="rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 p-4 shadow-lg group-hover:scale-110 transition-transform">
+                            <Users class="h-7 w-7 text-white" />
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Statistiques détaillées des habilitations -->
-            <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <div class="rounded-lg border border-sidebar-border bg-card p-4">
-                    <div class="flex items-center gap-2">
-                        <div class="rounded-full bg-gray-100 p-2 dark:bg-gray-800">
-                            <FileCheck class="h-4 w-4 text-gray-600 dark:text-gray-400" />
-                        </div>
-                        <div>
-                            <p class="text-xs text-muted-foreground">Brouillons</p>
-                            <p class="text-lg font-semibold">{{ statsHabilitations.draft }}</p>
-                        </div>
-                    </div>
-                </div>
 
-                <div class="rounded-lg border border-sidebar-border bg-card p-4">
-                    <div class="flex items-center gap-2">
-                        <div class="rounded-full bg-blue-100 p-2 dark:bg-blue-900">
-                            <UserCheck class="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                        </div>
-                        <div>
-                            <p class="text-xs text-muted-foreground">En attente N+1</p>
-                            <p class="text-lg font-semibold">{{ statsHabilitations.pending_n1 }}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="rounded-lg border border-sidebar-border bg-card p-4">
-                    <div class="flex items-center gap-2">
-                        <div class="rounded-full bg-orange-100 p-2 dark:bg-orange-900">
-                            <ShieldCheck class="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                        </div>
-                        <div>
-                            <p class="text-xs text-muted-foreground">En attente N+2</p>
-                            <p class="text-lg font-semibold">{{ statsHabilitations.pending_n2 }}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="rounded-lg border border-sidebar-border bg-card p-4">
-                    <div class="flex items-center gap-2">
-                        <div class="rounded-full bg-yellow-100 p-2 dark:bg-yellow-900">
-                            <Activity class="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-                        </div>
-                        <div>
-                            <p class="text-xs text-muted-foreground">En attente Contrôle</p>
-                            <p class="text-lg font-semibold">{{ statsHabilitations.pending_control }}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="rounded-lg border border-sidebar-border bg-card p-4">
-                    <div class="flex items-center gap-2">
-                        <div class="rounded-full bg-green-100 p-2 dark:bg-green-900">
-                            <CheckCircle class="h-4 w-4 text-green-600 dark:text-green-400" />
-                        </div>
-                        <div>
-                            <p class="text-xs text-muted-foreground">Approuvées</p>
-                            <p class="text-lg font-semibold">{{ statsHabilitations.approved }}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="rounded-lg border border-sidebar-border bg-card p-4">
-                    <div class="flex items-center gap-2">
-                        <div class="rounded-full bg-purple-100 p-2 dark:bg-purple-900">
-                            <Server class="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                        </div>
-                        <div>
-                            <p class="text-xs text-muted-foreground">En cours IT</p>
-                            <p class="text-lg font-semibold">{{ statsHabilitations.in_progress }}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="rounded-lg border border-sidebar-border bg-card p-4">
-                    <div class="flex items-center gap-2">
-                        <div class="rounded-full bg-green-200 p-2 dark:bg-green-800">
-                            <CheckCircle class="h-4 w-4 text-green-700 dark:text-green-300" />
-                        </div>
-                        <div>
-                            <p class="text-xs text-muted-foreground">Terminées</p>
-                            <p class="text-lg font-semibold">{{ statsHabilitations.completed }}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="rounded-lg border border-sidebar-border bg-card p-4">
-                    <div class="flex items-center gap-2">
-                        <div class="rounded-full bg-red-100 p-2 dark:bg-red-900">
-                            <XCircle class="h-4 w-4 text-red-600 dark:text-red-400" />
-                        </div>
-                        <div>
-                            <p class="text-xs text-muted-foreground">Rejetées</p>
-                            <p class="text-lg font-semibold">{{ statsHabilitations.rejected }}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Grille principale : Répartition et Habilitations récentes -->
-            <div class="grid gap-6 md:grid-cols-2">
-                <!-- Répartition par type de demande -->
-                <div class="rounded-lg border border-sidebar-border bg-card p-6">
-                    <h3 class="mb-4 text-lg font-semibold">Répartition par type de demande</h3>
-                    <div class="space-y-3">
-                        <div
-                            v-for="(count, type) in repartitionParType"
-                            :key="type"
-                            class="flex items-center justify-between"
-                        >
-                            <span class="text-sm text-muted-foreground">{{ getTypeLabel(type) }}</span>
-                            <div class="flex items-center gap-2">
-                                <div class="h-2 w-32 rounded-full bg-gray-200 dark:bg-gray-700">
-                                    <div
-                                        class="h-2 rounded-full bg-primary"
-                                        :style="{ width: `${statsHabilitations.total > 0 ? (count / statsHabilitations.total) * 100 : 0}%` }"
-                                    ></div>
-                                </div>
-                                <span class="text-sm font-semibold">{{ count }}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Statistiques des profils et applications -->
-                <div class="rounded-lg border border-sidebar-border bg-card p-6">
-                    <h3 class="mb-4 text-lg font-semibold">Vue d'ensemble</h3>
-                    <div class="space-y-4">
-                        <div class="flex items-center justify-between rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
-                            <div class="flex items-center gap-3">
-                                <Users class="h-5 w-5 text-gray-100 dark:text-gray-100 "  />
-                                <div>
-                                    <p class="text-sm font-medium">Total Profils</p>
-                                    <p class="text-xs text-muted-foreground">{{ statsProfils.actifs }} actifs, {{ statsProfils.inactifs }} inactifs</p>
-                                </div>
-                            </div>
-                            <p class="text-xl font-bold">{{ statsProfils.total }}</p>
-                        </div>
-                        <div class="flex items-center justify-between rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
-                            <div class="flex items-center gap-3">
-                                <Layers class="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                                <div>
-                                    <p class="text-sm font-medium">Applications</p>
-                                    <p class="text-xs text-muted-foreground">Applications actives</p>
-                                </div>
-                            </div>
-                            <p class="text-xl font-bold">{{ statsApplications.total }}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
             <!-- Habilitations récentes -->
-            <div class="rounded-lg border border-sidebar-border bg-card p-6">
-                <div class="mb-4 flex items-center justify-between">
-                    <h3 class="text-lg font-semibold">Habilitations récentes</h3>
+            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-lg">
+                <div class="mb-5 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="h-1 w-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-500"></div>
+                        <h3 class="text-xl font-bold text-gray-900">Habilitations récentes</h3>
+                    </div>
                     <Link
                         href="/habilitations"
-                        class="text-sm text-primary hover:underline"
+                        class="group flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all hover:scale-105 hover:shadow-lg"
                     >
-                        Voir toutes →
+                        Voir toutes
+                        <span class="transition-transform group-hover:translate-x-1">→</span>
                     </Link>
                 </div>
-                <div v-if="recentHabilitations && recentHabilitations.length > 0" class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead>
-                            <tr class="border-b">
-                                <th class="px-4 py-2 text-left text-sm font-medium text-muted-foreground">ID</th>
-                                <th class="px-4 py-2 text-left text-sm font-medium text-muted-foreground">Demandeur</th>
-                                <th class="px-4 py-2 text-left text-sm font-medium text-muted-foreground">Bénéficiaire</th>
-                                <th class="px-4 py-2 text-left text-sm font-medium text-muted-foreground">Type</th>
-                                <th class="px-4 py-2 text-left text-sm font-medium text-muted-foreground">Statut</th>
-                                <th class="px-4 py-2 text-left text-sm font-medium text-muted-foreground">Date</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr
-                                v-for="habilitation in recentHabilitations"
-                                :key="habilitation.id"
-                                class="border-b hover:bg-gray-50 dark:hover:bg-gray-800"
-                            >
-                                <td class="px-4 py-2">
-                                    <Link
-                                        :href="`/habilitations/${habilitation.id}`"
-                                        class="text-primary hover:underline"
-                                    >
-                                        #{{ habilitation.id }}
-                                    </Link>
-                                </td>
-                                <td class="px-4 py-2 text-sm">
-                                    {{ habilitation.requester.prenom }} {{ habilitation.requester.nom }}
-                                </td>
-                                <td class="px-4 py-2 text-sm">
+                <div v-if="recentHabilitations && recentHabilitations.length > 0" class="space-y-3">
+                    <Link
+                        v-for="habilitation in recentHabilitations.slice(0, 5)"
+                        :key="habilitation.id"
+                        :href="`/habilitations/${habilitation.id}`"
+                        class="group flex items-center justify-between rounded-lg border-2 border-gray-100 bg-gradient-to-r from-white to-gray-50 p-5 shadow-sm transition-all hover:border-blue-200 hover:shadow-md"
+                    >
+                        <div class="flex items-center gap-4">
+                            <div class="relative">
+                                <div class="absolute inset-0 rounded-xl bg-blue-500 blur-md opacity-30 group-hover:opacity-50 transition-opacity"></div>
+                                <div class="relative flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 text-sm font-bold text-white shadow-lg group-hover:scale-110 transition-transform">
+                                    #{{ habilitation.id }}
+                                </div>
+                            </div>
+                            <div>
+                                <p class="mb-1 font-semibold text-gray-900">
                                     {{ habilitation.beneficiary.prenom }} {{ habilitation.beneficiary.nom }}
-                                </td>
-                                <td class="px-4 py-2 text-sm">
-                                    {{ getTypeLabel(habilitation.request_type) }}
-                                </td>
-                                <td class="px-4 py-2">
-                                    <span
-                                        :class="[
-                                            'rounded-full px-2 py-1 text-xs font-medium',
-                                            getStatutBadge(habilitation.status).class
-                                        ]"
-                                    >
-                                        {{ getStatutBadge(habilitation.status).label }}
-                                    </span>
-                                </td>
-                                <td class="px-4 py-2 text-sm text-muted-foreground">
-                                    {{ formatDate(habilitation.created_at) }}
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                                </p>
+                                <p class="text-sm font-medium text-gray-500">
+                                    Par {{ habilitation.requester.prenom }} {{ habilitation.requester.nom }}
+                                </p>
+                            </div>
+                        </div>
+                        <span
+                            :class="[
+                                'rounded-full px-4 py-2 text-xs font-bold shadow-sm',
+                                getStatutBadge(habilitation.status).class
+                            ]"
+                        >
+                            {{ getStatutBadge(habilitation.status).label }}
+                        </span>
+                    </Link>
                 </div>
-                <div v-else class="py-8 text-center text-muted-foreground">
-                    Aucune habilitation récente
+                <div v-else class="py-16 text-center">
+                    <div class="mx-auto mb-4 h-16 w-16 rounded-full bg-gray-100 p-4">
+                        <FileCheck class="h-8 w-8 text-gray-400" />
+                    </div>
+                    <p class="font-medium text-gray-500">Aucune habilitation récente</p>
                 </div>
             </div>
         </div>

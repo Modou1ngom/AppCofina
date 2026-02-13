@@ -23,6 +23,7 @@ class User extends Authenticatable
         'email',
         'password',
         'is_active',
+        'must_change_password',
     ];
 
     /**
@@ -49,6 +50,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'is_active' => 'boolean',
+            'must_change_password' => 'boolean',
         ];
     }
 
@@ -78,18 +80,40 @@ class User extends Authenticatable
 
     /**
      * Vérifie si l'utilisateur a un rôle spécifique
+     * Vérifie d'abord les rôles de l'utilisateur, puis ceux du profil
      */
     public function hasRole(string $roleSlug): bool
     {
-        return $this->roles()->where('slug', $roleSlug)->exists();
+        // Vérifier les rôles de l'utilisateur
+        if ($this->roles()->where('slug', $roleSlug)->exists()) {
+            return true;
+        }
+
+        // Vérifier les rôles du profil si disponible
+        if ($this->profil) {
+            return $this->profil->roles()->where('slug', $roleSlug)->exists();
+        }
+
+        return false;
     }
 
     /**
      * Vérifie si l'utilisateur a au moins un des rôles spécifiés
+     * Vérifie d'abord les rôles de l'utilisateur, puis ceux du profil
      */
     public function hasAnyRole(array $roleSlugs): bool
     {
-        return $this->roles()->whereIn('slug', $roleSlugs)->exists();
+        // Vérifier les rôles de l'utilisateur
+        if ($this->roles()->whereIn('slug', $roleSlugs)->exists()) {
+            return true;
+        }
+
+        // Vérifier les rôles du profil si disponible
+        if ($this->profil) {
+            return $this->profil->roles()->whereIn('slug', $roleSlugs)->exists();
+        }
+
+        return false;
     }
 
     /**
@@ -159,9 +183,8 @@ class User extends Authenticatable
         $departement = $profil->getRawOriginal('departement') ?? $profil->departement;
         if ($departement) {
             $departementLower = strtolower($departement);
-            if (str_contains($departementLower, 'it') || 
-                str_contains($departementLower, 'informatique') ||
-                str_contains($departementLower, 'technique')) {
+            // Vérifier "it" comme mot entier (pas dans "capital", "spirit", etc.)
+            if (preg_match('/\b(it|informatique|technique)\b/i', $departementLower)) {
                 return true;
             }
         }
@@ -170,9 +193,8 @@ class User extends Authenticatable
         $fonction = $profil->getRawOriginal('fonction') ?? $profil->fonction;
         if ($fonction) {
             $fonctionLower = strtolower($fonction);
-            if (str_contains($fonctionLower, 'it') || 
-                str_contains($fonctionLower, 'informatique') ||
-                str_contains($fonctionLower, 'technique')) {
+            // Vérifier "it" comme mot entier (pas dans "capital", "spirit", etc.)
+            if (preg_match('/\b(it|informatique|technique)\b/i', $fonctionLower)) {
                 return true;
             }
         }

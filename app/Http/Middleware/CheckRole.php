@@ -21,6 +21,20 @@ class CheckRole
             return redirect()->route('login');
         }
 
+        // Les super admins ont accès à toutes les routes
+        if ($user->isSuperAdmin()) {
+            return $next($request);
+        }
+
+        // Les admins normaux ont accès à toutes les routes dans leur environnement
+        // (ils doivent avoir au moins une filiale assignée)
+        if ($user->isAdmin() && !$user->isSuperAdmin()) {
+            $userFiliales = $user->filiales()->get();
+            if ($userFiliales->isNotEmpty()) {
+                return $next($request);
+            }
+        }
+
         // Vérifier si l'utilisateur a au moins un des rôles requis
         $hasRole = $user->hasAnyRole($roles);
         

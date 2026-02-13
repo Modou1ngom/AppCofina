@@ -19,6 +19,12 @@ Route::get('/', function () {
 
 Route::get('dashboard', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
 
+// Route pour le changement de mot de passe obligatoire
+Route::middleware(['auth'])->group(function () {
+    Route::get('password/change', [\App\Http\Controllers\ChangePasswordController::class, 'show'])->name('password.change');
+    Route::post('password/change', [\App\Http\Controllers\ChangePasswordController::class, 'update'])->name('password.change.update');
+});
+
 require __DIR__.'/settings.php';
 
 // Routes pour les profils - Admin et RH peuvent créer/éditer/supprimer

@@ -280,7 +280,7 @@ class UserController extends Controller
     public function edit(User $user)
     {
         $roles = Role::where('actif', true)->orderBy('nom')->get();
-        $profils = Profil::orderBy('nom')->orderBy('prenom')->get(['id', 'nom', 'prenom', 'matricule', 'email', 'site']);
+        $profils = Profil::orderBy('nom')->orderBy('prenom')->get(['id', 'nom', 'prenom', 'matricule', 'email', 'site', 'filiale_id']);
         $filiales = Filiale::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
         $user->load(['roles', 'profil', 'filiales']);
         

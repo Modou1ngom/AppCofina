@@ -510,6 +510,8 @@ class ProfilController extends Controller
      */
     public function import(Request $request)
     {
+        $user = Auth::user();
+        
         $request->validate([
             'file' => 'required|mimes:xlsx,xls|max:10240', // 10MB max
         ]);
@@ -707,19 +709,19 @@ class ProfilController extends Controller
                         $departement = $departementModel->nom;
                     }
 
+                    // Trouver ou créer la filiale "Sénégal" par défaut pour tous les profils importés
+                    $filialeSenegal = Filiale::firstOrCreate(
+                        ['nom' => 'Sénégal'],
+                        [
+                            'nom' => 'Sénégal',
+                            'description' => 'Filiale Sénégal',
+                            'actif' => true,
+                        ]
+                    );
+
                     // Synchroniser le site/agence avec la table agences
                     if ($site) {
                         $siteNormalized = trim($site);
-                        
-                        // Trouver ou créer la filiale "Sénégal" par défaut
-                        $filialeSenegal = Filiale::firstOrCreate(
-                            ['nom' => 'Sénégal'],
-                            [
-                                'nom' => 'Sénégal',
-                                'description' => 'Filiale Sénégal',
-                                'actif' => true,
-                            ]
-                        );
                         
                         // Chercher ou créer l'agence dans la table agences
                         $agenceModel = Agence::firstOrCreate(
@@ -887,7 +889,7 @@ class ProfilController extends Controller
                         }
                     }
 
-                    // Créer le profil
+                    // Créer le profil avec la filiale Sénégal
                     Profil::create([
                         'nom' => $nom,
                         'prenom' => $prenom,
@@ -902,6 +904,7 @@ class ProfilController extends Controller
                         'type_office' => $typeOffice,
                         'n_plus_1_id' => $nPlus1Id,
                         'n_plus_2_id' => $nPlus2Id,
+                        'filiale_id' => $filialeSenegal->id, // Assigner la filiale Sénégal
                     ]);
 
                     $imported++;

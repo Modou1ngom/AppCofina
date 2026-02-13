@@ -24,6 +24,7 @@ interface Profil {
     matricule: string;
     email?: string;
     site?: string;
+    filiale_id?: number | null;
 }
 
 interface Filiale {
@@ -47,14 +48,32 @@ interface Props {
 
 const props = defineProps<Props>();
 
-const selectedFiliale = ref<string | null>(null);
+// Initialiser avec la première filiale si disponible, ou null
+const selectedFiliale = ref<number | null>(
+    props.filiales && props.filiales.length > 0 ? props.filiales[0].id : null
+);
 
 // Filtrer les profils en fonction de la filiale sélectionnée
 const filteredProfils = computed(() => {
+    // Si aucune filiale n'est sélectionnée, retourner tous les profils
     if (!selectedFiliale.value) {
         return props.profils;
     }
-    return props.profils.filter(profil => profil.site === selectedFiliale.value);
+    
+    // Convertir en nombre pour la comparaison
+    const filialeId = Number(selectedFiliale.value);
+    
+    // Filtrer les profils
+    const filtered = props.profils.filter(profil => {
+        // Gérer les cas où filiale_id peut être null, undefined, ou un nombre
+        if (profil.filiale_id === null || profil.filiale_id === undefined) {
+            return false;
+        }
+        const profilFilialeId = Number(profil.filiale_id);
+        return profilFilialeId === filialeId;
+    });
+    
+    return filtered;
 });
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -214,7 +233,7 @@ const submit = () => {
                                 <option
                                     v-for="filiale in props.filiales"
                                     :key="filiale.id"
-                                    :value="filiale.nom"
+                                    :value="filiale.id"
                                 >
                                     {{ filiale.nom }}
                                 </option>

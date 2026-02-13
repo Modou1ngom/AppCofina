@@ -8,10 +8,12 @@ use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
+use Laravel\Fortify\Events\Login;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
 
@@ -34,6 +36,7 @@ class FortifyServiceProvider extends ServiceProvider
         $this->configureViews();
         $this->configureRateLimiting();
         $this->configureAuthentication();
+        $this->configureTwoFactorRedirect();
     }
 
     /**
@@ -124,6 +127,47 @@ class FortifyServiceProvider extends ServiceProvider
             }
 
             return null;
+        });
+    }
+
+    /**
+     * Configure le comportement du 2FA pour les utilisateurs qui doivent changer leur mot de passe.
+     */
+    private function configureTwoFactorRedirect(): void
+    {
+        // Écouter l'événement de connexion pour contourner le 2FA si nécessaire
+        Event::listen(Login::class, function (Login $event) {
+            $user = $event->user;
+            
+            // Si l'utilisateur doit changer son mot de passe, supprimer le login.id
+            // pour éviter que Fortify ne redirige vers le challenge 2FA
+            if ($user->must_change_password) {
+                request()->session()->forget('login.id');
+            }
+        });
+
+        // Personnaliser la vue du challenge 2FA pour rediriger si l'utilisateur doit changer son mot de passe
+        Fortify::twoFactorChallengeView(function (Request $request) {
+            // Vérifier si l'utilisateur est en cours de connexion et doit changer son mot de passe
+            if ($request->session()->has('login.id')) {
+                $userId = $request->session()->get('login.id');
+                $user = User::find($userId);
+                
+                if ($user && $user->must_change_password) {
+                    // Authentifier l'utilisateur directement et le rediriger
+                    Auth::login($user);
+                    $request->session()->forget('login.id');
+                    return redirect()->route('password.change');
+                }
+            }
+            
+            // Si l'utilisateur est déjà authentifié et doit changer son mot de passe
+            if (Auth::check() && Auth::user()->must_change_password) {
+                return redirect()->route('password.change');
+            }
+            
+            // Sinon, afficher la vue normale du challenge 2FA
+            return Inertia::render('auth/TwoFactorChallenge');
         });
     }
 }

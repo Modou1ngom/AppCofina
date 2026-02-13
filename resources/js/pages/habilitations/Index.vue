@@ -270,13 +270,22 @@ const columns: Column[] = [
 ];
 
 const tableData = computed(() => {
+    if (!props.habilitations?.data || !Array.isArray(props.habilitations.data)) {
+        return [];
+    }
     return props.habilitations.data.map(habilitation => ({
         id: habilitation.id,
-        beneficiary: `${habilitation.beneficiary.prenom} ${habilitation.beneficiary.nom}`,
-        request_type: habilitation.request_type,
-        requester: `${habilitation.requester.prenom} ${habilitation.requester.nom}`,
-        created_at: new Date(habilitation.created_at).toLocaleDateString('fr-FR'),
-        status: habilitation.status,
+        beneficiary: habilitation.beneficiary 
+            ? `${habilitation.beneficiary.prenom || ''} ${habilitation.beneficiary.nom || ''}`.trim()
+            : 'N/A',
+        request_type: habilitation.request_type || 'N/A',
+        requester: habilitation.requester
+            ? `${habilitation.requester.prenom || ''} ${habilitation.requester.nom || ''}`.trim()
+            : 'N/A',
+        created_at: habilitation.created_at 
+            ? new Date(habilitation.created_at).toLocaleDateString('fr-FR')
+            : 'N/A',
+        status: habilitation.status || 'N/A',
         habilitation: habilitation,
     }));
 });
