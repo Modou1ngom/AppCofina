@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import InputError from '@/components/InputError.vue';
 import FormSection from '@/components/FormSection.vue';
-import { Code } from 'lucide-vue-next';
+import { User, Mail, Phone, Globe, Building2, Briefcase, FileText, Users, ArrowLeft, ArrowRight } from 'lucide-vue-next';
 import { computed, watch, ref } from 'vue';
 
 interface Profil {
@@ -46,6 +46,8 @@ interface Props {
     departements: Departement[];
     agences: Agence[];
     filiales?: Filiale[];
+    userFilialeId?: number | null;
+    isSuperAdmin?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -69,25 +71,47 @@ const form = useForm({
     email: '',
     telephone: '',
     site: '',
+    filiale_id: null as number | null,
     type_contrat: 'CDI' as 'CDI' | 'CDD' | 'Stagiaire' | 'Autre',
     statut: 'actif' as 'actif' | 'inactif',
     type_office: '' as '' | 'Back Office' | 'Front Office',
     n_plus_1_id: null as string | number | null,
 });
 
-// Filtrer les agences par filiale
-const selectedFiliale = ref<number | null>(null);
+// Initialiser la filiale avec celle de l'utilisateur (si admin/RH et pas super admin)
+const selectedFiliale = ref<number | null>(
+    props.userFilialeId && !props.isSuperAdmin ? props.userFilialeId : null
+);
+
+// Initialiser form.filiale_id avec la filiale de l'utilisateur
+if (props.userFilialeId && !props.isSuperAdmin) {
+    form.filiale_id = props.userFilialeId;
+}
 
 const filteredAgences = computed(() => {
-    if (!selectedFiliale.value) {
-        return props.agences;
+    // Si une filiale est sélectionnée, filtrer les agences
+    const filialeId = selectedFiliale.value || form.filiale_id;
+    if (filialeId) {
+        return props.agences.filter(agence => agence.filiale_id === filialeId);
     }
-    return props.agences.filter(agence => agence.filiale_id === selectedFiliale.value);
+    return props.agences;
 });
 
 // Réinitialiser l'agence sélectionnée si la filiale change
-watch(selectedFiliale, () => {
+watch(selectedFiliale, (newValue) => {
     form.site = '';
+    form.filiale_id = newValue;
+});
+
+// Mettre à jour filiale_id quand une agence est sélectionnée
+watch(() => form.site, (newSite) => {
+    if (newSite) {
+        const agence = props.agences.find(a => a.nom === newSite);
+        if (agence && agence.filiale_id) {
+            form.filiale_id = agence.filiale_id;
+            selectedFiliale.value = agence.filiale_id;
+        }
+    }
 });
 
 // Formatage et validation du numéro de téléphone
@@ -129,208 +153,301 @@ const submit = () => {
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex flex-col gap-6 p-6">
-            <div class="flex items-center gap-2">
-                <h1 class="text-3xl font-bold text-gray-900">Créer un profil</h1>
-                <Code class="h-5 w-5 text-gray-500" />
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg">
+                        <User class="h-6 w-6" />
+                    </div>
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-900">Créer un profil</h1>
+                        <p class="text-sm text-gray-500 mt-1">Ajoutez un nouveau membre à votre équipe</p>
+                    </div>
+                </div>
             </div>
 
             <form @submit.prevent="submit" class="flex flex-col gap-6">
-                <FormSection :columns="2">
-                    <div>
-                        <Label for="prenom" class="text-base font-medium text-gray-700">First Name</Label>
-                        <Input
-                            id="prenom"
-                            v-model="form.prenom"
-                            type="text"
-                            required
-                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
-                            placeholder="John"
-                        />
-                        <InputError :message="form.errors.prenom" />
+                <!-- Informations personnelles -->
+                <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
+                    <div class="mb-6 flex items-center gap-3">
+                        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                            <User class="h-5 w-5" />
+                        </div>
+                        <h2 class="text-xl font-semibold text-gray-900">Informations personnelles</h2>
                     </div>
+                    <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+                        <div>
+                            <Label for="prenom" class="text-sm font-medium text-gray-700 mb-2 block">Prénom</Label>
+                            <Input
+                                id="prenom"
+                                v-model="form.prenom"
+                                type="text"
+                                required
+                                class="h-10 rounded-lg border-gray-300 focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                                placeholder="John"
+                            />
+                            <InputError :message="form.errors.prenom" />
+                        </div>
 
-                    <div>
-                        <Label for="nom" class="text-base font-medium text-gray-700">Last Name</Label>
-                        <Input
-                            id="nom"
-                            v-model="form.nom"
-                            type="text"
-                            required
-                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
-                            placeholder="Doe"
-                        />
-                        <InputError :message="form.errors.nom" />
+                        <div>
+                            <Label for="nom" class="text-sm font-medium text-gray-700 mb-2 block">Nom</Label>
+                            <Input
+                                id="nom"
+                                v-model="form.nom"
+                                type="text"
+                                required
+                                class="h-10 rounded-lg border-gray-300 focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                                placeholder="Doe"
+                            />
+                            <InputError :message="form.errors.nom" />
+                        </div>
+
+                        <div>
+                            <Label for="email" class="text-sm font-medium text-gray-700 mb-2 block">
+                                <div class="flex items-center gap-2">
+                                    <Mail class="h-4 w-4 text-gray-400" />
+                                    <span>Email</span>
+                                </div>
+                            </Label>
+                            <Input
+                                id="email"
+                                v-model="form.email"
+                                type="email"
+                                class="h-10 rounded-lg border-gray-300 focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                                placeholder="johndoe@email.com"
+                            />
+                            <InputError :message="form.errors.email" />
+                        </div>
+
+                        <div>
+                            <Label for="telephone" class="text-sm font-medium text-gray-700 mb-2 block">
+                                <div class="flex items-center gap-2">
+                                    <Phone class="h-4 w-4 text-gray-400" />
+                                    <span>Téléphone</span>
+                                </div>
+                            </Label>
+                            <Input
+                                id="telephone"
+                                v-model="form.telephone"
+                                type="tel"
+                                pattern="^(\+221|00221|221)?[0-9]{9}$"
+                                placeholder="+221 XX XXX XX XX"
+                                maxlength="20"
+                                class="h-10 rounded-lg border-gray-300 focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                                @input="formatTelephone"
+                            />
+                            <InputError :message="form.errors.telephone" />
+                        </div>
                     </div>
+                </div>
 
-                    <div>
-                        <Label for="email" class="text-base font-medium text-gray-700">Email</Label>
-                        <Input
-                            id="email"
-                            v-model="form.email"
-                            type="email"
-                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
-                            placeholder="johndoe@email.com"
-                        />
-                        <InputError :message="form.errors.email" />
+                <!-- Informations organisationnelles -->
+                <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
+                    <div class="mb-6 flex items-center gap-3">
+                        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50 text-green-600">
+                            <Building2 class="h-5 w-5" />
+                        </div>
+                        <h2 class="text-xl font-semibold text-gray-900">Informations organisationnelles</h2>
                     </div>
-
-                    <div>
-                        <Label for="telephone" class="text-base font-medium text-gray-700">Phone</Label>
-                        <Input
-                            id="telephone"
-                            v-model="form.telephone"
-                            type="tel"
-                            pattern="^(\+221|00221|221)?[0-9]{9}$"
-                            placeholder="+221 XX XXX XX XX"
-                            maxlength="20"
-                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
-                            @input="formatTelephone"
-                        />
-                        <InputError :message="form.errors.telephone" />
-                    </div>
-
-                    <div v-if="props.filiales && props.filiales.length > 0">
-                        <Label for="filiale" class="text-base font-medium text-gray-700">Country</Label>
-                        <select
-                            id="filiale"
-                            v-model="selectedFiliale"
-                            class="mt-1.5 flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                        >
-                            <option :value="null">Toutes les filiales</option>
-                            <option
-                                v-for="filiale in props.filiales"
-                                :key="filiale.id"
-                                :value="filiale.id"
+                    <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+                        <!-- Champ filiale : masqué pour les admins/RH (sauf super admin) -->
+                        <div v-if="props.filiales && props.filiales.length > 0 && props.isSuperAdmin">
+                            <Label for="filiale" class="text-sm font-medium text-gray-700 mb-2 block">
+                                <div class="flex items-center gap-2">
+                                    <Globe class="h-4 w-4 text-gray-400" />
+                                    <span>Filiale</span>
+                                </div>
+                            </Label>
+                            <select
+                                id="filiale"
+                                v-model="selectedFiliale"
+                                class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-all outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
                             >
-                                {{ filiale.nom }}
-                            </option>
-                        </select>
-                    </div>
-                    <div>
-                        <Label for="site" class="text-base font-medium text-gray-700">Company</Label>
-                        <select
-                            id="site"
-                            v-model="form.site"
-                            class="mt-1.5 flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                        >
-                            <option value="">Sélectionner une agence</option>
-                            <option
-                                v-for="agence in filteredAgences"
-                                :key="agence.id"
-                                :value="agence.nom"
+                                <option :value="null">Toutes les filiales</option>
+                                <option
+                                    v-for="filiale in props.filiales"
+                                    :key="filiale.id"
+                                    :value="filiale.id"
+                                >
+                                    {{ filiale.nom }}
+                                </option>
+                            </select>
+                        </div>
+                        <!-- Affichage informatif pour les admins/RH -->
+                        <div v-else-if="props.userFilialeId && !props.isSuperAdmin">
+                            <Label class="text-sm font-medium text-gray-700 mb-2 block">
+                                <div class="flex items-center gap-2">
+                                    <Globe class="h-4 w-4 text-gray-400" />
+                                    <span>Filiale</span>
+                                </div>
+                            </Label>
+                            <div class="flex h-10 items-center rounded-lg border border-gray-300 bg-gray-50 px-3 text-sm text-gray-700">
+                                {{ props.filiales?.find(f => f.id === props.userFilialeId)?.nom || 'Filiale assignée' }}
+                            </div>
+                            <p class="mt-2 text-xs text-gray-500">La filiale est automatiquement assignée à celle de votre compte</p>
+                        </div>
+                        <div>
+                            <Label for="site" class="text-sm font-medium text-gray-700 mb-2 block">
+                                <div class="flex items-center gap-2">
+                                    <Building2 class="h-4 w-4 text-gray-400" />
+                                    <span>Agence</span>
+                                </div>
+                            </Label>
+                            <select
+                                id="site"
+                                v-model="form.site"
+                                class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-all outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
                             >
-                                {{ agence.nom }}
-                            </option>
-                        </select>
-                        <InputError :message="form.errors.site" />
-                        <p v-if="filteredAgences.length === 0 && selectedFiliale" class="mt-2 text-base text-gray-500">
-                            Aucune agence trouvée pour la filiale sélectionnée.
-                        </p>
+                                <option value="">Sélectionner une agence</option>
+                                <option
+                                    v-for="agence in filteredAgences"
+                                    :key="agence.id"
+                                    :value="agence.nom"
+                                >
+                                    {{ agence.nom }}
+                                </option>
+                            </select>
+                            <InputError :message="form.errors.site" />
+                            <p v-if="filteredAgences.length === 0 && selectedFiliale" class="mt-2 text-sm text-amber-600 bg-amber-50 p-2 rounded-lg">
+                                Aucune agence trouvée pour la filiale sélectionnée.
+                            </p>
+                        </div>
                     </div>
-                </FormSection>
+                </div>
 
-                <FormSection title="Informations professionnelles" :columns="2">
+                <!-- Informations professionnelles -->
+                <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
+                    <div class="mb-6 flex items-center gap-3">
+                        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-50 text-purple-600">
+                            <Briefcase class="h-5 w-5" />
+                        </div>
+                        <h2 class="text-xl font-semibold text-gray-900">Informations professionnelles</h2>
+                    </div>
+                    <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
 
-                    <div>
-                        <Label for="departement" class="text-base font-medium text-gray-700">Département</Label>
-                        <select
-                            id="departement"
-                            v-model="form.departement"
-                            class="mt-1.5 flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                        >
-                            <option value="">Sélectionner un département</option>
-                            <option
-                                v-for="departement in props.departements"
-                                :key="departement.id"
-                                :value="departement.nom"
+                        <div>
+                            <Label for="departement" class="text-sm font-medium text-gray-700 mb-2 block">Département</Label>
+                            <select
+                                id="departement"
+                                v-model="form.departement"
+                                class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-all outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
                             >
-                                {{ departement.nom }}
-                            </option>
-                        </select>
-                        <InputError :message="form.errors.departement" />
-                    </div>
+                                <option value="">Sélectionner un département</option>
+                                <option
+                                    v-for="departement in props.departements"
+                                    :key="departement.id"
+                                    :value="departement.nom"
+                                >
+                                    {{ departement.nom }}
+                                </option>
+                            </select>
+                            <InputError :message="form.errors.departement" />
+                        </div>
 
-                    <div>
-                        <Label for="fonction" class="text-base font-medium text-gray-700">Fonction</Label>
-                        <Input
-                            id="fonction"
-                            v-model="form.fonction"
-                            type="text"
-                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
-                            placeholder="Fonction"
-                        />
-                        <InputError :message="form.errors.fonction" />
-                    </div>
+                        <div>
+                            <Label for="fonction" class="text-sm font-medium text-gray-700 mb-2 block">Fonction</Label>
+                            <Input
+                                id="fonction"
+                                v-model="form.fonction"
+                                type="text"
+                                class="h-10 rounded-lg border-gray-300 focus-visible:border-purple-500 focus-visible:ring-2 focus-visible:ring-purple-500/20"
+                                placeholder="Ex: Développeur, Manager..."
+                            />
+                            <InputError :message="form.errors.fonction" />
+                        </div>
 
-                    <div>
-                        <Label for="type_contrat" class="text-base font-medium text-gray-700">Type de contrat</Label>
-                        <select
-                            id="type_contrat"
-                            v-model="form.type_contrat"
-                            class="mt-1.5 flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                        >
-                            <option value="CDI">CDI</option>
-                            <option value="CDD">CDD</option>
-                            <option value="Stagiaire">Stagiaire</option>
-                            <option value="Autre">Autre</option>
-                        </select>
-                        <InputError :message="form.errors.type_contrat" />
-                    </div>
-
-                    <div>
-                        <Label for="statut" class="text-base font-medium text-gray-700">Statut</Label>
-                        <select
-                            id="statut"
-                            v-model="form.statut"
-                            class="mt-1.5 flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                        >
-                            <option value="actif">Actif</option>
-                            <option value="inactif">Inactif</option>
-                        </select>
-                        <InputError :message="form.errors.statut" />
-                    </div>
-
-                    <div>
-                        <Label for="type_office" class="text-base font-medium text-gray-700">Back/Front Office</Label>
-                        <select
-                            id="type_office"
-                            v-model="form.type_office"
-                            class="mt-1.5 flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                        >
-                            <option value="">Sélectionner un type</option>
-                            <option value="Back Office">Back Office</option>
-                            <option value="Front Office">Front Office</option>
-                        </select>
-                        <InputError :message="form.errors.type_office" />
-                    </div>
-
-                    <div>
-                        <Label for="n_plus_1" class="text-base font-medium text-gray-700">N+1</Label>
-                        <select
-                            id="n_plus_1"
-                            v-model="form.n_plus_1_id"
-                            class="mt-1.5 flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                        >
-                            <option :value="null">Sélectionner un N+1</option>
-                            <option
-                                v-for="profil in props.profils"
-                                :key="profil.id"
-                                :value="profil.id"
+                        <div>
+                            <Label for="type_contrat" class="text-sm font-medium text-gray-700 mb-2 block">
+                                <div class="flex items-center gap-2">
+                                    <FileText class="h-4 w-4 text-gray-400" />
+                                    <span>Type de contrat</span>
+                                </div>
+                            </Label>
+                            <select
+                                id="type_contrat"
+                                v-model="form.type_contrat"
+                                class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-all outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
                             >
-                                {{ profil.prenom }} {{ profil.nom }} ({{ profil.matricule }})
-                            </option>
-                        </select>
-                        <InputError :message="form.errors.n_plus_1_id" />
-                       
-                    </div>
-                </FormSection>
+                                <option value="CDI">CDI</option>
+                                <option value="CDD">CDD</option>
+                                <option value="Stagiaire">Stagiaire</option>
+                                <option value="Autre">Autre</option>
+                            </select>
+                            <InputError :message="form.errors.type_contrat" />
+                        </div>
 
-                <div class="flex justify-end gap-2">
-                    <Button type="button" variant="outline" @click="router.visit('/profils')">
+                        <div>
+                            <Label for="statut" class="text-sm font-medium text-gray-700 mb-2 block">Statut</Label>
+                            <select
+                                id="statut"
+                                v-model="form.statut"
+                                class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-all outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+                            >
+                                <option value="actif">Actif</option>
+                                <option value="inactif">Inactif</option>
+                            </select>
+                            <InputError :message="form.errors.statut" />
+                        </div>
+
+                        <div>
+                            <Label for="type_office" class="text-sm font-medium text-gray-700 mb-2 block">Back/Front Office</Label>
+                            <select
+                                id="type_office"
+                                v-model="form.type_office"
+                                class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-all outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+                            >
+                                <option value="">Sélectionner un type</option>
+                                <option value="Back Office">Back Office</option>
+                                <option value="Front Office">Front Office</option>
+                            </select>
+                            <InputError :message="form.errors.type_office" />
+                        </div>
+
+                        <div>
+                            <Label for="n_plus_1" class="text-sm font-medium text-gray-700 mb-2 block">
+                                <div class="flex items-center gap-2">
+                                    <Users class="h-4 w-4 text-gray-400" />
+                                    <span>N+1</span>
+                                </div>
+                            </Label>
+                            <select
+                                id="n_plus_1"
+                                v-model="form.n_plus_1_id"
+                                class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-all outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+                            >
+                                <option :value="null">Sélectionner un N+1</option>
+                                <option
+                                    v-for="profil in props.profils"
+                                    :key="profil.id"
+                                    :value="profil.id"
+                                >
+                                    {{ profil.prenom }} {{ profil.nom }} ({{ profil.matricule }})
+                                </option>
+                            </select>
+                            <InputError :message="form.errors.n_plus_1_id" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center justify-end gap-3 border-t border-gray-200 pt-6">
+                    <Button 
+                        type="button" 
+                        variant="outline" 
+                        @click="router.visit('/profils')"
+                        class="h-11 px-6 rounded-lg border-gray-300 hover:bg-gray-50"
+                    >
                         Annuler
                     </Button>
-                    <Button type="submit" :disabled="form.processing">
-                        {{ form.processing ? 'Création...' : 'Créer le profil' }}
+                    <Button 
+                        type="submit" 
+                        :disabled="form.processing"
+                        class="h-11 px-8 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+                    >
+                        <span v-if="form.processing">Création en cours...</span>
+                        <span v-else class="flex items-center gap-2">
+                            <User class="h-4 w-4" />
+                            Créer le profil
+                        </span>
                     </Button>
                 </div>
             </form>

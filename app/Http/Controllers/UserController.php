@@ -220,10 +220,12 @@ class UserController extends Controller
     {
         $roles = Role::where('actif', true)->orderBy('nom')->get();
         $filiales = Filiale::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
+        $profils = Profil::orderBy('nom')->orderBy('prenom')->get(['id', 'nom', 'prenom', 'matricule', 'email', 'site', 'filiale_id']);
         
         return Inertia::render('users/Create', [
             'roles' => $roles,
             'filiales' => $filiales,
+            'profils' => $profils,
         ]);
     }
 
@@ -236,8 +238,10 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users,email',
             'password' => 'required|string|min:8|confirmed',
+            'must_change_password' => 'nullable|boolean',
             'roles' => 'nullable|array',
             'roles.*' => 'required|integer|exists:roles,id',
+            'profil_id' => 'nullable|integer|exists:profiles,id',
             'filiales' => 'nullable|array',
             'filiales.*' => 'required|integer|exists:filiales,id',
         ]);
@@ -246,6 +250,7 @@ class UserController extends Controller
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
+            'must_change_password' => $validated['must_change_password'] ?? true,
         ]);
 
         // Attacher les rôles si fournis
@@ -253,9 +258,41 @@ class UserController extends Controller
             $user->roles()->sync(array_map('intval', $validated['roles']));
         }
 
-        // Attacher les filiales/environnements si fournis
+        // Associer le profil si sélectionné (avant l'attachement des filiales)
+        $profilFilialeId = null;
+        if (isset($validated['profil_id']) && !empty($validated['profil_id'])) {
+            $profil = Profil::find($validated['profil_id']);
+            if ($profil) {
+                // Récupérer la filiale du profil pour l'ajouter aux environnements
+                if ($profil->filiale_id) {
+                    $profilFilialeId = $profil->filiale_id;
+                }
+                
+                // Vérifier que l'email n'est pas déjà utilisé par un autre profil
+                $existingProfil = Profil::where('email', $validated['email'])
+                    ->where('id', '!=', $profil->id)
+                    ->first();
+                
+                if (!$existingProfil) {
+                    // Mettre à jour l'email du profil pour qu'il corresponde à l'email de l'utilisateur
+                    $profil->update(['email' => $validated['email']]);
+                }
+            }
+        }
+
+        // Attacher les filiales/environnements
+        $filialesToAttach = [];
         if (!empty($validated['filiales']) && is_array($validated['filiales'])) {
-            $user->filiales()->sync(array_map('intval', $validated['filiales']));
+            $filialesToAttach = array_map('intval', $validated['filiales']);
+        }
+        
+        // Ajouter automatiquement la filiale du profil aux environnements si elle existe
+        if ($profilFilialeId && !in_array($profilFilialeId, $filialesToAttach)) {
+            $filialesToAttach[] = $profilFilialeId;
+        }
+        
+        if (!empty($filialesToAttach)) {
+            $user->filiales()->sync($filialesToAttach);
         }
 
         return redirect()->route('users.index')
@@ -301,6 +338,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
             'password' => 'nullable|string|min:8|confirmed',
+            'must_change_password' => 'nullable|boolean',
             'roles' => 'nullable|array',
             'roles.*' => 'required|integer|exists:roles,id',
             'profil_id' => 'nullable|integer|exists:profiles,id',
@@ -311,6 +349,7 @@ class UserController extends Controller
         $data = [
             'name' => $validated['name'],
             'email' => $validated['email'],
+            'must_change_password' => $validated['must_change_password'] ?? false,
         ];
 
         // Mettre à jour le mot de passe seulement s'il est fourni
@@ -327,14 +366,9 @@ class UserController extends Controller
             $user->roles()->sync([]);
         }
 
-        // Synchroniser les filiales/environnements
-        if (isset($validated['filiales']) && is_array($validated['filiales'])) {
-            $user->filiales()->sync(array_map('intval', $validated['filiales']));
-        } else {
-            $user->filiales()->sync([]);
-        }
-
-        // Associer ou dissocier le profil
+        // Associer ou dissocier le profil (avant la synchronisation des filiales)
+        $profilFilialeId = null;
+        
         // D'abord, dissocier le profil actuel si l'email correspond
         $currentProfil = Profil::where('email', $user->email)->first();
         if ($currentProfil && (!isset($validated['profil_id']) || $validated['profil_id'] != $currentProfil->id)) {
@@ -346,6 +380,11 @@ class UserController extends Controller
         if (isset($validated['profil_id']) && !empty($validated['profil_id'])) {
             $profil = Profil::find($validated['profil_id']);
             if ($profil) {
+                // Récupérer la filiale du profil pour l'ajouter aux environnements
+                if ($profil->filiale_id) {
+                    $profilFilialeId = $profil->filiale_id;
+                }
+                
                 // Mettre à jour l'email du profil pour qu'il corresponde à l'email de l'utilisateur
                 // Vérifier que l'email n'est pas déjà utilisé par un autre profil
                 $existingProfil = Profil::where('email', $validated['email'])
@@ -357,6 +396,19 @@ class UserController extends Controller
                 }
             }
         }
+
+        // Synchroniser les filiales/environnements
+        $filialesToAttach = [];
+        if (isset($validated['filiales']) && is_array($validated['filiales'])) {
+            $filialesToAttach = array_map('intval', $validated['filiales']);
+        }
+        
+        // Ajouter automatiquement la filiale du profil aux environnements si elle existe
+        if ($profilFilialeId && !in_array($profilFilialeId, $filialesToAttach)) {
+            $filialesToAttach[] = $profilFilialeId;
+        }
+        
+        $user->filiales()->sync($filialesToAttach);
 
         return redirect()->route('users.index')
             ->with('success', 'Utilisateur mis à jour avec succès !');

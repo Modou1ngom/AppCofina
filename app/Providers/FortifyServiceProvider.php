@@ -9,9 +9,11 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Laravel\Fortify\Events\Login;
 use Laravel\Fortify\Features;
@@ -102,31 +104,27 @@ class FortifyServiceProvider extends ServiceProvider
     private function configureAuthentication(): void
     {
         Fortify::authenticateUsing(function (Request $request) {
-            // Vérifier d'abord si l'utilisateur existe (actif ou non)
-            $userExists = User::where('email', $request->email)->exists();
+            // Récupérer l'utilisateur par email
+            $user = User::where('email', $request->email)->first();
             
-            if ($userExists) {
+            if ($user) {
                 // Vérifier si l'utilisateur est actif
-                $user = User::where('email', $request->email)
-                    ->where('is_active', true)
-                    ->first();
-
-                // Si l'utilisateur existe mais n'est pas actif
-                if (!$user) {
-                    $request->session()->flash('error', 'Votre compte utilisateur a été désactivé. Vous ne pouvez pas vous connecter. Veuillez contacter votre administrateur système pour réactiver votre compte.');
-                    return null;
+                if (!$user->is_active) {
+                    throw ValidationException::withMessages([
+                        'email' => 'Votre compte utilisateur a été désactivé. Vous ne pouvez pas vous connecter. Veuillez contacter votre administrateur système pour réactiver votre compte.',
+                    ]);
                 }
 
-                // Vérifier le mot de passe
-                if (Auth::validate([
-                    'email' => $request->email,
-                    'password' => $request->password,
-                ])) {
+                // Vérifier le mot de passe directement avec Hash::check
+                if (Hash::check($request->password, $user->password)) {
                     return $user;
                 }
             }
 
-            return null;
+            // Si l'authentification échoue, lancer une exception de validation avec un message en français
+            throw ValidationException::withMessages([
+                'email' => 'Ces identifiants ne correspondent à aucun compte.',
+            ]);
         });
     }
 

@@ -98,11 +98,6 @@ const mainNavItems = computed<NavItem[]>(() => {
                 icon: MapPin,
             },
             {
-                title: 'Filiales',
-                href: '/filiales',
-                icon: Building,
-            },
-            {
                 title: 'Applications',
                 href: '/applications',
                 icon: Layers,
@@ -152,6 +147,26 @@ const mainNavItems = computed<NavItem[]>(() => {
             href: '/habilitations',
             icon: FileCheck,
         });
+    }
+
+    // Seul le super admin peut voir le menu Filiales
+    if (auth.value?.isSuperAdmin) {
+        // Trouver l'index où insérer "Filiales" (après Agences, avant Applications)
+        const agencesIndex = items.findIndex(item => item.title === 'Agences');
+        if (agencesIndex !== -1) {
+            items.splice(agencesIndex + 1, 0, {
+                title: 'Filiales',
+                href: '/filiales',
+                icon: Building,
+            });
+        } else {
+            // Si Agences n'est pas trouvé, ajouter à la fin
+            items.push({
+                title: 'Filiales',
+                href: '/filiales',
+                icon: Building,
+            });
+        }
     }
 
     return items;

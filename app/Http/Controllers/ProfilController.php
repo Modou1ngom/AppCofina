@@ -166,6 +166,15 @@ class ProfilController extends Controller
         // Admin normal voit uniquement les profils de ses filiales assignées
         elseif ($isAdmin && $user) {
             $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+            
+            // Si l'admin a un profil avec une filiale_id, l'ajouter aussi
+            $userProfil = $user->profil;
+            if ($userProfil && $userProfil->filiale_id) {
+                if (!in_array($userProfil->filiale_id, $userFilialesIds)) {
+                    $userFilialesIds[] = $userProfil->filiale_id;
+                }
+            }
+            
             if (!empty($userFilialesIds)) {
                 $query->whereIn('filiale_id', $userFilialesIds);
             } else {
@@ -176,6 +185,15 @@ class ProfilController extends Controller
         // RH voit uniquement les profils de ses filiales assignées (si applicable)
         elseif ($isRh && $user) {
             $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+            
+            // Si le RH a un profil avec une filiale_id, l'ajouter aussi
+            $userProfil = $user->profil;
+            if ($userProfil && $userProfil->filiale_id) {
+                if (!in_array($userProfil->filiale_id, $userFilialesIds)) {
+                    $userFilialesIds[] = $userProfil->filiale_id;
+                }
+            }
+            
             if (!empty($userFilialesIds)) {
                 $query->whereIn('filiale_id', $userFilialesIds);
             } else {
@@ -286,11 +304,34 @@ class ProfilController extends Controller
         $agences = $agencesQuery->orderBy('nom')->get(['id', 'nom', 'filiale_id']);
         $filiales = Filiale::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
         
+        // Déterminer la filiale de l'utilisateur pour l'assignation automatique
+        $userFilialeId = null;
+        $isSuperAdmin = $user && $user->isSuperAdmin();
+        $isAdmin = $user && $user->isAdmin();
+        $isRh = $user && $user->isRh();
+        
+        // Pour les admins et RH, utiliser leur filiale assignée ou celle de leur profil
+        if (($isAdmin || $isRh) && $user && !$isSuperAdmin) {
+            $userFiliales = $user->filiales()->get();
+            if ($userFiliales->count() > 0) {
+                // Prendre la première filiale assignée
+                $userFilialeId = $userFiliales->first()->id;
+            } elseif ($user->profil && $user->profil->filiale_id) {
+                // Sinon, utiliser la filiale du profil
+                $userFilialeId = $user->profil->filiale_id;
+            }
+        } elseif ($user && $user->profil && $user->profil->filiale_id) {
+            // Pour les autres utilisateurs, utiliser la filiale de leur profil
+            $userFilialeId = $user->profil->filiale_id;
+        }
+        
         return Inertia::render('profils/Create', [
             'profils' => $profils,
             'departements' => $departements,
             'agences' => $agences,
             'filiales' => $filiales,
+            'userFilialeId' => $userFilialeId,
+            'isSuperAdmin' => $isSuperAdmin,
         ]);
     }
 
@@ -299,6 +340,8 @@ class ProfilController extends Controller
      */
     public function store(Request $request)
     {
+        $user = Auth::user();
+        
         try {
             $validated = $request->validate([
                 'nom' => 'required|string|max:255',
@@ -308,6 +351,7 @@ class ProfilController extends Controller
                 'email' => 'nullable|email|unique:profiles,email',
                 'telephone' => ['nullable', 'string', 'max:20', 'regex:/^(\\+221|00221|221)?[0-9]{9}$/'],
                 'site' => 'nullable|string|max:100',
+                'filiale_id' => 'nullable|integer|exists:filiales,id',
                 'type_contrat' => 'nullable|in:CDI,CDD,Stagiaire,Autre',
                 'statut' => 'nullable|in:actif,inactif',
                 'type_office' => 'nullable|in:Back Office,Front Office',
@@ -330,6 +374,41 @@ class ProfilController extends Controller
             }
         }
 
+        // Déterminer la filiale à assigner
+        $filialeId = $validated['filiale_id'] ?? null;
+        
+        // Si filiale_id n'est pas fourni, essayer de le déduire
+        if (!$filialeId) {
+            // 1. Essayer depuis le site/agence sélectionné
+            if (!empty($validated['site'])) {
+                $agence = Agence::where('nom', $validated['site'])->first();
+                if ($agence && $agence->filiale_id) {
+                    $filialeId = $agence->filiale_id;
+                }
+            }
+            
+            // 2. Pour les admins et RH, utiliser leur filiale assignée
+            $isSuperAdmin = $user && $user->isSuperAdmin();
+            $isAdmin = $user && $user->isAdmin();
+            $isRh = $user && $user->isRh();
+            
+            if (!$filialeId && ($isAdmin || $isRh) && !$isSuperAdmin) {
+                $userFiliales = $user->filiales()->get();
+                if ($userFiliales->count() > 0) {
+                    // Prendre la première filiale assignée
+                    $filialeId = $userFiliales->first()->id;
+                } elseif ($user->profil && $user->profil->filiale_id) {
+                    // Sinon, utiliser la filiale du profil
+                    $filialeId = $user->profil->filiale_id;
+                }
+            }
+            
+            // 3. Pour les autres utilisateurs, utiliser la filiale de leur profil
+            if (!$filialeId && $user && $user->profil && $user->profil->filiale_id) {
+                $filialeId = $user->profil->filiale_id;
+            }
+        }
+
         $data = [
             'nom' => $validated['nom'],
             'prenom' => $validated['prenom'],
@@ -339,6 +418,7 @@ class ProfilController extends Controller
             'email' => $validated['email'] ?? null,
             'telephone' => $validated['telephone'] ?? null,
             'site' => $validated['site'] ?? null,
+            'filiale_id' => $filialeId,
             'type_contrat' => $validated['type_contrat'] ?? 'CDI',
             'statut' => $validated['statut'] ?? 'actif',
             'type_office' => $validated['type_office'] ?? null,

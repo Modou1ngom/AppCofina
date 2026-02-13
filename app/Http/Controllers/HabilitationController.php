@@ -289,21 +289,55 @@ class HabilitationController extends Controller
     {
         $user = Auth::user();
         
-        // Vérifier que l'utilisateur a un profil avec un département
+        // Vérifier que l'utilisateur a un profil
         if (!$user || !$user->profil) {
             return response()->json(['error' => 'Vous devez avoir un profil pour créer des demandes d\'habilitation.'], 403);
         }
         
         $profil = $user->profil;
         
-        if (!$profil->departement) {
-            return response()->json(['error' => 'Aucun département associé trouvé.'], 404);
+        // Construire la requête pour les bénéficiaires
+        $query = Profil::where('statut', 'actif');
+        
+        // Distinguer super admin, admin normal et autres utilisateurs
+        $isSuperAdmin = $user && $user->isSuperAdmin();
+        $isAdmin = $user && $user->isAdmin();
+        
+        // Super admin voit tous les profils actifs
+        if ($isSuperAdmin) {
+            // Pas de restriction
+        }
+        // Admin normal voit uniquement les profils de ses filiales assignées
+        elseif ($isAdmin && $user) {
+            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+            
+            // Si l'admin a un profil avec une filiale_id, l'ajouter aussi
+            if ($profil && $profil->filiale_id) {
+                if (!in_array($profil->filiale_id, $userFilialesIds)) {
+                    $userFilialesIds[] = $profil->filiale_id;
+                }
+            }
+            
+            if (!empty($userFilialesIds)) {
+                // Filtrer uniquement les profils avec filiale_id dans la liste ET exclure les NULL
+                $query->whereIn('filiale_id', $userFilialesIds)
+                      ->whereNotNull('filiale_id');
+            } else {
+                // Si l'admin n'a aucune filiale assignée, il ne voit rien
+                $query->where('id', 0);
+            }
+        }
+        // Les autres utilisateurs voient les profils de leur département
+        else {
+            if (!$profil->departement) {
+                return response()->json(['error' => 'Aucun département associé trouvé.'], 404);
+            }
+            
+            $query->where('departement', $profil->departement);
         }
         
-        // Récupérer tous les profils du même département (y compris l'utilisateur lui-même)
-        $subordonnes = Profil::where('departement', $profil->departement)
-            ->where('statut', 'actif')
-            ->orderBy('nom')
+        // Récupérer les profils (y compris l'utilisateur lui-même)
+        $subordonnes = $query->orderBy('nom')
             ->orderBy('prenom')
             ->get(['id', 'nom', 'prenom', 'matricule', 'fonction', 'departement', 'email', 'telephone', 'site']);
         
@@ -327,15 +361,49 @@ class HabilitationController extends Controller
         
         $profil = $user->profil;
         
-        if (!$profil->departement) {
-            return redirect()->route('habilitations.index')
-                ->with('error', 'Aucun département associé trouvé.');
+        // Construire la requête pour les bénéficiaires
+        $query = Profil::where('statut', 'actif');
+        
+        // Distinguer super admin, admin normal et autres utilisateurs
+        $isSuperAdmin = $user && $user->isSuperAdmin();
+        $isAdmin = $user && $user->isAdmin();
+        
+        // Super admin voit tous les profils actifs
+        if ($isSuperAdmin) {
+            // Pas de restriction
+        }
+        // Admin normal voit uniquement les profils de ses filiales assignées
+        elseif ($isAdmin && $user) {
+            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+            
+            // Si l'admin a un profil avec une filiale_id, l'ajouter aussi
+            if ($profil && $profil->filiale_id) {
+                if (!in_array($profil->filiale_id, $userFilialesIds)) {
+                    $userFilialesIds[] = $profil->filiale_id;
+                }
+            }
+            
+            if (!empty($userFilialesIds)) {
+                // Filtrer uniquement les profils avec filiale_id dans la liste ET exclure les NULL
+                $query->whereIn('filiale_id', $userFilialesIds)
+                      ->whereNotNull('filiale_id');
+            } else {
+                // Si l'admin n'a aucune filiale assignée, il ne voit rien
+                $query->where('id', 0);
+            }
+        }
+        // Les autres utilisateurs voient les profils de leur département
+        else {
+            if (!$profil->departement) {
+                return redirect()->route('habilitations.index')
+                    ->with('error', 'Aucun département associé trouvé.');
+            }
+            
+            $query->where('departement', $profil->departement);
         }
         
-        // Récupérer tous les profils du même département (y compris l'utilisateur lui-même)
-        $subordonnes = Profil::where('departement', $profil->departement)
-            ->where('statut', 'actif')
-            ->orderBy('nom')
+        // Récupérer les profils (y compris l'utilisateur lui-même)
+        $subordonnes = $query->orderBy('nom')
             ->orderBy('prenom')
             ->get(['id', 'nom', 'prenom', 'matricule', 'fonction', 'departement', 'email', 'telephone', 'site']);
         
