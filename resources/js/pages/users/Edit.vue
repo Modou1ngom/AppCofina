@@ -144,27 +144,27 @@ const submit = () => {
     <Head title="Modifier l'utilisateur" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex flex-col gap-6 p-6">
-            <div class="flex items-center justify-between">
+        <div class="flex flex-col gap-4 sm:gap-6 p-4 sm:p-6">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div class="flex items-center gap-3">
-                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg">
-                        <Edit class="h-6 w-6" />
+                    <div class="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shrink-0">
+                        <Edit class="h-5 w-5 sm:h-6 sm:w-6" />
                     </div>
-                    <div>
-                        <h1 class="text-3xl font-bold text-gray-900">Modifier l'utilisateur</h1>
-                        <p class="text-sm text-gray-500 mt-1">Mettez à jour les informations de l'utilisateur</p>
+                    <div class="min-w-0 flex-1">
+                        <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Modifier l'utilisateur</h1>
+                        <p class="text-xs sm:text-sm text-gray-500 mt-1">Mettez à jour les informations de l'utilisateur</p>
                     </div>
                 </div>
             </div>
 
-            <form @submit.prevent="submit" class="flex flex-col gap-6">
+            <form @submit.prevent="submit" class="flex flex-col gap-4 sm:gap-6">
                 <!-- Informations de base -->
-                <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
-                    <div class="mb-6 flex items-center gap-3">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                            <User class="h-5 w-5" />
+                <div class="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm transition-shadow hover:shadow-md">
+                    <div class="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
+                        <div class="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 shrink-0">
+                            <User class="h-4 w-4 sm:h-5 sm:w-5" />
                         </div>
-                        <h2 class="text-xl font-semibold text-gray-900">Informations de base</h2>
+                        <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Informations de base</h2>
                     </div>
                     <div class="grid gap-4 grid-cols-1 md:grid-cols-2">
                         <div class="space-y-2">
@@ -200,12 +200,12 @@ const submit = () => {
                 </div>
 
                 <!-- Changer le mot de passe -->
-                <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
-                    <div class="mb-6 flex items-center gap-3">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
-                            <Lock class="h-5 w-5" />
+                <div class="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm transition-shadow hover:shadow-md">
+                    <div class="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
+                        <div class="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-600 shrink-0">
+                            <Lock class="h-4 w-4 sm:h-5 sm:w-5" />
                         </div>
-                        <h2 class="text-xl font-semibold text-gray-900">Changer le mot de passe</h2>
+                        <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Changer le mot de passe</h2>
                     </div>
                     <p class="mb-4 text-sm text-gray-600">
                         Laissez ces champs vides si vous ne souhaitez pas modifier le mot de passe.
@@ -244,12 +244,12 @@ const submit = () => {
                 </div>
 
                 <!-- Rôles -->
-                <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
-                    <div class="mb-6 flex items-center gap-3">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-50 text-purple-600">
-                            <Shield class="h-5 w-5" />
+                <div class="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm transition-shadow hover:shadow-md">
+                    <div class="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
+                        <div class="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-purple-50 text-purple-600 shrink-0">
+                            <Shield class="h-4 w-4 sm:h-5 sm:w-5" />
                         </div>
-                        <h2 class="text-xl font-semibold text-gray-900">Rôles</h2>
+                        <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Rôles</h2>
                     </div>
                     <div class="flex flex-col gap-3">
                         <div
@@ -276,12 +276,12 @@ const submit = () => {
                 </div>
 
                 <!-- Profil associé -->
-                <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
-                    <div class="mb-6 flex items-center gap-3">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50 text-green-600">
-                            <UserCircle class="h-5 w-5" />
+                <div class="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm transition-shadow hover:shadow-md">
+                    <div class="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
+                        <div class="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-green-50 text-green-600 shrink-0">
+                            <UserCircle class="h-4 w-4 sm:h-5 sm:w-5" />
                         </div>
-                        <h2 class="text-xl font-semibold text-gray-900">Profil associé</h2>
+                        <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Profil associé</h2>
                     </div>
                     <p class="mb-4 text-sm text-gray-600">
                         Associez un profil à cet utilisateur. L'email du profil sera automatiquement mis à jour pour correspondre à l'email de l'utilisateur.
@@ -334,12 +334,12 @@ const submit = () => {
                 </div>
 
                 <!-- Environnements -->
-                <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
-                    <div class="mb-6 flex items-center gap-3">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
-                            <Globe class="h-5 w-5" />
+                <div class="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm transition-shadow hover:shadow-md">
+                    <div class="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
+                        <div class="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-orange-50 text-orange-600 shrink-0">
+                            <Globe class="h-4 w-4 sm:h-5 sm:w-5" />
                         </div>
-                        <h2 class="text-xl font-semibold text-gray-900">Environnements</h2>
+                        <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Environnements</h2>
                     </div>
                     <div class="flex flex-col gap-3">
                         <div
@@ -366,12 +366,12 @@ const submit = () => {
                 </div>
 
                 <!-- Options de sécurité -->
-                <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
-                    <div class="mb-6 flex items-center gap-3">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-50 text-gray-600">
-                            <Settings class="h-5 w-5" />
+                <div class="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm transition-shadow hover:shadow-md">
+                    <div class="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
+                        <div class="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-gray-50 text-gray-600 shrink-0">
+                            <Settings class="h-4 w-4 sm:h-5 sm:w-5" />
                         </div>
-                        <h2 class="text-xl font-semibold text-gray-900">Options de sécurité</h2>
+                        <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Options de sécurité</h2>
                     </div>
                     <div class="flex items-center gap-3 rounded-lg border border-gray-200 p-4 transition-all hover:border-gray-300 hover:bg-gray-50/50">
                         <Checkbox
@@ -386,19 +386,19 @@ const submit = () => {
                 </div>
 
                 <!-- Actions -->
-                <div class="flex items-center justify-end gap-3 border-t border-gray-200 pt-6">
+                <div class="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 border-t border-gray-200 pt-4 sm:pt-6">
                     <Button 
                         type="button" 
                         variant="outline" 
                         @click="router.visit('/users')"
-                        class="h-11 px-6 rounded-lg border-gray-300 hover:bg-gray-50"
+                        class="w-full sm:w-auto h-11 px-6 rounded-lg border-gray-300 hover:bg-gray-50"
                     >
                         Annuler
                     </Button>
                     <Button 
                         type="submit" 
                         :disabled="form.processing"
-                        class="h-11 px-8 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+                        class="w-full sm:w-auto h-11 px-8 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
                     >
                         <span v-if="form.processing">Mise à jour en cours...</span>
                         <span v-else class="flex items-center gap-2">

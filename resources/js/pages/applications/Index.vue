@@ -143,14 +143,14 @@ const deleteApplication = (id: number) => {
     <Head title="Applications" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex flex-col gap-6 p-6">
-            <div class="flex items-center justify-between">
+        <div class="flex flex-col gap-4 sm:gap-6 p-4 sm:p-6">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div class="flex items-center gap-2">
-                    <h1 class="text-3xl font-bold text-gray-900">Liste des applications</h1>
-                    <Code class="h-5 w-5 text-gray-500" />
+                    <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Liste des applications</h1>
+                    <Code class="h-4 w-4 sm:h-5 sm:w-5 text-gray-500" />
                 </div>
-                <Link href="/applications/create">
-                    <Button>Nouvelle application</Button>
+                <Link href="/applications/create" class="w-full sm:w-auto">
+                    <Button class="w-full sm:w-auto">Nouvelle application</Button>
                 </Link>
             </div>
 

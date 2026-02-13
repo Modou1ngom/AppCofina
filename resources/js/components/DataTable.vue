@@ -206,8 +206,8 @@ const handleItemsPerPageChange = (value: string) => {
 
 <template>
     <div class="rounded-lg border border-gray-200 bg-white">
-        <div class="overflow-x-auto">
-            <table class="w-full">
+        <div class="overflow-x-auto -mx-4 sm:mx-0">
+            <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50 border-b border-gray-200">
                     <tr>
                         <th v-if="isSelectable" class="w-12 px-4 py-3">
@@ -306,10 +306,10 @@ const handleItemsPerPageChange = (value: string) => {
         <!-- Pagination -->
         <div
             v-if="(props.totalItems || tableData.length) > 0"
-            class="flex items-center justify-between border-t border-gray-200 px-4 py-3 bg-gray-50"
+            class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border-t border-gray-200 px-4 py-3 bg-gray-50"
         >
-            <div class="flex items-center gap-2 text-base text-gray-700">
-                <span>Items per page:</span>
+            <div class="flex items-center gap-2 text-sm sm:text-base text-gray-700">
+                <span class="whitespace-nowrap">Items per page:</span>
                 <DropdownMenu>
                     <DropdownMenuTrigger as-child>
                         <Button variant="outline" class="h-8 w-20 justify-between">
@@ -326,20 +326,21 @@ const handleItemsPerPageChange = (value: string) => {
                 </DropdownMenu>
             </div>
 
-            <div class="flex items-center gap-2">
-                <span class="text-base text-gray-700">
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
+                <span class="text-sm sm:text-base text-gray-700 text-center sm:text-left whitespace-nowrap">
                     Entrée {{ startItem }} à {{ endItem }} sur {{ props.totalItems || tableData.length }} Entrées
-                    (Page {{ props.currentPage }} / {{ totalPages }})
+                    <span class="hidden sm:inline">(Page {{ props.currentPage }} / {{ totalPages }})</span>
                 </span>
-                <div class="flex items-center gap-1">
+                <div class="flex items-center justify-center gap-1">
                     <Button
                         variant="ghost"
                         size="sm"
-                        class="h-8"
+                        class="h-8 text-xs sm:text-sm"
                         :disabled="props.currentPage === 1 || totalPages <= 1"
                         @click="() => { console.log('Previous clicked'); goToPage(props.currentPage - 1); }"
                     >
-                        ← Précedent
+                        <span class="hidden sm:inline">← Précedent</span>
+                        <ChevronLeft class="h-4 w-4 sm:hidden" />
                     </Button>
                     <template v-if="totalPages > 1">
                         <template v-for="(page, index) in getPageNumbers" :key="index">
@@ -347,23 +348,24 @@ const handleItemsPerPageChange = (value: string) => {
                                 v-if="typeof page === 'number'"
                                 variant="ghost"
                                 size="sm"
-                                class="h-8 w-8"
+                                class="h-8 w-8 text-xs sm:text-sm"
                                 :class="{ 'bg-purple-600 text-white hover:bg-purple-700': page === props.currentPage }"
                                 @click="() => { console.log('Page number clicked:', page); goToPage(page); }"
                             >
                                 {{ page }}
                             </Button>
-                            <span v-else class="px-2 text-gray-500">...</span>
+                            <span v-else class="px-1 sm:px-2 text-gray-500 text-xs sm:text-sm">...</span>
                         </template>
                     </template>
                     <Button
                         variant="ghost"
                         size="sm"
-                        class="h-8"
+                        class="h-8 text-xs sm:text-sm"
                         :disabled="props.currentPage === totalPages || totalPages <= 1"
                         @click="() => { console.log('Next clicked'); goToPage(props.currentPage + 1); }"
                     >
-                        Suivant →
+                        <span class="hidden sm:inline">Suivant →</span>
+                        <ChevronRight class="h-4 w-4 sm:hidden" />
                     </Button>
                 </div>
             </div>

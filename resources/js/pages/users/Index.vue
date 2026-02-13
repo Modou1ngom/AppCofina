@@ -243,13 +243,13 @@ const handleSort = (column: string, direction: 'asc' | 'desc') => {
     <Head title="Utilisateurs" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex flex-col gap-6 p-6">
-            <h1 class="text-3xl font-bold text-gray-900">Liste des utilisateurs</h1>
+        <div class="flex flex-col gap-4 sm:gap-6 p-4 sm:p-6">
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Liste des utilisateurs</h1>
 
             <!-- Section Filtres -->
-            <div class="rounded-lg border border-gray-200 bg-white p-4">
+            <div class="rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
                 <h2 class="mb-4 text-base font-semibold text-gray-700">Filtres</h2>
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
                         <label class="mb-1.5 block text-base font-medium text-gray-700">Environnement</label>
                         <select
@@ -342,24 +342,25 @@ const handleSort = (column: string, direction: 'asc' | 'desc') => {
                         </select>
                     </div>
                 </div>
-                <div class="mt-4 flex items-center gap-2">
+                <div class="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                     <Input
                         v-model="filters.search"
                         type="text"
                         placeholder="Rechercher (nom, email)"
-                        class="flex-1 border-gray-300 focus-visible:border-gray-400"
+                        class="flex-1 border-gray-300 focus-visible:border-gray-400 w-full sm:w-auto"
                         @keyup.enter="applyFilters"
                     />
-                    <Button @click="applyFilters" class="bg-blue-600 hover:bg-blue-700">
-                        Appliquer les filtres
-                    </Button>
-                    <Button variant="outline" @click="() => { filters.environnement = ''; filters.departement = ''; filters.role = ''; filters.agence = ''; filters.profil = ''; filters.activation = ''; filters.search = ''; applyFilters(); }" class="border-gray-300">
-                        Réinitialiser
-                    </Button>
-                    <Link href="/users/create">
-                        <Button class="bg-purple-600 hover:bg-purple-700">+ Nouveau</Button>
-                    </Link>
-                    
+                    <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                        <Button @click="applyFilters" class="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
+                            Appliquer les filtres
+                        </Button>
+                        <Button variant="outline" @click="() => { filters.environnement = ''; filters.departement = ''; filters.role = ''; filters.agence = ''; filters.profil = ''; filters.activation = ''; filters.search = ''; applyFilters(); }" class="border-gray-300 w-full sm:w-auto">
+                            Réinitialiser
+                        </Button>
+                        <Link href="/users/create" class="w-full sm:w-auto">
+                            <Button class="bg-purple-600 hover:bg-purple-700 w-full sm:w-auto">+ Nouveau</Button>
+                        </Link>
+                    </div>
                 </div>
             </div>
 

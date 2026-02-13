@@ -152,27 +152,27 @@ const submit = () => {
     <Head title="Créer un profil" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex flex-col gap-6 p-6">
-            <div class="flex items-center justify-between">
+        <div class="flex flex-col gap-4 sm:gap-6 p-4 sm:p-6">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div class="flex items-center gap-3">
-                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg">
-                        <User class="h-6 w-6" />
+                    <div class="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shrink-0">
+                        <User class="h-5 w-5 sm:h-6 sm:w-6" />
                     </div>
-                    <div>
-                        <h1 class="text-3xl font-bold text-gray-900">Créer un profil</h1>
-                        <p class="text-sm text-gray-500 mt-1">Ajoutez un nouveau membre à votre équipe</p>
+                    <div class="min-w-0 flex-1">
+                        <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Créer un profil</h1>
+                        <p class="text-xs sm:text-sm text-gray-500 mt-1">Ajoutez un nouveau membre à votre équipe</p>
                     </div>
                 </div>
             </div>
 
-            <form @submit.prevent="submit" class="flex flex-col gap-6">
+            <form @submit.prevent="submit" class="flex flex-col gap-4 sm:gap-6">
                 <!-- Informations personnelles -->
-                <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
-                    <div class="mb-6 flex items-center gap-3">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                            <User class="h-5 w-5" />
+                <div class="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm transition-shadow hover:shadow-md">
+                    <div class="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
+                        <div class="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 shrink-0">
+                            <User class="h-4 w-4 sm:h-5 sm:w-5" />
                         </div>
-                        <h2 class="text-xl font-semibold text-gray-900">Informations personnelles</h2>
+                        <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Informations personnelles</h2>
                     </div>
                     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                         <div>
@@ -241,12 +241,12 @@ const submit = () => {
                 </div>
 
                 <!-- Informations organisationnelles -->
-                <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
-                    <div class="mb-6 flex items-center gap-3">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50 text-green-600">
-                            <Building2 class="h-5 w-5" />
+                <div class="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm transition-shadow hover:shadow-md">
+                    <div class="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
+                        <div class="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-green-50 text-green-600 shrink-0">
+                            <Building2 class="h-4 w-4 sm:h-5 sm:w-5" />
                         </div>
-                        <h2 class="text-xl font-semibold text-gray-900">Informations organisationnelles</h2>
+                        <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Informations organisationnelles</h2>
                     </div>
                     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                         <!-- Champ filiale : masqué pour les admins/RH (sauf super admin) -->
@@ -429,19 +429,19 @@ const submit = () => {
                 </div>
 
                 <!-- Actions -->
-                <div class="flex items-center justify-end gap-3 border-t border-gray-200 pt-6">
+                <div class="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 border-t border-gray-200 pt-4 sm:pt-6">
                     <Button 
                         type="button" 
                         variant="outline" 
                         @click="router.visit('/profils')"
-                        class="h-11 px-6 rounded-lg border-gray-300 hover:bg-gray-50"
+                        class="w-full sm:w-auto h-11 px-6 rounded-lg border-gray-300 hover:bg-gray-50"
                     >
                         Annuler
                     </Button>
                     <Button 
                         type="submit" 
                         :disabled="form.processing"
-                        class="h-11 px-8 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+                        class="w-full sm:w-auto h-11 px-8 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
                     >
                         <span v-if="form.processing">Création en cours...</span>
                         <span v-else class="flex items-center gap-2">

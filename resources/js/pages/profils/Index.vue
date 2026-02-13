@@ -205,30 +205,32 @@ const tableData = computed(() => {
     <Head title="Profils" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex flex-col gap-6 p-6">
-            <div class="flex items-center justify-between">
+        <div class="flex flex-col gap-4 sm:gap-6 p-4 sm:p-6">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div class="flex items-center gap-2">
-                    <h1 class="text-3xl font-bold text-gray-900">Liste des profils</h1>
-                    <Code class="h-5 w-5 text-gray-500" />
+                    <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Liste des profils</h1>
+                    <Code class="h-4 w-4 sm:h-5 sm:w-5 text-gray-500" />
                 </div>
-                <div class="flex items-center gap-3">
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
                     <Button
                         @click="exportProfils"
-                        class="bg-purple-600 hover:bg-purple-700"
+                        class="bg-purple-600 hover:bg-purple-700 w-full sm:w-auto"
                     >
                         <Download class="mr-2 h-4 w-4" />
-                        Exporter Excel
+                        <span class="hidden sm:inline">Exporter Excel</span>
+                        <span class="sm:hidden">Exporter</span>
                     </Button>
                     <Button
                         @click="router.visit('/profils/import')"
-                        class="bg-green-600 hover:bg-green-700"
+                        class="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
                     >
                         <Upload class="mr-2 h-4 w-4" />
-                        Importer Excel
+                        <span class="hidden sm:inline">Importer Excel</span>
+                        <span class="sm:hidden">Importer</span>
                     </Button>
                     <Link
                         href="/profils/create"
-                        class="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                        class="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 w-full sm:w-auto"
                     >
                         Créer un profil
                     </Link>
@@ -236,12 +238,12 @@ const tableData = computed(() => {
             </div>
 
             <!-- Section Filtres -->
-            <div class="rounded-lg border border-gray-200 bg-white p-4">
+            <div class="rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
                 <div class="mb-4 flex items-center gap-2">
-                    <Filter class="h-5 w-5 text-gray-500" />
+                    <Filter class="h-4 w-4 sm:h-5 sm:w-5 text-gray-500" />
                     <h2 class="text-base font-semibold text-gray-700">Filtres</h2>
                 </div>
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
                         <label class="mb-1.5 block text-base font-medium text-gray-700">Statut</label>
                         <select
@@ -318,11 +320,11 @@ const tableData = computed(() => {
                         />
                     </div>
                 </div>
-                <div class="mt-4 flex items-center gap-2">
-                    <Button @click="applyFilters" class="bg-blue-600 hover:bg-blue-700">
+                <div class="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <Button @click="applyFilters" class="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
                         Appliquer les filtres
                     </Button>
-                    <Button variant="outline" @click="() => { filters.statut = ''; filters.departement = ''; filters.fonction = ''; filters.site = ''; filters.type_contrat = ''; filters.search = ''; applyFilters(); }" class="border-gray-300">
+                    <Button variant="outline" @click="() => { filters.statut = ''; filters.departement = ''; filters.fonction = ''; filters.site = ''; filters.type_contrat = ''; filters.search = ''; applyFilters(); }" class="border-gray-300 w-full sm:w-auto">
                         Réinitialiser
                     </Button>
                 </div>
