@@ -1,9 +1,9 @@
 <x-mail::message>
-# Votre demande a été prise en charge
+# Votre demande d'habilitation a été exécutée
 
 Bonjour {{ $data['requester_prenom'] }} {{ $data['requester_nom'] }},
 
-Votre demande d'habilitation a été prise en charge par l'équipe IT.
+Votre demande d'habilitation a été exécutée par l'équipe IT.
 
 <x-mail::panel>
 **Référence :** #{{ $data['habilitation_id'] }}
@@ -14,10 +14,12 @@ Votre demande d'habilitation a été prise en charge par l'équipe IT.
 
 **Exécuteur IT :** {{ $data['executor_name'] }}
 
-**Date de prise en charge :** {{ $data['date_prise_en_charge'] }}
-</x-mail::panel>
+**Date d'exécution :** {{ $data['executed_at'] }}
 
-L'équipe IT procède à l'exécution de votre demande. Vous serez notifié dès que l'habilitation sera complétée.
+@if(!empty($data['comment_it']))
+**Commentaire IT :** {{ $data['comment_it'] }}
+@endif
+</x-mail::panel>
 
 <x-mail::button :url="$data['url_show']">
 Voir la demande

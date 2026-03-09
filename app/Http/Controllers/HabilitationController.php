@@ -6,13 +6,14 @@ use App\Models\Habilitation;
 use App\Models\Profil;
 use App\Models\Application;
 use App\Models\Filiale;
+use App\Models\Role;
+use App\Models\User;
 use App\Helpers\FilialeHelper;
-use App\Mail\HabilitationPriseEnChargeMail;
+use App\Services\HabilitationNotificationService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 
 class HabilitationController extends Controller
 {
@@ -683,6 +684,10 @@ class HabilitationController extends Controller
             'status' => 'pending_n1',
         ]);
 
+        // Notification au demandeur : confirmation d'enregistrement (après avoir tout terminé = étape 1 + étape 2)
+        HabilitationNotificationService::notifyConfirmationCreation($habilitation);
+        HabilitationNotificationService::notifyAttenteValidationN1($habilitation);
+
         // Redirection vers la page de détails (Show) pour afficher le résumé
         // La demande est maintenant en attente de validation N+1
         return redirect()->route('habilitations.index')
@@ -760,6 +765,8 @@ class HabilitationController extends Controller
                 'status' => 'pending_n2',
             ]);
 
+            HabilitationNotificationService::notifyAttenteValidationN2($habilitation);
+
             return redirect()->route('habilitations.show', $habilitation->id)
                 ->with('success', 'Étape 3 : Validation N+1 complétée. La demande est en attente de validation N+2.');
         } else {
@@ -770,6 +777,8 @@ class HabilitationController extends Controller
                 'signature_n1' => $validated['signature_n1'] ?? null,
                 'status' => 'rejected',
             ]);
+
+            HabilitationNotificationService::notifyRejetee($habilitation, (string) ($habilitation->comment_n1 ?? ''));
 
             return redirect()->route('habilitations.show', $habilitation->id)
                 ->with('error', 'Étape 3 : La demande a été rejetée par N+1.');
@@ -841,6 +850,16 @@ class HabilitationController extends Controller
                 'status' => 'pending_control',
             ]);
 
+            $roleControle = Role::where('slug', 'controle')->first();
+            $emailsControle = [];
+            if ($roleControle) {
+                $emailsControle = array_merge(
+                    $roleControle->users()->pluck('email')->filter()->toArray(),
+                    Profil::whereIn('id', $roleControle->profils()->pluck('id'))->pluck('email')->filter()->toArray()
+                );
+            }
+            HabilitationNotificationService::notifyAttenteControle($habilitation, $emailsControle);
+
             return redirect()->route('habilitations.show', $habilitation->id)
                 ->with('success', 'Étape 4 : Validation N+2 complétée. La demande est en attente de validation du Contrôle Permanent.');
         } else {
@@ -851,6 +870,8 @@ class HabilitationController extends Controller
                 'signature_n2' => $validated['signature_n2'] ?? null,
                 'status' => 'rejected',
             ]);
+
+            HabilitationNotificationService::notifyRejetee($habilitation, (string) ($habilitation->comment_n2 ?? ''));
 
             return redirect()->route('habilitations.show', $habilitation->id)
                 ->with('error', 'Étape 4 : La demande a été rejetée par N+2.');
@@ -950,6 +971,8 @@ class HabilitationController extends Controller
                 'status' => 'approved',
             ]);
 
+            HabilitationNotificationService::notifyApprouvee($habilitation);
+
             return redirect()->route('habilitations.show', $habilitation->id)
                 ->with('success', 'Étape 5 : Validation Contrôle Permanent complétée. La demande est prête pour l\'exécution IT.');
         } else {
@@ -960,6 +983,8 @@ class HabilitationController extends Controller
                 'signature_control' => $validated['signature_control'] ?? null,
                 'status' => 'rejected',
             ]);
+
+            HabilitationNotificationService::notifyRejetee($habilitation, (string) ($habilitation->comment_control ?? ''));
 
             return redirect()->route('habilitations.show', $habilitation->id)
                 ->with('error', 'Étape 5 : La demande a été rejetée par le Contrôle Permanent.');
@@ -1088,96 +1113,7 @@ class HabilitationController extends Controller
             'executor_it_id' => Auth::id(),
         ]);
 
-        // Charger les relations nécessaires
-        $habilitation->load(['requester', 'beneficiary']);
-
-        // Envoyer un email au demandeur
-        // Utiliser d'abord requester_email s'il existe, sinon l'email du profil
-        $requesterEmail = $habilitation->requester_email 
-            ?? ($habilitation->requester && $habilitation->requester->email ? $habilitation->requester->email : null);
-        
-        if ($requesterEmail) {
-            $mailer = config('mail.default');
-            
-            // Vérifier si le mailer est configuré pour envoyer des emails réels
-            // Si c'est "log", on log juste l'information sans essayer d'envoyer
-            if ($mailer === 'log') {
-                \Log::info('Email de prise en charge (mode log - email simulé)', [
-                    'habilitation_id' => $habilitation->id,
-                    'email' => $requesterEmail,
-                    'executor' => $user->name,
-                    'message' => 'L\'email serait envoyé à: ' . $requesterEmail,
-                    'note' => 'Pour envoyer de vrais emails, configurez MAIL_MAILER=smtp dans .env'
-                ]);
-            } else {
-                // Essayer d'envoyer l'email uniquement si le mailer n'est pas "log"
-                try {
-                    Mail::to($requesterEmail)->send(
-                        new HabilitationPriseEnChargeMail($habilitation, $user)
-                    );
-                    
-                    \Log::info('Email de prise en charge envoyé avec succès', [
-                        'habilitation_id' => $habilitation->id,
-                        'email' => $requesterEmail,
-                        'executor' => $user->name,
-                        'mailer' => $mailer
-                    ]);
-                } catch (\Illuminate\Mail\Exceptions\TransportException $e) {
-                    // Erreur de connexion SMTP spécifique
-                    $errorMessage = $e->getMessage();
-                    $suggestions = [];
-                    
-                    // Détecter le type d'erreur et proposer des solutions
-                    if (str_contains($errorMessage, 'Authentication unsuccessful') || str_contains($errorMessage, '535')) {
-                        $suggestions = [
-                            '1. Vérifiez que le mot de passe dans .env est correct',
-                            '2. Si l\'authentification à deux facteurs (2FA) est activée, créez un "Mot de passe d\'application" dans les paramètres de sécurité Microsoft',
-                            '3. Vérifiez que l\'authentification SMTP est activée pour ce compte dans Office 365',
-                            '4. Contactez votre administrateur IT pour vérifier les permissions SMTP du compte',
-                            '5. Assurez-vous que le compte n\'est pas verrouillé ou suspendu'
-                        ];
-                    } elseif (str_contains($errorMessage, 'Connection') || str_contains($errorMessage, 'timeout')) {
-                        $suggestions = [
-                            '1. Vérifiez votre connexion Internet',
-                            '2. Vérifiez que MAIL_HOST=smtp.office365.com dans .env',
-                            '3. Vérifiez que le port 587 n\'est pas bloqué par un firewall',
-                            '4. Essayez avec MAIL_ENCRYPTION=starttls au lieu de tls'
-                        ];
-                    } else {
-                        $suggestions = [
-                            '1. Vérifiez votre configuration SMTP dans le fichier .env',
-                            '2. Utilisez MAIL_MAILER=log pour le développement',
-                            '3. Consultez les logs Laravel pour plus de détails'
-                        ];
-                    }
-                    
-                    \Log::error('Erreur lors de l\'envoi de l\'email de prise en charge', [
-                        'habilitation_id' => $habilitation->id,
-                        'email' => $requesterEmail,
-                        'error' => $errorMessage,
-                        'mailer' => $mailer,
-                        'mail_host' => config('mail.mailers.smtp.host'),
-                        'mail_port' => config('mail.mailers.smtp.port'),
-                        'mail_username' => config('mail.mailers.smtp.username'),
-                        'suggestions' => $suggestions,
-                    ]);
-                } catch (\Exception $e) {
-                    // Autres erreurs
-                    \Log::error('Erreur lors de l\'envoi de l\'email de prise en charge', [
-                        'habilitation_id' => $habilitation->id,
-                        'email' => $requesterEmail,
-                        'error' => $e->getMessage(),
-                        'mailer' => $mailer,
-                        'trace' => $e->getTraceAsString(),
-                    ]);
-                }
-            }
-        } else {
-            \Log::warning('Impossible d\'envoyer l\'email de prise en charge : aucun email trouvé pour le demandeur', [
-                'habilitation_id' => $habilitation->id,
-                'requester_id' => $habilitation->requester_profile_id,
-            ]);
-        }
+        HabilitationNotificationService::notifyPriseEnCharge($habilitation, $user->name);
 
         // Rediriger vers l'espace IT si l'utilisateur est exécuteur IT, sinon vers la page de détails
         if ($user->isExecuteurIt() && !$user->isAdmin()) {
@@ -1223,7 +1159,13 @@ class HabilitationController extends Controller
             'status' => 'completed',
         ]);
 
-        // TODO: Implémenter l'envoi de notifications par email
+        $executorName = $user?->name ?? User::find(Auth::id())?->name ?? 'IT';
+        HabilitationNotificationService::notifyTerminee(
+            $habilitation,
+            $executorName,
+            (bool) ($validated['notify_requester'] ?? false),
+            (bool) ($validated['notify_n1'] ?? false)
+        );
 
         return redirect()->route('habilitations.show', $habilitation->id)
             ->with('success', 'Étape 6 : Exécution IT terminée. Les notifications ont été envoyées.');

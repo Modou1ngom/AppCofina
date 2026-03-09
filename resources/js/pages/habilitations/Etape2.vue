@@ -70,36 +70,38 @@ const showMessagerieFields = computed(() => selectedApplications.value.includes(
 // Elles sont déjà définies à l'étape 1
 
 const submit = () => {
+    // Éviter le double envoi (requête annulée dans l'onglet Réseau)
+    if (form.processing) {
+        return;
+    }
+
     // S'assurer que les applications sont bien dans le formulaire
     const applications = [...selectedApplications.value];
-    
+
     // Vérifier que au moins une application est sélectionnée
     if (!applications || applications.length === 0) {
         form.setError('applications', 'Veuillez sélectionner au moins une application.');
         return;
     }
-    
+
     // Mettre à jour form.applications
     form.applications = applications;
-    
+
     // Utiliser transform() pour forcer l'inclusion des applications
     // et les envoyer aussi comme JSON string pour le backend
-    form.transform((data) => {
-        return {
-            ...data,
-            applications: applications, // Tableau d'applications
-            applications_json: JSON.stringify(applications), // JSON string en backup
-        };
-    });
-    
+    form.transform((data) => ({
+        ...data,
+        applications,
+        applications_json: JSON.stringify(applications),
+    }));
+
     form.put(updateEtape2.url({ habilitation: props.habilitation.id }), {
         preserveScroll: true,
         onError: (errors) => {
-            // Mettre à jour les erreurs du formulaire
             Object.keys(errors).forEach((key) => {
                 form.setError(key as any, Array.isArray(errors[key]) ? errors[key][0] : errors[key]);
             });
-        }
+        },
     });
 };
 </script>
