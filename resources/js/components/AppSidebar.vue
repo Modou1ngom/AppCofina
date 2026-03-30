@@ -51,15 +51,15 @@ const mainNavItems = computed<NavItem[]>(() => {
                 ],
             },
             {
-                title: 'Enroulement staff',
+                title: 'Enrolement staff',
                 icon: Users,
                 items: [
                       {
-                        title: 'Créer un nouvel enroulement staff',
+                        title: 'Créer un nouvel enrolement',
                         href: '/profils/create',
                     },
                     {
-                        title: 'Liste des enroulements staff',
+                        title: 'Liste des enrolements',
                         href: '/profils',
                     },
                   
@@ -172,15 +172,15 @@ const mainNavItems = computed<NavItem[]>(() => {
     else if (auth.value?.isRh) {
         items.push(
             {
-                title: 'Enroulement staff',
+                title: 'Enrolement staff',
                 icon: Users,
                 items: [
                       {
-                        title: 'Créer un nouvel enroulement staff',
+                        title: 'Créer un nouvel enrolement',
                         href: '/profils/create',
                     },
                     {
-                        title: 'Liste des enroulements staff',
+                        title: 'Liste des enrolements',
                         href: '/profils',
                     },
                   

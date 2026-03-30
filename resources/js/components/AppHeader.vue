@@ -78,7 +78,7 @@ const mainNavItems = computed<NavItem[]>(() => {
                 icon: UserCog,
             },
             {
-                title: 'Enroulement staff',
+                title: 'Enrolement staff',
                 href: '/profils',
                 icon: Users,
             },
@@ -113,7 +113,7 @@ const mainNavItems = computed<NavItem[]>(() => {
     else if (auth.value?.isRh) {
         items.push(
             {
-                title: 'Enroulement staff',
+                    title: 'Enrolement staff',
                 href: '/profils',
                 icon: Users,
             },
