@@ -18,6 +18,48 @@ use Illuminate\Support\Facades\DB;
 class HabilitationController extends Controller
 {
     /**
+     * Filiales gérées pour les listes de bénéficiaires (user_filiale + filiale du profil).
+     *
+     * @return list<int>
+     */
+    private function managedFilialeIdsForHabilitation(User $user, ?Profil $profil): array
+    {
+        $ids = $user->filiales()->get()->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+        if ($profil && $profil->filiale_id) {
+            $fid = (int) $profil->filiale_id;
+            if (!in_array($fid, $ids, true)) {
+                $ids[] = $fid;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * Le demandeur peut-il choisir ce bénéficiaire (département ou périmètre filiale pour admin/RH) ?
+     */
+    private function requesterCanSelectBeneficiary(User $user, Profil $requester, Profil $beneficiary): bool
+    {
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+        if (($user->isAdmin() && !$user->isSuperAdmin()) || $user->isRh()) {
+            $ids = $this->managedFilialeIdsForHabilitation($user, $requester);
+            if ($ids === []) {
+                return false;
+            }
+
+            return $beneficiary->filiale_id !== null
+                && in_array((int) $beneficiary->filiale_id, $ids, true);
+        }
+        if (!$requester->departement) {
+            return false;
+        }
+
+        return $beneficiary->departement === $requester->departement;
+    }
+
+    /**
      * Liste toutes les demandes d'habilitation
      */
     public function index(Request $request)
@@ -39,24 +81,17 @@ class HabilitationController extends Controller
             if ($hasMultipleRoles) {
                 // Utilisateur avec plusieurs rôles : combiner toutes les conditions avec OR
                 $query->where(function($q) use ($user, $profil) {
-                    // Condition RH
+                    // Condition RH : périmètre RH (filiales gérées), pas tout le département
                     if ($user->isRh()) {
                         $profilsNPlus1 = Profil::where('n_plus_1_id', $profil->id)->pluck('id')->toArray();
                         $profilsNPlus2 = Profil::where('n_plus_2_id', $profil->id)->pluck('id')->toArray();
-                        
-                        $membresDepartementIds = [];
-                        if ($profil->departement) {
-                            $membresDepartementIds = Profil::where('departement', $profil->departement)
-                                ->where('statut', 'actif')
-                                ->pluck('id')
-                                ->toArray();
-                        }
-                        
-                        $q->where(function($subQ) use ($profil, $profilsNPlus1, $profilsNPlus2, $membresDepartementIds) {
+                        $filialeScope = $this->managedFilialeIdsForHabilitation($user, $profil);
+
+                        $q->where(function($subQ) use ($user, $profil, $profilsNPlus1, $profilsNPlus2, $filialeScope) {
                             $subQ->where('requester_profile_id', $profil->id)
                               ->orWhere('beneficiary_profile_id', $profil->id)
-                              ->orWhere('validator_n1_id', $profil->id)
-                              ->orWhere('validator_n2_id', $profil->id)
+                              ->orWhere('validator_n1_id', $user->id)
+                              ->orWhere('validator_n2_id', $user->id)
                               ->orWhere(function($subQ2) use ($profilsNPlus1) {
                                   if (!empty($profilsNPlus1)) {
                                       $subQ2->whereIn('requester_profile_id', $profilsNPlus1)
@@ -68,30 +103,34 @@ class HabilitationController extends Controller
                                       $subQ2->whereIn('requester_profile_id', $profilsNPlus2)
                                            ->where('status', 'pending_n2');
                                   }
-                              })
-                              ->orWhere(function($subQ2) use ($membresDepartementIds) {
-                                  if (!empty($membresDepartementIds)) {
-                                      $subQ2->whereIn('requester_profile_id', $membresDepartementIds)
-                                           ->orWhereIn('beneficiary_profile_id', $membresDepartementIds);
-                                  }
+                              });
+                            if ($filialeScope !== []) {
+                                $subQ->orWhere(function($subQ2) use ($filialeScope) {
+                                    $subQ2->whereHas('requester', function($r) use ($filialeScope) {
+                                        $r->whereIn('filiale_id', $filialeScope)->whereNotNull('filiale_id');
+                                    })->orWhereHas('beneficiary', function($b) use ($filialeScope) {
+                                        $b->whereIn('filiale_id', $filialeScope)->whereNotNull('filiale_id');
+                                    });
+                                });
+                            }
+                        });
+                    }
+
+                    // Exécuteur IT : file ou dossiers assignés à l'utilisateur
+                    if ($user->isExecuteurIt()) {
+                        $q->orWhere(function($subQ) use ($user) {
+                            $subQ->where('executor_it_id', $user->id)
+                              ->orWhere(function($subQ2) {
+                                  $subQ2->where('status', 'approved')->whereNull('executor_it_id');
                               });
                         });
                     }
-                    
-                    // Condition Exécuteur IT
-                    if ($user->isExecuteurIt()) {
-                        $q->orWhere(function($subQ) {
-                            $subQ->where('status', 'approved')
-                              ->orWhere('status', 'in_progress')
-                              ->orWhere('executor_it_id', '!=', null);
-                        });
-                    }
-                    
-                    // Condition Contrôle
+
+                    // Contrôle
                     if ($user->isControle()) {
-                        $q->orWhere(function($subQ) {
+                        $q->orWhere(function($subQ) use ($user) {
                             $subQ->where('status', 'pending_control')
-                              ->orWhere('validator_control_id', '!=', null);
+                              ->orWhere('validator_control_id', $user->id);
                         });
                     }
                 });
@@ -101,20 +140,13 @@ class HabilitationController extends Controller
                 if ($user->isRh()) {
                     $profilsNPlus1 = Profil::where('n_plus_1_id', $profil->id)->pluck('id')->toArray();
                     $profilsNPlus2 = Profil::where('n_plus_2_id', $profil->id)->pluck('id')->toArray();
-                    
-                    $membresDepartementIds = [];
-                    if ($profil->departement) {
-                        $membresDepartementIds = Profil::where('departement', $profil->departement)
-                            ->where('statut', 'actif')
-                            ->pluck('id')
-                            ->toArray();
-                    }
-                    
-                    $query->where(function($q) use ($profil, $profilsNPlus1, $profilsNPlus2, $membresDepartementIds) {
+                    $filialeScopeRh = $this->managedFilialeIdsForHabilitation($user, $profil);
+
+                    $query->where(function($q) use ($user, $profil, $profilsNPlus1, $profilsNPlus2, $filialeScopeRh) {
                         $q->where('requester_profile_id', $profil->id)
                           ->orWhere('beneficiary_profile_id', $profil->id)
-                          ->orWhere('validator_n1_id', $profil->id)
-                          ->orWhere('validator_n2_id', $profil->id)
+                          ->orWhere('validator_n1_id', $user->id)
+                          ->orWhere('validator_n2_id', $user->id)
                           ->orWhere(function($subQ) use ($profilsNPlus1) {
                               if (!empty($profilsNPlus1)) {
                                   $subQ->whereIn('requester_profile_id', $profilsNPlus1)
@@ -126,82 +158,74 @@ class HabilitationController extends Controller
                                   $subQ->whereIn('requester_profile_id', $profilsNPlus2)
                                        ->where('status', 'pending_n2');
                               }
-                          })
-                          ->orWhere(function($subQ) use ($membresDepartementIds) {
-                              if (!empty($membresDepartementIds)) {
-                                  $subQ->whereIn('requester_profile_id', $membresDepartementIds)
-                                       ->orWhereIn('beneficiary_profile_id', $membresDepartementIds);
-                              }
                           });
+                        if ($filialeScopeRh !== []) {
+                            $q->orWhere(function($subQ) use ($filialeScopeRh) {
+                                $subQ->whereHas('requester', function($r) use ($filialeScopeRh) {
+                                    $r->whereIn('filiale_id', $filialeScopeRh)->whereNotNull('filiale_id');
+                                })->orWhereHas('beneficiary', function($b) use ($filialeScopeRh) {
+                                    $b->whereIn('filiale_id', $filialeScopeRh)->whereNotNull('filiale_id');
+                                });
+                            });
+                        }
                     });
                 }
                 // Exécuteur IT
                 elseif ($user->isExecuteurIt()) {
-                    $query->where(function($q) {
-                        $q->where('status', 'approved')
-                          ->orWhere('status', 'in_progress')
-                          ->orWhere('executor_it_id', '!=', null);
+                    $query->where(function($q) use ($user) {
+                        $q->where('executor_it_id', $user->id)
+                          ->orWhere(function($q2) {
+                              $q2->where('status', 'approved')->whereNull('executor_it_id');
+                          });
                     });
                 }
                 // Contrôle
                 elseif ($user->isControle()) {
-                    $query->where(function($q) {
+                    $query->where(function($q) use ($user) {
                         $q->where('status', 'pending_control')
-                          ->orWhere('validator_control_id', '!=', null);
+                          ->orWhere('validator_control_id', $user->id);
+                    });
+                } else {
+                    // Métier : un seul « rôle fonctionnel » mais profil présent (pas RH / IT / Contrôle)
+                    $subordonnesIds = $profil->subordonnes()->pluck('id')->toArray();
+                    $subordonnesIds[] = $profil->id;
+
+                    $profilsNPlus1 = Profil::where('n_plus_1_id', $profil->id)->pluck('id')->toArray();
+                    $profilsNPlus2 = Profil::where('n_plus_2_id', $profil->id)->pluck('id')->toArray();
+
+                    $query->where(function($q) use ($user, $subordonnesIds, $profilsNPlus1, $profilsNPlus2) {
+                        $q->whereIn('requester_profile_id', $subordonnesIds)
+                          ->orWhereIn('beneficiary_profile_id', $subordonnesIds)
+                          ->orWhere('validator_n1_id', $user->id)
+                          ->orWhere('validator_n2_id', $user->id)
+                          ->orWhere(function($subQ) use ($profilsNPlus1) {
+                              $subQ->whereIn('requester_profile_id', $profilsNPlus1)
+                                   ->where('status', 'pending_n1');
+                          })
+                          ->orWhere(function($subQ) use ($profilsNPlus2) {
+                              $subQ->whereIn('requester_profile_id', $profilsNPlus2)
+                                   ->where('status', 'pending_n2');
+                          });
                     });
                 }
             }
         }
-        // Controle voit les habilitations en attente de contrôle et celles déjà contrôlées
-        elseif ($user && $user->isControle()) {
-            $query->where(function($q) {
-                $q->where('status', 'pending_control')
-                  ->orWhere('validator_control_id', '!=', null);
-            });
-        }
-        // Metier voit ses habilitations, celles de ses subordonnés, celles qu'il doit valider (N+1 ou N+2),
-        // et celles des membres de son département
-        elseif ($profil) {
-            $subordonnesIds = $profil->subordonnes()->pluck('id')->toArray();
-            $subordonnesIds[] = $profil->id; // Inclure aussi le profil lui-même
-
-            // Récupérer les profils dont l'utilisateur est N+1 ou N+2
-            $profilsNPlus1 = Profil::where('n_plus_1_id', $profil->id)->pluck('id')->toArray();
-            $profilsNPlus2 = Profil::where('n_plus_2_id', $profil->id)->pluck('id')->toArray();
-            
-            // Récupérer les profils du même département si l'utilisateur a un département
-            $membresDepartementIds = [];
-            if ($profil->departement) {
-                $membresDepartementIds = Profil::where('departement', $profil->departement)
-                    ->where('statut', 'actif')
-                    ->pluck('id')
-                    ->toArray();
-            }
-
-            $query->where(function($q) use ($profil, $subordonnesIds, $profilsNPlus1, $profilsNPlus2, $membresDepartementIds) {
-                $q->whereIn('requester_profile_id', $subordonnesIds)
-                  ->orWhereIn('beneficiary_profile_id', $subordonnesIds)
-                  ->orWhere('validator_n1_id', $profil->id)
-                  ->orWhere('validator_n2_id', $profil->id)
-                  // Habilitations où le demandeur a l'utilisateur comme N+1 et le statut est pending_n1
-                  ->orWhere(function($subQ) use ($profilsNPlus1) {
-                      $subQ->whereIn('requester_profile_id', $profilsNPlus1)
-                           ->where('status', 'pending_n1');
-                  })
-                  // Habilitations où le demandeur a l'utilisateur comme N+2 et le statut est pending_n2
-                  ->orWhere(function($subQ) use ($profilsNPlus2) {
-                      $subQ->whereIn('requester_profile_id', $profilsNPlus2)
-                           ->where('status', 'pending_n2');
-                  })
-                  // Habilitations des membres du même département
-                  ->orWhere(function($subQ) use ($membresDepartementIds) {
-                      if (!empty($membresDepartementIds)) {
-                          $subQ->whereIn('requester_profile_id', $membresDepartementIds)
-                               ->orWhereIn('beneficiary_profile_id', $membresDepartementIds);
-                      }
+        // Exécuteur IT sans fiche profil liée (rôle applicatif)
+        elseif ($user && $user->isExecuteurIt()) {
+            $query->where(function($q) use ($user) {
+                $q->where('executor_it_id', $user->id)
+                  ->orWhere(function($q2) {
+                      $q2->where('status', 'approved')->whereNull('executor_it_id');
                   });
             });
-        } 
+        }
+        // Contrôle sans profil lié
+        elseif ($user && $user->isControle()) {
+            $query->where(function($q) use ($user) {
+                $q->where('status', 'pending_control')
+                  ->orWhere('validator_control_id', $user->id);
+            });
+        }
         else {
             $query->where('id', 0); // Aucune habilitation
         }
@@ -265,9 +289,19 @@ class HabilitationController extends Controller
             ] : null,
         ]);
 
-        // Récupérer les membres du département si l'utilisateur a un profil avec un département
+        // Membres proposés pour le dialogue « Créer une habilitation » (département ou filiale pour RH)
         $subordonnes = collect([]);
-        if ($profil && $profil->departement) {
+        if ($user && $user->isRh() && !$user->isAdmin() && $profil) {
+            $userFilialesIds = $this->managedFilialeIdsForHabilitation($user, $profil);
+            if ($userFilialesIds !== []) {
+                $subordonnes = Profil::where('statut', 'actif')
+                    ->whereIn('filiale_id', $userFilialesIds)
+                    ->whereNotNull('filiale_id')
+                    ->orderBy('nom')
+                    ->orderBy('prenom')
+                    ->get(['id', 'nom', 'prenom', 'matricule', 'fonction', 'departement', 'email', 'telephone', 'site']);
+            }
+        } elseif ($profil && $profil->departement) {
             $subordonnes = Profil::where('departement', $profil->departement)
                 ->where('statut', 'actif')
                 ->orderBy('nom')
@@ -275,11 +309,14 @@ class HabilitationController extends Controller
                 ->get(['id', 'nom', 'prenom', 'matricule', 'fonction', 'departement', 'email', 'telephone', 'site']);
         }
 
+        $hasStaffForBeneficiaryDialog = $subordonnes->isNotEmpty();
+
         return Inertia::render('habilitations/Index', [
             'habilitations' => $habilitations,
             'filter' => $filter,
             'subordonnes' => $subordonnes,
             'hasDepartement' => $profil && $profil->departement ? true : false,
+            'hasStaffForBeneficiaryDialog' => $hasStaffForBeneficiaryDialog,
         ]);
     }
 
@@ -300,36 +337,22 @@ class HabilitationController extends Controller
         // Construire la requête pour les bénéficiaires
         $query = Profil::where('statut', 'actif');
         
-        // Distinguer super admin, admin normal et autres utilisateurs
         $isSuperAdmin = $user && $user->isSuperAdmin();
         $isAdmin = $user && $user->isAdmin();
+        $isRh = $user && $user->isRh();
         
-        // Super admin voit tous les profils actifs
         if ($isSuperAdmin) {
             // Pas de restriction
-        }
-        // Admin normal voit uniquement les profils de ses filiales assignées
-        elseif ($isAdmin && $user) {
-            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-            
-            // Si l'admin a un profil avec une filiale_id, l'ajouter aussi
-            if ($profil && $profil->filiale_id) {
-                if (!in_array($profil->filiale_id, $userFilialesIds)) {
-                    $userFilialesIds[] = $profil->filiale_id;
-                }
-            }
+        } elseif (($isAdmin || $isRh) && $user) {
+            $userFilialesIds = $this->managedFilialeIdsForHabilitation($user, $profil);
             
             if (!empty($userFilialesIds)) {
-                // Filtrer uniquement les profils avec filiale_id dans la liste ET exclure les NULL
                 $query->whereIn('filiale_id', $userFilialesIds)
                       ->whereNotNull('filiale_id');
             } else {
-                // Si l'admin n'a aucune filiale assignée, il ne voit rien
                 $query->where('id', 0);
             }
-        }
-        // Les autres utilisateurs voient les profils de leur département
-        else {
+        } else {
             if (!$profil->departement) {
                 return response()->json(['error' => 'Aucun département associé trouvé.'], 404);
             }
@@ -354,7 +377,7 @@ class HabilitationController extends Controller
     {
         $user = Auth::user();
         
-        // Vérifier que l'utilisateur a un profil avec un département
+        // Vérifier que l'utilisateur a un profil
         if (!$user || !$user->profil) {
             return redirect()->route('habilitations.index')
                 ->with('error', 'Vous devez avoir un profil pour créer des demandes d\'habilitation.');
@@ -365,31 +388,22 @@ class HabilitationController extends Controller
         // Construire la requête pour les bénéficiaires
         $query = Profil::where('statut', 'actif');
         
-        // Distinguer super admin, admin normal et autres utilisateurs
         $isSuperAdmin = $user && $user->isSuperAdmin();
         $isAdmin = $user && $user->isAdmin();
+        $isRh = $user && $user->isRh();
         
         // Super admin voit tous les profils actifs
         if ($isSuperAdmin) {
             // Pas de restriction
         }
-        // Admin normal voit uniquement les profils de ses filiales assignées
-        elseif ($isAdmin && $user) {
-            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-            
-            // Si l'admin a un profil avec une filiale_id, l'ajouter aussi
-            if ($profil && $profil->filiale_id) {
-                if (!in_array($profil->filiale_id, $userFilialesIds)) {
-                    $userFilialesIds[] = $profil->filiale_id;
-                }
-            }
+        // Admin et RH : tout le personnel des filiales gérées
+        elseif (($isAdmin || $isRh) && $user) {
+            $userFilialesIds = $this->managedFilialeIdsForHabilitation($user, $profil);
             
             if (!empty($userFilialesIds)) {
-                // Filtrer uniquement les profils avec filiale_id dans la liste ET exclure les NULL
                 $query->whereIn('filiale_id', $userFilialesIds)
                       ->whereNotNull('filiale_id');
             } else {
-                // Si l'admin n'a aucune filiale assignée, il ne voit rien
                 $query->where('id', 0);
             }
         }
@@ -428,8 +442,14 @@ class HabilitationController extends Controller
         }
         
         $profil = $user->profil;
-        
-        if (!$profil->departement) {
+
+        $usesFilialeScope = ($user->isAdmin() && !$user->isSuperAdmin()) || $user->isRh();
+        if ($usesFilialeScope) {
+            if ($this->managedFilialeIdsForHabilitation($user, $profil) === []) {
+                return redirect()->route('habilitations.index')
+                    ->with('error', 'Aucune filiale n\'est associée à votre compte pour créer une demande d\'habilitation.');
+            }
+        } elseif (!$profil->departement) {
             return redirect()->route('habilitations.index')
                 ->with('error', 'Aucun département associé trouvé.');
         }
@@ -443,8 +463,7 @@ class HabilitationController extends Controller
         }
         
         $beneficiary = Profil::find($beneficiaryId);
-        // Vérifier que le bénéficiaire est bien du même département que l'utilisateur
-        if (!$beneficiary || $beneficiary->departement !== $profil->departement) {
+        if (!$beneficiary || !$this->requesterCanSelectBeneficiary($user, $profil, $beneficiary)) {
             return redirect()->route('habilitations.select-beneficiary')
                 ->with('error', 'Le bénéficiaire sélectionné n\'est pas valide.');
         }
@@ -575,6 +594,21 @@ class HabilitationController extends Controller
             $request->validate([
                 'messagerie_email' => 'required|email|max:255',
             ]);
+        }
+
+        $requesterProfil = Profil::find($validated['requester_profile_id']);
+        $beneficiaryProfil = Profil::find($validated['beneficiary_profile_id']);
+        if (!$requesterProfil || !$beneficiaryProfil) {
+            return back()->withErrors(['error' => 'Profil demandeur ou bénéficiaire introuvable.'])->withInput();
+        }
+        if (!$user->profil) {
+            abort(403);
+        }
+        if (!$user->isSuperAdmin() && (int) $requesterProfil->id !== (int) $user->profil->id) {
+            abort(403, 'Le demandeur doit correspondre à votre profil.');
+        }
+        if (!$this->requesterCanSelectBeneficiary($user, $requesterProfil, $beneficiaryProfil)) {
+            abort(403, 'Ce bénéficiaire n\'est pas dans votre périmètre.');
         }
 
         // S'assurer que applications est un tableau même si NULL
@@ -1042,6 +1076,14 @@ class HabilitationController extends Controller
             'executorIt'
         ]);
 
+        // Hors admin : uniquement la file d'attente ou les dossiers assignés à cet exécuteur
+        if (!$user->isAdmin()) {
+            $query->where(function($q) use ($user) {
+                $q->whereNull('executor_it_id')
+                  ->orWhere('executor_it_id', $user->id);
+            });
+        }
+
         // Filtrer selon le statut
         if ($filter === 'approuvees') {
             $query->where('status', 'approved');
@@ -1071,9 +1113,16 @@ class HabilitationController extends Controller
         $habilitations = $query->orderBy('created_at', 'desc')
             ->paginate($request->get('per_page', 10));
 
-        // Statistiques
+        // Statistiques (cohérentes avec le périmètre ci-dessus pour les exécuteurs)
+        $statsApprouvees = Habilitation::where('status', 'approved');
+        if (!$user->isAdmin()) {
+            $statsApprouvees->where(function($q) use ($user) {
+                $q->whereNull('executor_it_id')
+                  ->orWhere('executor_it_id', $user->id);
+            });
+        }
         $stats = [
-            'approuvees' => Habilitation::where('status', 'approved')->count(),
+            'approuvees' => $statsApprouvees->count(),
             'en_cours' => Habilitation::where('status', 'in_progress')
                 ->where('executor_it_id', $user->id)
                 ->count(),

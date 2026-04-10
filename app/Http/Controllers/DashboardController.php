@@ -45,39 +45,41 @@ class DashboardController extends Controller
                 $query->where('id', 0);
             }
         }
-        // Autres utilisateurs : filtrer par filiale si une filiale est définie dans la session
-        elseif ($currentFilialeId) {
-            $query->where(function($q) use ($currentFilialeId) {
-                $q->whereHas('requester', function($subQ) use ($currentFilialeId) {
-                    $subQ->where('filiale_id', $currentFilialeId);
-                })->orWhereHas('beneficiary', function($subQ) use ($currentFilialeId) {
-                    $subQ->where('filiale_id', $currentFilialeId);
-                });
-            });
-        } 
-        // Exécuteur IT voit les habilitations approuvées par le contrôle
-        elseif ($user && $user->isExecuteurIt()) {
-            $query->where(function($q) {
-                $q->where('status', 'approved')
-                  ->orWhere('status', 'in_progress')
-                  ->orWhere('executor_it_id', '!=', null);
-            });
-        }
-        // Contrôle voit les habilitations en attente de contrôle et celles déjà contrôlées
-        elseif ($user && $user->isControle()) {
-            $query->where(function($q) {
-                $q->where('status', 'pending_control')
-                  ->orWhere('validator_control_id', '!=', null);
-            });
-        }
-        // RH voit les habilitations où son profil est demandeur ou bénéficiaire
+        // RH : périmètre des filiales gérées
         elseif ($user && $user->isRh() && $profil) {
-            $query->where(function($q) use ($profil) {
-                $q->where('requester_profile_id', $profil->id)
-                  ->orWhere('beneficiary_profile_id', $profil->id);
+            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
+            if ($profil->filiale_id && !in_array($profil->filiale_id, $userFilialesIds, true)) {
+                $userFilialesIds[] = $profil->filiale_id;
+            }
+            if (!empty($userFilialesIds)) {
+                $query->where(function($q) use ($userFilialesIds) {
+                    $q->whereHas('requester', function($subQ) use ($userFilialesIds) {
+                        $subQ->whereIn('filiale_id', $userFilialesIds)->whereNotNull('filiale_id');
+                    })->orWhereHas('beneficiary', function($subQ) use ($userFilialesIds) {
+                        $subQ->whereIn('filiale_id', $userFilialesIds)->whereNotNull('filiale_id');
+                    });
+                });
+            } else {
+                $query->where('id', 0);
+            }
+        }
+        // Exécuteur IT : file d'attente ou dossiers assignés
+        elseif ($user && $user->isExecuteurIt()) {
+            $query->where(function($q) use ($user) {
+                $q->where('executor_it_id', $user->id)
+                  ->orWhere(function($q2) {
+                      $q2->where('status', 'approved')->whereNull('executor_it_id');
+                  });
             });
         }
-        // Métier voit ses habilitations, celles de ses subordonnés, et celles qu'il doit valider
+        // Contrôle : file d'attente ou dossiers validés par l'utilisateur
+        elseif ($user && $user->isControle()) {
+            $query->where(function($q) use ($user) {
+                $q->where('status', 'pending_control')
+                  ->orWhere('validator_control_id', $user->id);
+            });
+        }
+        // Métier : périmètre personnel / hiérarchie (hors rôles fonctionnels ci-dessus)
         elseif ($profil) {
             $subordonnesIds = $profil->subordonnes()->pluck('id')->toArray();
             $subordonnesIds[] = $profil->id; // Inclure aussi le profil lui-même
@@ -86,11 +88,11 @@ class DashboardController extends Controller
             $profilsNPlus1 = Profil::where('n_plus_1_id', $profil->id)->pluck('id')->toArray();
             $profilsNPlus2 = Profil::where('n_plus_2_id', $profil->id)->pluck('id')->toArray();
 
-            $query->where(function($q) use ($profil, $subordonnesIds, $profilsNPlus1, $profilsNPlus2) {
+            $query->where(function($q) use ($user, $profil, $subordonnesIds, $profilsNPlus1, $profilsNPlus2) {
                 $q->whereIn('requester_profile_id', $subordonnesIds)
                   ->orWhereIn('beneficiary_profile_id', $subordonnesIds)
-                  ->orWhere('validator_n1_id', $profil->id)
-                  ->orWhere('validator_n2_id', $profil->id)
+                  ->orWhere('validator_n1_id', $user->id)
+                  ->orWhere('validator_n2_id', $user->id)
                   ->orWhere(function($subQ) use ($profilsNPlus1) {
                       $subQ->whereIn('requester_profile_id', $profilsNPlus1)
                            ->where('status', 'pending_n1');
@@ -100,6 +102,17 @@ class DashboardController extends Controller
                            ->where('status', 'pending_n2');
                   });
             });
+
+            // Contexte filiale en session : intersection avec le périmètre ci-dessus
+            if ($currentFilialeId) {
+                $query->where(function($q) use ($currentFilialeId) {
+                    $q->whereHas('requester', function($subQ) use ($currentFilialeId) {
+                        $subQ->where('filiale_id', $currentFilialeId);
+                    })->orWhereHas('beneficiary', function($subQ) use ($currentFilialeId) {
+                        $subQ->where('filiale_id', $currentFilialeId);
+                    });
+                });
+            }
         } 
         else {
             $query->where('id', 0); // Aucune habilitation

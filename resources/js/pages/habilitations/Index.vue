@@ -56,6 +56,8 @@ interface Props {
     filter?: string;
     subordonnes?: Profil[];
     hasDepartement?: boolean;
+    /** RH / filiale : liste chargée même sans département sur le profil */
+    hasStaffForBeneficiaryDialog?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -68,7 +70,12 @@ const isDialogOpen = computed(() => isOpen.value);
 
 // Ouvrir automatiquement le dialog si on vient du menu avec openDialog=true
 watch(() => page.url, (url) => {
-    if (url.includes('openDialog=true') && props.hasDepartement && props.subordonnes && props.subordonnes.length > 0) {
+    if (
+        url.includes('openDialog=true')
+        && props.subordonnes
+        && props.subordonnes.length > 0
+        && (props.hasDepartement || props.hasStaffForBeneficiaryDialog)
+    ) {
         openDialog(props.subordonnes);
     }
 }, { immediate: true });
