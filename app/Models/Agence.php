@@ -13,13 +13,17 @@ class Agence extends Model
         'nom',
         'code_agent',
         'description',
+        'latitude',
+        'longitude',
         'actif',
         'chef_agence_id',
-        'filiale_id'
+        'filiale_id',
     ];
 
     protected $casts = [
         'actif' => 'boolean',
+        'latitude' => 'float',
+        'longitude' => 'float',
     ];
 
     /**
@@ -44,5 +48,15 @@ class Agence extends Model
     public function filiale()
     {
         return $this->belongsTo(Filiale::class, 'filiale_id');
+    }
+
+    /**
+     * Relation avec les utilisateurs (many-to-many).
+     */
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'agence_user', 'agence_id', 'user_id')
+            ->withPivot('is_default')
+            ->withTimestamps();
     }
 }

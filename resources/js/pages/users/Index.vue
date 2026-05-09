@@ -23,6 +23,13 @@ interface User {
         matricule: string;
         site?: string;
     };
+    agences?: Array<{
+        id: number;
+        nom: string;
+        pivot?: {
+            is_default?: boolean;
+        };
+    }>;
 }
 
 interface Props {
@@ -155,11 +162,17 @@ const columns: Column[] = [
 
 const tableData = computed(() => {
     return props.users.data.map(user => ({
+        defaultAgence: user.agences?.find(agence => agence.pivot?.is_default),
         id: user.id,
         name: user.name,
         flexcube: user.profil?.matricule || user.email?.split('@')[0] || '-',
         email: user.email,
-        agence: user.profil?.site || '-',
+        agence: user.agences && user.agences.length > 0
+            ? (
+                user.agences.find(agence => agence.pivot?.is_default)?.nom
+                || user.agences.map(agence => agence.nom).join(', ')
+            )
+            : (user.profil?.site || '-'),
         profil: user.profil ? `${user.profil.prenom} ${user.profil.nom}` : 'Metier',
         is_active: user.is_active,
         user: user,

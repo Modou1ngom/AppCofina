@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\Role;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class RoleSeeder extends Seeder
@@ -44,6 +43,24 @@ class RoleSeeder extends Seeder
                 'description' => 'Ressources Humaines - Gestion de l\'enrôlement des employés',
                 'actif' => true,
             ],
+            [
+                'nom' => 'Profil Finance (CFO)',
+                'slug' => 'finance',
+                'description' => 'Profil Finance / CFO — validation des avances sur salaire (circuit CFO ou étape CFO avant MD)',
+                'actif' => true,
+            ],
+            [
+                'nom' => 'Profil MD',
+                'slug' => 'md',
+                'description' => 'Managing Director — validation finale des avances sur salaire lorsque le circuit RH prévoit CFO puis MD',
+                'actif' => true,
+            ],
+            [
+                'nom' => 'Conformité',
+                'slug' => 'conformite',
+                'description' => 'Conformité — suivi réglementaire (ex. membres du Conseil d\'administration hors SI)',
+                'actif' => true,
+            ],
         ];
 
         foreach ($roles as $roleData) {
@@ -59,4 +76,3 @@ class RoleSeeder extends Seeder
         }
     }
 }
-

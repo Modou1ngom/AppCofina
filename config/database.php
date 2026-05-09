@@ -112,6 +112,22 @@ return [
             // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
         ],
 
+        'oracle_report_groupe' => [
+            'driver' => 'oracle',
+            'tns' => env('ORACLE_REPORT_GROUPE_TNS', ''),
+            'host' => env('ORACLE_REPORT_GROUPE_HOST', ''),
+            'port' => env('ORACLE_REPORT_GROUPE_PORT', '1521'),
+            'database' => env('ORACLE_REPORT_GROUPE_SERVICE_NAME', ''),
+            'service_name' => env('ORACLE_REPORT_GROUPE_SERVICE_NAME', ''),
+            'username' => env('ORACLE_REPORT_GROUPE_USERNAME', ''),
+            'password' => env('ORACLE_REPORT_GROUPE_PASSWORD', ''),
+            'charset' => env('ORACLE_REPORT_GROUPE_CHARSET', 'AL32UTF8'),
+            'prefix' => '',
+            'prefix_schema' => env('ORACLE_REPORT_GROUPE_SCHEMA_PREFIX', ''),
+            'edition' => env('ORACLE_REPORT_GROUPE_EDITION', 'ora$base'),
+            'server_version' => env('ORACLE_REPORT_GROUPE_SERVER_VERSION', '19c'),
+        ],
+
     ],
 
     /*

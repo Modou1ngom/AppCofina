@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\SigStaff;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -42,14 +43,29 @@ class HandleInertiaRequests extends Middleware
         $profil = null;
         $roles = [];
 
+        $sigStaffFiche = ['exists' => false, 'id' => null];
         if ($user) {
-            $user->load('roles', 'profil');
+            $user->load('roles');
+            $user->profilCollaborateurAssocie();
             $profil = $user->profil;
             $roles = $user->roles->pluck('slug')->toArray();
+            if ($profil) {
+                $sig = SigStaff::query()->where('profile_id', $profil->id)->first();
+                $sigStaffFiche = [
+                    'exists' => $sig !== null,
+                    'id' => $sig?->id,
+                ];
+            }
         }
 
         return [
             ...parent::share($request),
+            /** Jeton CSRF à jour pour les requêtes fetch hors Inertia (le meta du layout initial peut être périmé). */
+            'csrf_token' => csrf_token(),
+            'flash' => [
+                'success' => $request->session()->get('success'),
+                'error' => $request->session()->get('error'),
+            ],
             'name' => config('app.name'),
             'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
@@ -61,6 +77,10 @@ class HandleInertiaRequests extends Middleware
                 'isMetier' => $user ? $user->isMetier() : false,
                 'isControle' => $user ? $user->isControle() : false,
                 'isRh' => $user ? $user->isRh() : false,
+                'isFinance' => $user ? $user->isFinance() : false,
+                'isMd' => $user ? $user->isMd() : false,
+                'isConformite' => $user ? $user->isConformite() : false,
+                'sigStaffFiche' => $sigStaffFiche,
                 'isExecuteurIt' => $user ? $user->isExecuteurIt() : false,
                 'isResponsableDepartement' => $user ? $user->isResponsableDepartement() : false,
             ],

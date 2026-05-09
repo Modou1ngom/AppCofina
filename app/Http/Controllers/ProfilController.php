@@ -2,17 +2,17 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use App\Models\Profil;
-use App\Models\Departement;
-use App\Models\Agence;
-use App\Models\Filiale;
 use App\Exports\ProfilsExport;
-use Inertia\Inertia;
+use App\Models\Agence;
+use App\Models\Departement;
+use App\Models\Filiale;
+use App\Models\Profil;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Inertia\Inertia;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ProfilController extends Controller
 {
@@ -24,7 +24,7 @@ class ProfilController extends Controller
         $isSuperAdmin = $user && $user->isSuperAdmin();
         $isAdmin = $user && $user->isAdmin();
         $isRh = $user && $user->isRh();
-        
+
         // Super admin voit tous les profils
         if ($isSuperAdmin) {
             return $query;
@@ -32,14 +32,14 @@ class ProfilController extends Controller
         // Admin normal et RH voient uniquement les profils de leurs filiales assignées
         elseif (($isAdmin || $isRh) && $user) {
             $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-            if (!empty($userFilialesIds)) {
+            if (! empty($userFilialesIds)) {
                 return $query->whereIn('filiale_id', $userFilialesIds);
             } else {
                 // Si l'admin/RH n'a aucune filiale assignée, il ne voit rien
                 return $query->where('id', 0);
             }
         }
-        
+
         return $query;
     }
 
@@ -51,9 +51,9 @@ class ProfilController extends Controller
         $isSuperAdmin = $user && $user->isSuperAdmin();
         $isAdmin = $user && $user->isAdmin();
         $isRh = $user && $user->isRh();
-        
+
         $query = Agence::where('actif', true);
-        
+
         // Super admin voit toutes les agences
         if ($isSuperAdmin) {
             return $query;
@@ -61,7 +61,7 @@ class ProfilController extends Controller
         // Admin normal et RH voient uniquement les agences de leurs filiales assignées
         elseif (($isAdmin || $isRh) && $user) {
             $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-            if (!empty($userFilialesIds)) {
+            if (! empty($userFilialesIds)) {
                 return $query->whereIn('filiale_id', $userFilialesIds);
             } else {
                 // Si l'admin/RH n'a aucune filiale assignée, il ne voit rien
@@ -72,22 +72,22 @@ class ProfilController extends Controller
         elseif ($user) {
             $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
             $userProfil = $user->profil;
-            
+
             // Si l'utilisateur a un profil avec une filiale_id, l'ajouter aussi
             if ($userProfil && $userProfil->filiale_id) {
-                if (!in_array($userProfil->filiale_id, $userFilialesIds)) {
+                if (! in_array($userProfil->filiale_id, $userFilialesIds)) {
                     $userFilialesIds[] = $userProfil->filiale_id;
                 }
             }
-            
-            if (!empty($userFilialesIds)) {
+
+            if (! empty($userFilialesIds)) {
                 return $query->whereIn('filiale_id', $userFilialesIds);
             } else {
                 // Si l'utilisateur n'a aucune filiale assignée, il ne voit rien
                 return $query->where('id', 0);
             }
         }
-        
+
         return $query->where('id', 0);
     }
 
@@ -96,50 +96,51 @@ class ProfilController extends Controller
      */
     private function canAccessProfil(Profil $profil, $user)
     {
-        if (!$user) {
+        if (! $user) {
             return false;
         }
-        
+
         $isSuperAdmin = $user->isSuperAdmin();
-        
+
         // Super admin peut accéder à tous les profils
         if ($isSuperAdmin) {
             return true;
         }
-        
+
         $isAdmin = $user->isAdmin();
         $isRh = $user->isRh();
-        
+
         // Admin normal et RH peuvent accéder uniquement aux profils de leurs filiales assignées
         if (($isAdmin || $isRh)) {
             $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-            if (!empty($userFilialesIds) && $profil->filiale_id) {
+            if (! empty($userFilialesIds) && $profil->filiale_id) {
                 return in_array($profil->filiale_id, $userFilialesIds);
             }
+
             return false;
         }
-        
+
         // Pour les autres utilisateurs, vérifier leurs filiales assignées ou leur profil
         $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
         $userProfil = $user->profil;
-        
+
         // Si l'utilisateur a un profil avec une filiale_id, l'ajouter aussi
         if ($userProfil && $userProfil->filiale_id) {
-            if (!in_array($userProfil->filiale_id, $userFilialesIds)) {
+            if (! in_array($userProfil->filiale_id, $userFilialesIds)) {
                 $userFilialesIds[] = $userProfil->filiale_id;
             }
         }
-        
+
         // Si l'utilisateur a des filiales assignées, vérifier si le profil appartient à une de ces filiales
-        if (!empty($userFilialesIds) && $profil->filiale_id) {
+        if (! empty($userFilialesIds) && $profil->filiale_id) {
             return in_array($profil->filiale_id, $userFilialesIds);
         }
-        
+
         // Sinon, vérifier s'ils peuvent voir leur propre profil ou leurs subordonnés
         if ($userProfil) {
             return $profil->id === $userProfil->id || $profil->n_plus_1_id === $userProfil->id;
         }
-        
+
         return false;
     }
 
@@ -150,15 +151,15 @@ class ProfilController extends Controller
     {
         $user = Auth::user();
         $perPage = (int) $request->get('per_page', 5);
-        
+
         // Construire la requête de base
         $query = Profil::query();
-        
+
         // Distinguer super admin, admin normal et RH
         $isSuperAdmin = $user && $user->isSuperAdmin();
         $isAdmin = $user && $user->isAdmin();
         $isRh = $user && $user->isRh();
-        
+
         // Super admin voit tous les profils
         if ($isSuperAdmin) {
             // Pas de restriction pour le super admin
@@ -166,16 +167,16 @@ class ProfilController extends Controller
         // Admin normal voit uniquement les profils de ses filiales assignées
         elseif ($isAdmin && $user) {
             $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-            
+
             // Si l'admin a un profil avec une filiale_id, l'ajouter aussi
             $userProfil = $user->profil;
             if ($userProfil && $userProfil->filiale_id) {
-                if (!in_array($userProfil->filiale_id, $userFilialesIds)) {
+                if (! in_array($userProfil->filiale_id, $userFilialesIds)) {
                     $userFilialesIds[] = $userProfil->filiale_id;
                 }
             }
-            
-            if (!empty($userFilialesIds)) {
+
+            if (! empty($userFilialesIds)) {
                 $query->whereIn('filiale_id', $userFilialesIds);
             } else {
                 // Si l'admin n'a aucune filiale assignée, il ne voit rien
@@ -185,16 +186,16 @@ class ProfilController extends Controller
         // RH voit uniquement les profils de ses filiales assignées (si applicable)
         elseif ($isRh && $user) {
             $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-            
+
             // Si le RH a un profil avec une filiale_id, l'ajouter aussi
             $userProfil = $user->profil;
             if ($userProfil && $userProfil->filiale_id) {
-                if (!in_array($userProfil->filiale_id, $userFilialesIds)) {
+                if (! in_array($userProfil->filiale_id, $userFilialesIds)) {
                     $userFilialesIds[] = $userProfil->filiale_id;
                 }
             }
-            
-            if (!empty($userFilialesIds)) {
+
+            if (! empty($userFilialesIds)) {
                 $query->whereIn('filiale_id', $userFilialesIds);
             } else {
                 // Si le RH n'a aucune filiale assignée, il ne voit rien
@@ -204,25 +205,25 @@ class ProfilController extends Controller
         // Les autres utilisateurs
         else {
             $profil = $user?->profil;
-            
+
             // Vérifier d'abord si l'utilisateur a des filiales assignées
             $userFilialesIds = $user ? $user->filiales()->get()->pluck('id')->toArray() : [];
-            
+
             // Si l'utilisateur a un profil avec une filiale_id, l'ajouter aussi
             if ($profil && $profil->filiale_id) {
-                if (!in_array($profil->filiale_id, $userFilialesIds)) {
+                if (! in_array($profil->filiale_id, $userFilialesIds)) {
                     $userFilialesIds[] = $profil->filiale_id;
                 }
             }
-            
-            if (!empty($userFilialesIds)) {
+
+            if (! empty($userFilialesIds)) {
                 // L'utilisateur voit les profils de ses filiales assignées
                 $query->whereIn('filiale_id', $userFilialesIds);
             } elseif ($profil) {
                 // Sinon, il voit uniquement son propre profil et ses subordonnés
-                $query->where(function($q) use ($profil) {
+                $query->where(function ($q) use ($profil) {
                     $q->where('id', $profil->id)
-                      ->orWhere('n_plus_1_id', $profil->id);
+                        ->orWhere('n_plus_1_id', $profil->id);
                 });
             } else {
                 $query->where('id', 0);
@@ -263,14 +264,14 @@ class ProfilController extends Controller
         // Filtre par recherche (nom, prénom, matricule, email)
         if ($request->has('search') && $request->search) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('nom', 'like', "%{$search}%")
-                  ->orWhere('prenom', 'like', "%{$search}%")
-                  ->orWhere('matricule', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
+                    ->orWhere('prenom', 'like', "%{$search}%")
+                    ->orWhere('matricule', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
             });
         }
-        
+
         $profils = $query->orderBy('nom')
             ->orderBy('prenom')
             ->paginate($perPage);
@@ -279,7 +280,7 @@ class ProfilController extends Controller
         $departements = Departement::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
         $agencesQuery = $this->filterAgencesByFiliale($user);
         $agences = $agencesQuery->orderBy('nom')->get(['id', 'nom']);
-        
+
         return Inertia::render('profils/Index', [
             'profils' => $profils,
             'departements' => $departements,
@@ -303,15 +304,15 @@ class ProfilController extends Controller
         $agencesQuery = $this->filterAgencesByFiliale($user);
         $agences = $agencesQuery->orderBy('nom')->get(['id', 'nom', 'filiale_id']);
         $filiales = Filiale::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
-        
+
         // Déterminer la filiale de l'utilisateur pour l'assignation automatique
         $userFilialeId = null;
         $isSuperAdmin = $user && $user->isSuperAdmin();
         $isAdmin = $user && $user->isAdmin();
         $isRh = $user && $user->isRh();
-        
+
         // Pour les admins et RH, utiliser leur filiale assignée ou celle de leur profil
-        if (($isAdmin || $isRh) && $user && !$isSuperAdmin) {
+        if (($isAdmin || $isRh) && $user && ! $isSuperAdmin) {
             $userFiliales = $user->filiales()->get();
             if ($userFiliales->count() > 0) {
                 // Prendre la première filiale assignée
@@ -324,7 +325,7 @@ class ProfilController extends Controller
             // Pour les autres utilisateurs, utiliser la filiale de leur profil
             $userFilialeId = $user->profil->filiale_id;
         }
-        
+
         return Inertia::render('profils/Create', [
             'profils' => $profils,
             'departements' => $departements,
@@ -341,7 +342,7 @@ class ProfilController extends Controller
     public function store(Request $request)
     {
         $user = Auth::user();
-        
+
         try {
             $validated = $request->validate([
                 'nom' => 'required|string|max:255',
@@ -351,22 +352,25 @@ class ProfilController extends Controller
                 'email' => 'nullable|email|unique:profiles,email',
                 'telephone' => ['nullable', 'string', 'max:20', 'regex:/^(\\+221|00221|221)?[0-9]{9}$/'],
                 'site' => 'nullable|string|max:100',
+                'numero_compte' => 'nullable|string|max:255',
+                'code_agence' => 'nullable|string|max:255',
                 'filiale_id' => 'nullable|integer|exists:filiales,id',
                 'type_contrat' => 'nullable|in:CDI,CDD,Stagiaire,Autre',
                 'statut' => 'nullable|in:actif,inactif',
+                'statut_rh' => 'nullable|string|max:255',
                 'type_office' => 'nullable|in:Back Office,Front Office',
                 'n_plus_1_id' => 'nullable|exists:profiles,id',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             throw $e;
         }
-        
+
         // Générer automatiquement le matricule
         $validated['matricule'] = Profil::generateMatricule();
 
         // Calculer automatiquement N+2 : le N+1 du N+1
         $nPlus2Id = null;
-        if (!empty($validated['n_plus_1_id'])) {
+        if (! empty($validated['n_plus_1_id'])) {
             $nPlus1 = Profil::find($validated['n_plus_1_id']);
             // Ne pas permettre que le N+2 soit le même que le N+1 (éviter les boucles)
             if ($nPlus1 && $nPlus1->n_plus_1_id && $nPlus1->n_plus_1_id != $validated['n_plus_1_id']) {
@@ -376,23 +380,23 @@ class ProfilController extends Controller
 
         // Déterminer la filiale à assigner
         $filialeId = $validated['filiale_id'] ?? null;
-        
+
         // Si filiale_id n'est pas fourni, essayer de le déduire
-        if (!$filialeId) {
+        if (! $filialeId) {
             // 1. Essayer depuis le site/agence sélectionné
-            if (!empty($validated['site'])) {
+            if (! empty($validated['site'])) {
                 $agence = Agence::where('nom', $validated['site'])->first();
                 if ($agence && $agence->filiale_id) {
                     $filialeId = $agence->filiale_id;
                 }
             }
-            
+
             // 2. Pour les admins et RH, utiliser leur filiale assignée
             $isSuperAdmin = $user && $user->isSuperAdmin();
             $isAdmin = $user && $user->isAdmin();
             $isRh = $user && $user->isRh();
-            
-            if (!$filialeId && ($isAdmin || $isRh) && !$isSuperAdmin) {
+
+            if (! $filialeId && ($isAdmin || $isRh) && ! $isSuperAdmin) {
                 $userFiliales = $user->filiales()->get();
                 if ($userFiliales->count() > 0) {
                     // Prendre la première filiale assignée
@@ -402,9 +406,9 @@ class ProfilController extends Controller
                     $filialeId = $user->profil->filiale_id;
                 }
             }
-            
+
             // 3. Pour les autres utilisateurs, utiliser la filiale de leur profil
-            if (!$filialeId && $user && $user->profil && $user->profil->filiale_id) {
+            if (! $filialeId && $user && $user->profil && $user->profil->filiale_id) {
                 $filialeId = $user->profil->filiale_id;
             }
         }
@@ -418,9 +422,12 @@ class ProfilController extends Controller
             'email' => $validated['email'] ?? null,
             'telephone' => $validated['telephone'] ?? null,
             'site' => $validated['site'] ?? null,
+            'numero_compte' => $validated['numero_compte'] ?? null,
+            'code_agence' => $validated['code_agence'] ?? null,
             'filiale_id' => $filialeId,
             'type_contrat' => $validated['type_contrat'] ?? 'CDI',
             'statut' => $validated['statut'] ?? 'actif',
+            'statut_rh' => $validated['statut_rh'] ?? null,
             'type_office' => $validated['type_office'] ?? null,
             'n_plus_1_id' => $validated['n_plus_1_id'] ?? null,
             'n_plus_2_id' => $nPlus2Id,
@@ -438,26 +445,26 @@ class ProfilController extends Controller
     public function show(Profil $profil)
     {
         $user = Auth::user();
-        
+
         // Vérifier l'accès : super admin peut voir tout, sinon vérifier les filiales
-        if (!$this->canAccessProfil($profil, $user)) {
+        if (! $this->canAccessProfil($profil, $user)) {
             abort(403, 'Vous n\'avez pas accès à ce profil.');
         }
-        
+
         $profil->load([
             'nPlus1:id,nom,prenom,matricule',
             'nPlus2:id,nom,prenom,matricule',
-            'subordonnes:id,nom,prenom,matricule'
+            'subordonnes:id,nom,prenom,matricule',
         ]);
-        
+
         // Préparer les données avec les relations en snake_case pour le frontend
         $profilData = $profil->toArray();
         $profilData['n_plus_1'] = $profil->nPlus1 ? $profil->nPlus1->only(['id', 'nom', 'prenom', 'matricule']) : null;
         $profilData['n_plus_2'] = $profil->nPlus2 ? $profil->nPlus2->only(['id', 'nom', 'prenom', 'matricule']) : null;
-        $profilData['subordonnes'] = $profil->subordonnes->map(function($sub) {
+        $profilData['subordonnes'] = $profil->subordonnes->map(function ($sub) {
             return $sub->only(['id', 'nom', 'prenom', 'matricule']);
         })->toArray();
-        
+
         return Inertia::render('profils/Show', [
             'profil' => $profilData,
         ]);
@@ -469,12 +476,12 @@ class ProfilController extends Controller
     public function edit(Profil $profil)
     {
         $user = Auth::user();
-        
+
         // Vérifier l'accès : super admin peut voir tout, sinon vérifier les filiales
-        if (!$this->canAccessProfil($profil, $user)) {
+        if (! $this->canAccessProfil($profil, $user)) {
             abort(403, 'Vous n\'avez pas accès à ce profil.');
         }
-        
+
         $profilsQuery = Profil::where('id', '!=', $profil->id);
         $profilsQuery = $this->applyFilialeFilter($profilsQuery, $user);
         $profils = $profilsQuery->orderBy('nom')
@@ -486,7 +493,7 @@ class ProfilController extends Controller
         $agencesQuery = $this->filterAgencesByFiliale($user);
         $agences = $agencesQuery->orderBy('nom')->get(['id', 'nom', 'filiale_id']);
         $filiales = Filiale::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
-        
+
         return Inertia::render('profils/Edit', [
             'profil' => $profil,
             'profils' => $profils,
@@ -502,30 +509,33 @@ class ProfilController extends Controller
     public function update(Request $request, Profil $profil)
     {
         $user = Auth::user();
-        
+
         // Vérifier l'accès : super admin peut modifier tout, sinon vérifier les filiales
-        if (!$this->canAccessProfil($profil, $user)) {
+        if (! $this->canAccessProfil($profil, $user)) {
             abort(403, 'Vous n\'avez pas accès à ce profil.');
         }
-        
+
         $validated = $request->validate([
             'nom' => 'sometimes|required|string|max:255',
             'prenom' => 'sometimes|required|string|max:255',
-            'matricule' => 'sometimes|required|string|max:50|unique:profiles,matricule,' . $profil->id,
+            'matricule' => 'sometimes|required|string|max:50|unique:profiles,matricule,'.$profil->id,
             'fonction' => 'nullable|string',
             'departement' => 'nullable|string',
-            'email' => 'nullable|email|unique:profiles,email,' . $profil->id,
+            'email' => 'nullable|email|unique:profiles,email,'.$profil->id,
             'telephone' => ['nullable', 'string', 'max:20', 'regex:/^(\\+221|00221|221)?[0-9]{9}$/'],
             'site' => 'nullable|string|max:100',
+            'numero_compte' => 'nullable|string|max:255',
+            'code_agence' => 'nullable|string|max:255',
             'type_contrat' => 'nullable|in:CDI,CDD,Stagiaire,Autre',
             'statut' => 'nullable|in:actif,inactif',
+            'statut_rh' => 'nullable|string|max:255',
             'type_office' => 'nullable|in:Back Office,Front Office',
             'n_plus_1_id' => 'nullable|exists:profiles,id',
         ]);
 
         // Calculer automatiquement N+2 : le N+1 du N+1
         $nPlus2Id = null;
-        if (!empty($validated['n_plus_1_id'])) {
+        if (! empty($validated['n_plus_1_id'])) {
             // Ne pas permettre qu'un profil soit son propre N+1
             if ($validated['n_plus_1_id'] != $profil->id) {
                 $nPlus1 = Profil::find($validated['n_plus_1_id']);
@@ -535,12 +545,12 @@ class ProfilController extends Controller
                 }
             }
         }
-        
+
         $validated['n_plus_2_id'] = $nPlus2Id;
 
         // Vérifier si le N+1 a changé
         $nPlus1Changed = isset($validated['n_plus_1_id']) && $profil->n_plus_1_id != $validated['n_plus_1_id'];
-        
+
         $profil->update($validated);
 
         // Si le N+1 a changé, recalculer les N+2 de tous les subordonnés
@@ -565,14 +575,14 @@ class ProfilController extends Controller
     public function destroy(Profil $profil)
     {
         $user = Auth::user();
-        
+
         // Vérifier l'accès : super admin peut supprimer tout, sinon vérifier les filiales
-        if (!$this->canAccessProfil($profil, $user)) {
+        if (! $this->canAccessProfil($profil, $user)) {
             abort(403, 'Vous n\'avez pas accès à ce profil.');
         }
-        
+
         $profil->delete();
-        
+
         return redirect()->route('profils.index')
             ->with('success', 'Profil supprimé avec succès !');
     }
@@ -591,7 +601,7 @@ class ProfilController extends Controller
     public function import(Request $request)
     {
         $user = Auth::user();
-        
+
         $request->validate([
             'file' => 'required|mimes:xlsx,xls|max:10240', // 10MB max
         ]);
@@ -599,14 +609,14 @@ class ProfilController extends Controller
         try {
             $file = $request->file('file');
             $data = Excel::toArray([], $file);
-            
+
             if (empty($data) || empty($data[0])) {
                 return back()->withErrors(['file' => 'Le fichier Excel est vide.']);
             }
 
             $rows = $data[0];
             $header = array_shift($rows); // Première ligne = en-têtes
-            
+
             // Normaliser les en-têtes (minuscules, sans espaces)
             $headerMap = [];
             foreach ($header as $index => $col) {
@@ -624,8 +634,11 @@ class ProfilController extends Controller
                 'fonction' => ['fonction', 'function', 'poste', 'job', 'position'],
                 'departement' => ['departement', 'department', 'département', 'dept'],
                 'site' => ['site', 'agence', 'agency', 'location'],
+                'numero_compte' => ['numero de compte', 'numéro de compte', 'numero_compte', 'num_compte', 'compte'],
+                'code_agence' => ['code agence', 'code_agence', 'agence code', 'branch_code'],
                 'type_contrat' => ['type_contrat', 'type contrat', 'contract_type', 'contrat'],
-                'statut' => ['statut', 'status', 'etat', 'état'],
+                'statut' => ['status', 'etat', 'état', 'statut actif'],
+                'statut_rh' => ['statut', 'statut rh', 'statut_rh', 'classification statut'],
                 'type_office' => ['type_office', 'type office', 'back front office', 'back/front office', 'office', 'back office', 'front office'],
                 'n_plus_1' => ['n+1', 'n_plus_1', 'n plus 1', 'superieur', 'superieur hierarchique', 'superieur_hierarchique', 'manager', 'responsable'],
             ];
@@ -641,7 +654,7 @@ class ProfilController extends Controller
             }
 
             // Vérifier que les colonnes obligatoires sont présentes
-            if (!isset($mappedColumns['nom']) || !isset($mappedColumns['prenom'])) {
+            if (! isset($mappedColumns['nom']) || ! isset($mappedColumns['prenom'])) {
                 return back()->withErrors(['file' => 'Le fichier doit contenir au moins les colonnes "Nom" et "Prénom".']);
             }
 
@@ -664,6 +677,7 @@ class ProfilController extends Controller
                     // Ignorer si nom ou prénom est vide
                     if (empty($nom) || empty($prenom)) {
                         $skipped++;
+
                         continue;
                     }
 
@@ -674,17 +688,20 @@ class ProfilController extends Controller
                     $fonction = isset($mappedColumns['fonction']) ? trim($row[$mappedColumns['fonction']] ?? '') : null;
                     $departement = isset($mappedColumns['departement']) ? trim($row[$mappedColumns['departement']] ?? '') : null;
                     $site = isset($mappedColumns['site']) ? trim($row[$mappedColumns['site']] ?? '') : null;
+                    $numeroCompte = isset($mappedColumns['numero_compte']) ? trim($row[$mappedColumns['numero_compte']] ?? '') : null;
+                    $codeAgence = isset($mappedColumns['code_agence']) ? trim($row[$mappedColumns['code_agence']] ?? '') : null;
                     $typeContrat = isset($mappedColumns['type_contrat']) ? trim($row[$mappedColumns['type_contrat']] ?? '') : 'CDI';
                     $statut = isset($mappedColumns['statut']) ? trim($row[$mappedColumns['statut']] ?? '') : 'actif';
+                    $statutRh = isset($mappedColumns['statut_rh']) ? trim($row[$mappedColumns['statut_rh']] ?? '') : null;
                     $typeOffice = isset($mappedColumns['type_office']) ? trim($row[$mappedColumns['type_office']] ?? '') : null;
 
                     // Valider le type de contrat
-                    if (!in_array($typeContrat, ['CDI', 'CDD', 'Stagiaire', 'Autre'])) {
+                    if (! in_array($typeContrat, ['CDI', 'CDD', 'Stagiaire', 'Autre'])) {
                         $typeContrat = 'CDI';
                     }
 
                     // Valider le statut
-                    if (!in_array(strtolower($statut), ['actif', 'inactif'])) {
+                    if (! in_array(strtolower($statut), ['actif', 'inactif'])) {
                         $statut = 'actif';
                     } else {
                         $statut = strtolower($statut);
@@ -700,7 +717,7 @@ class ProfilController extends Controller
                             $typeOfficeNormalized = 'Front Office';
                         } else {
                             // Si ce n'est pas une valeur valide, mettre à null
-                            if (!in_array($typeOfficeNormalized, ['Back Office', 'Front Office'])) {
+                            if (! in_array($typeOfficeNormalized, ['Back Office', 'Front Office'])) {
                                 $typeOfficeNormalized = null;
                             }
                         }
@@ -717,7 +734,8 @@ class ProfilController extends Controller
                         // Vérifier si le matricule existe déjà dans la base de données
                         if (Profil::where('matricule', $matricule)->exists()) {
                             $skipped++;
-                            $errors[] = "Ligne " . ($rowIndex + 2) . ": Matricule déjà existant ($matricule)";
+                            $errors[] = 'Ligne '.($rowIndex + 2).": Matricule déjà existant ($matricule)";
+
                             continue;
                         }
                     }
@@ -725,49 +743,50 @@ class ProfilController extends Controller
                     // Vérifier si l'email existe déjà (si fourni)
                     if ($email && Profil::where('email', $email)->exists()) {
                         $skipped++;
-                        $errors[] = "Ligne " . ($rowIndex + 2) . ": Email déjà existant ($email)";
+                        $errors[] = 'Ligne '.($rowIndex + 2).": Email déjà existant ($email)";
+
                         continue;
                     }
 
                     // Synchroniser le département avec la table departements
                     if ($departement) {
                         $departementTrimmed = trim($departement);
-                        
+
                         // Normaliser "informatique" en "IT"
                         $departementNormalized = preg_replace('/informatique/i', 'IT', $departementTrimmed);
-                        
+
                         // Normaliser les variations communes
                         // Supprimer "Direction" au début si présent
                         $departementNormalized = preg_replace('/^direction\s+/i', '', $departementNormalized);
-                        
+
                         // Normaliser "exploitation" et toutes ses variations
                         if (preg_match('/exploitation/i', $departementNormalized)) {
                             $departementNormalized = 'EXPLOITATION';
                         }
-                        
+
                         // Mettre en majuscules pour uniformiser
                         $departementNormalized = strtoupper(trim($departementNormalized));
-                        
+
                         // Chercher un département existant avec un nom similaire (insensible à la casse)
                         // D'abord chercher par nom exact (en majuscules)
                         $departementModel = Departement::whereRaw('UPPER(TRIM(nom)) = ?', [$departementNormalized])->first();
-                        
+
                         // Si pas trouvé, chercher en supprimant "DIRECTION" du nom existant
-                        if (!$departementModel) {
+                        if (! $departementModel) {
                             $departementModel = Departement::whereRaw('UPPER(TRIM(REPLACE(REPLACE(nom, "DIRECTION ", ""), "DIRECTION", ""))) = ?', [$departementNormalized])->first();
                         }
-                        
+
                         // Si pas trouvé, chercher par mot-clé (pour regrouper les variations)
-                        if (!$departementModel) {
+                        if (! $departementModel) {
                             // Extraire le mot-clé principal (premier mot significatif)
                             $keywords = explode(' ', $departementNormalized);
-                            $mainKeyword = !empty($keywords) ? $keywords[0] : $departementNormalized;
-                            
+                            $mainKeyword = ! empty($keywords) ? $keywords[0] : $departementNormalized;
+
                             // Chercher les départements existants qui contiennent ce mot-clé
                             $existingDepartements = Departement::whereRaw('UPPER(TRIM(nom)) LIKE ?', ["%{$mainKeyword}%"])
                                 ->orWhereRaw('UPPER(TRIM(REPLACE(REPLACE(nom, "DIRECTION ", ""), "DIRECTION", ""))) LIKE ?', ["%{$mainKeyword}%"])
                                 ->get();
-                            
+
                             // Si on trouve un département existant avec le même mot-clé, l'utiliser
                             if ($existingDepartements->isNotEmpty()) {
                                 $departementModel = $existingDepartements->first();
@@ -775,16 +794,16 @@ class ProfilController extends Controller
                                 $departementNormalized = $departementModel->nom;
                             }
                         }
-                        
+
                         // Si pas trouvé, créer le département
-                        if (!$departementModel) {
+                        if (! $departementModel) {
                             $departementModel = Departement::create([
                                 'nom' => $departementNormalized,
-                                'description' => 'Direction ' . strtolower($departementNormalized),
+                                'description' => 'Direction '.strtolower($departementNormalized),
                                 'actif' => true,
                             ]);
                         }
-                        
+
                         // Utiliser le nom normalisé du département pour le profil
                         $departement = $departementModel->nom;
                     }
@@ -802,25 +821,25 @@ class ProfilController extends Controller
                     // Synchroniser le site/agence avec la table agences
                     if ($site) {
                         $siteNormalized = trim($site);
-                        
+
                         // Chercher ou créer l'agence dans la table agences
                         $agenceModel = Agence::firstOrCreate(
                             ['nom' => $siteNormalized],
                             [
                                 'nom' => $siteNormalized,
                                 'code_agent' => null, // Laisser vide
-                                'description' => 'Agence ' . $siteNormalized,
+                                'description' => 'Agence '.$siteNormalized,
                                 'actif' => true,
                                 'filiale_id' => $filialeSenegal->id, // Lier à la filiale Sénégal par défaut
                             ]
                         );
-                        
+
                         // Si l'agence existait déjà sans filiale, la mettre à jour
-                        if (!$agenceModel->filiale_id) {
+                        if (! $agenceModel->filiale_id) {
                             $agenceModel->filiale_id = $filialeSenegal->id;
                             $agenceModel->save();
                         }
-                        
+
                         // Utiliser le nom normalisé de l'agence pour le profil
                         $site = $agenceModel->nom;
                     }
@@ -828,45 +847,46 @@ class ProfilController extends Controller
                     // Gérer le N+1 si présent dans le fichier
                     $nPlus1Id = null;
                     $nPlus2Id = null;
-                    
+
                     if (isset($mappedColumns['n_plus_1'])) {
                         $nPlus1Value = trim($row[$mappedColumns['n_plus_1']] ?? '');
-                        
-                        if (!empty($nPlus1Value)) {
+
+                        if (! empty($nPlus1Value)) {
                             // Chercher le profil N+1 par matricule, email, ou nom/prénom
                             $nPlus1 = null;
-                            
+
                             // Essayer d'abord par matricule
                             $nPlus1 = Profil::where('matricule', $nPlus1Value)->first();
-                            
+
                             // Si pas trouvé, essayer par email
-                            if (!$nPlus1) {
+                            if (! $nPlus1) {
                                 $nPlus1 = Profil::where('email', $nPlus1Value)->first();
                             }
-                            
+
                             // Si pas trouvé, essayer par nom et prénom (insensible à la casse et aux accents)
-                            if (!$nPlus1) {
+                            if (! $nPlus1) {
                                 // Fonction pour normaliser les accents
-                                $normalizeAccents = function($str) {
+                                $normalizeAccents = function ($str) {
                                     $str = strtolower($str);
                                     $str = str_replace(
                                         ['à', 'á', 'â', 'ã', 'ä', 'å', 'è', 'é', 'ê', 'ë', 'ì', 'í', 'î', 'ï', 'ò', 'ó', 'ô', 'õ', 'ö', 'ù', 'ú', 'û', 'ü', 'ý', 'ÿ', 'ç', 'ñ'],
                                         ['a', 'a', 'a', 'a', 'a', 'a', 'e', 'e', 'e', 'e', 'i', 'i', 'i', 'i', 'o', 'o', 'o', 'o', 'o', 'u', 'u', 'u', 'u', 'y', 'y', 'c', 'n'],
                                         $str
                                     );
+
                                     return $str;
                                 };
-                                
+
                                 // Normaliser la valeur (supprimer les espaces multiples, normaliser la casse et les accents)
                                 $nPlus1ValueNormalized = preg_replace('/\s+/', ' ', trim($nPlus1Value));
                                 $nPlus1ValueLower = $normalizeAccents($nPlus1ValueNormalized);
-                                
+
                                 $nameParts = preg_split('/\s+/', trim($nPlus1ValueNormalized));
                                 if (count($nameParts) >= 2) {
                                     // Essayer "Prénom Nom" (insensible à la casse et aux accents)
                                     $prenomN1 = trim($nameParts[0]);
                                     $nomN1 = trim($nameParts[count($nameParts) - 1]); // Dernier mot = nom
-                                    
+
                                     // Récupérer les profils filtrés selon le rôle et comparer en PHP (plus simple pour gérer les accents)
                                     $allProfilsQuery = Profil::select('id', 'nom', 'prenom', 'matricule');
                                     $allProfilsQuery = $this->applyFilialeFilter($allProfilsQuery, $user);
@@ -874,54 +894,54 @@ class ProfilController extends Controller
                                     foreach ($allProfils as $profilCandidate) {
                                         $prenomNormalized = $normalizeAccents($profilCandidate->prenom);
                                         $nomNormalized = $normalizeAccents($profilCandidate->nom);
-                                        
-                                        if ($prenomNormalized === $normalizeAccents($prenomN1) && 
+
+                                        if ($prenomNormalized === $normalizeAccents($prenomN1) &&
                                             $nomNormalized === $normalizeAccents($nomN1)) {
                                             $nPlus1 = $profilCandidate;
                                             break;
                                         }
                                     }
-                                    
+
                                     // Si pas trouvé, essayer "Nom Prénom"
-                                    if (!$nPlus1 && count($nameParts) == 2) {
+                                    if (! $nPlus1 && count($nameParts) == 2) {
                                         foreach ($allProfils as $profilCandidate) {
                                             $prenomNormalized = $normalizeAccents($profilCandidate->prenom);
                                             $nomNormalized = $normalizeAccents($profilCandidate->nom);
-                                            
-                                            if ($nomNormalized === $normalizeAccents($nameParts[0]) && 
+
+                                            if ($nomNormalized === $normalizeAccents($nameParts[0]) &&
                                                 $prenomNormalized === $normalizeAccents($nameParts[1])) {
                                                 $nPlus1 = $profilCandidate;
                                                 break;
                                             }
                                         }
                                     }
-                                    
+
                                     // Si toujours pas trouvé, essayer une recherche partielle sur le nom complet (insensible aux accents)
-                                    if (!$nPlus1) {
+                                    if (! $nPlus1) {
                                         $allProfilsQuery = Profil::select('id', 'nom', 'prenom', 'matricule');
                                         $allProfilsQuery = $this->applyFilialeFilter($allProfilsQuery, $user);
                                         $allProfils = $allProfilsQuery->get();
                                         foreach ($allProfils as $profilCandidate) {
-                                            $fullNameCandidate = $normalizeAccents(trim($profilCandidate->prenom . ' ' . $profilCandidate->nom));
-                                            $fullNameCandidateReverse = $normalizeAccents(trim($profilCandidate->nom . ' ' . $profilCandidate->prenom));
-                                            
+                                            $fullNameCandidate = $normalizeAccents(trim($profilCandidate->prenom.' '.$profilCandidate->nom));
+                                            $fullNameCandidateReverse = $normalizeAccents(trim($profilCandidate->nom.' '.$profilCandidate->prenom));
+
                                             // Correspondance exacte (insensible aux accents)
-                                            if ($fullNameCandidate === $nPlus1ValueLower || 
+                                            if ($fullNameCandidate === $nPlus1ValueLower ||
                                                 $fullNameCandidateReverse === $nPlus1ValueLower) {
                                                 $nPlus1 = $profilCandidate;
                                                 break;
                                             }
-                                            
+
                                             // Correspondance partielle (si le nom recherché contient le prénom et le nom)
                                             $nPlus1ValueWords = explode(' ', $nPlus1ValueLower);
                                             if (count($nPlus1ValueWords) >= 2) {
                                                 $firstWord = $nPlus1ValueWords[0];
                                                 $lastWord = $nPlus1ValueWords[count($nPlus1ValueWords) - 1];
-                                                
+
                                                 // Vérifier si le prénom commence par le premier mot et le nom correspond au dernier mot
                                                 $prenomNormalized = $normalizeAccents($profilCandidate->prenom);
                                                 $nomNormalized = $normalizeAccents($profilCandidate->nom);
-                                                
+
                                                 if ((strpos($fullNameCandidate, $firstWord) === 0 || strpos($prenomNormalized, $firstWord) === 0) &&
                                                     (strpos($fullNameCandidate, $lastWord) !== false || strpos($nomNormalized, $lastWord) === 0)) {
                                                     $nPlus1 = $profilCandidate;
@@ -932,27 +952,27 @@ class ProfilController extends Controller
                                     }
                                 } else {
                                     // Si un seul mot, chercher par nom ou prénom (insensible à la casse)
-                                    $nPlus1 = Profil::where(function($q) use ($nPlus1Value) {
+                                    $nPlus1 = Profil::where(function ($q) use ($nPlus1Value) {
                                         $q->whereRaw('LOWER(nom) = ?', [strtolower($nPlus1Value)])
-                                          ->orWhereRaw('LOWER(prenom) = ?', [strtolower($nPlus1Value)]);
+                                            ->orWhereRaw('LOWER(prenom) = ?', [strtolower($nPlus1Value)]);
                                     })->first();
                                 }
                             }
-                            
+
                             if ($nPlus1) {
                                 // Vérifier que le N+1 trouvé n'est pas le profil en cours de création
                                 // (comparer par matricule si on l'a déjà, sinon par nom/prénom)
                                 $isSelfReference = false;
-                                if (!empty($matricule) && $nPlus1->matricule === $matricule) {
+                                if (! empty($matricule) && $nPlus1->matricule === $matricule) {
                                     $isSelfReference = true;
-                                } elseif (strtolower($nPlus1->prenom) === strtolower($prenom) && 
+                                } elseif (strtolower($nPlus1->prenom) === strtolower($prenom) &&
                                           strtolower($nPlus1->nom) === strtolower($nom)) {
                                     $isSelfReference = true;
                                 }
-                                
-                                if (!$isSelfReference) {
+
+                                if (! $isSelfReference) {
                                     $nPlus1Id = $nPlus1->id;
-                                    
+
                                     // Calculer automatiquement N+2 : le N+1 du N+1
                                     // Mais seulement si le N+2 est différent du N+1 (éviter les boucles)
                                     if ($nPlus1->n_plus_1_id && $nPlus1->n_plus_1_id != $nPlus1Id) {
@@ -960,11 +980,11 @@ class ProfilController extends Controller
                                     }
                                 } else {
                                     // Un profil ne peut pas être son propre N+1
-                                    $errors[] = "Ligne " . ($rowIndex + 2) . ": Le N+1 ($nPlus1Value) correspond au profil en cours de création pour $prenom $nom. Ignoré.";
+                                    $errors[] = 'Ligne '.($rowIndex + 2).": Le N+1 ($nPlus1Value) correspond au profil en cours de création pour $prenom $nom. Ignoré.";
                                 }
                             } else {
                                 // N+1 non trouvé, ajouter un avertissement mais continuer l'import
-                                $errors[] = "Ligne " . ($rowIndex + 2) . ": N+1 non trouvé ($nPlus1Value) pour $prenom $nom. Le profil sera créé sans N+1.";
+                                $errors[] = 'Ligne '.($rowIndex + 2).": N+1 non trouvé ($nPlus1Value) pour $prenom $nom. Le profil sera créé sans N+1.";
                             }
                         }
                     }
@@ -979,8 +999,11 @@ class ProfilController extends Controller
                         'fonction' => $fonction ?: null,
                         'departement' => $departement ?: null,
                         'site' => $site ?: null,
+                        'numero_compte' => $numeroCompte ?: null,
+                        'code_agence' => $codeAgence ?: null,
                         'type_contrat' => $typeContrat,
                         'statut' => $statut,
+                        'statut_rh' => $statutRh ?: null,
                         'type_office' => $typeOffice,
                         'n_plus_1_id' => $nPlus1Id,
                         'n_plus_2_id' => $nPlus2Id,
@@ -996,8 +1019,8 @@ class ProfilController extends Controller
                 if ($skipped > 0) {
                     $message .= " $skipped ligne(s) ignorée(s).";
                 }
-                if (!empty($errors)) {
-                    $message .= "\n\nErreurs rencontrées:\n" . implode("\n", $errors);
+                if (! empty($errors)) {
+                    $message .= "\n\nErreurs rencontrées:\n".implode("\n", $errors);
                 }
 
                 return redirect()->route('profils.index')
@@ -1006,13 +1029,15 @@ class ProfilController extends Controller
 
             } catch (\Exception $e) {
                 DB::rollBack();
-                Log::error('Erreur lors de l\'import Excel: ' . $e->getMessage());
-                return back()->withErrors(['file' => 'Erreur lors de l\'import: ' . $e->getMessage()]);
+                Log::error('Erreur lors de l\'import Excel: '.$e->getMessage());
+
+                return back()->withErrors(['file' => 'Erreur lors de l\'import: '.$e->getMessage()]);
             }
 
         } catch (\Exception $e) {
-            Log::error('Erreur lors de la lecture du fichier Excel: ' . $e->getMessage());
-            return back()->withErrors(['file' => 'Erreur lors de la lecture du fichier: ' . $e->getMessage()]);
+            Log::error('Erreur lors de la lecture du fichier Excel: '.$e->getMessage());
+
+            return back()->withErrors(['file' => 'Erreur lors de la lecture du fichier: '.$e->getMessage()]);
         }
     }
 
@@ -1022,10 +1047,10 @@ class ProfilController extends Controller
     public function export(Request $request)
     {
         $user = Auth::user();
-        
+
         // Construire la requête de base (même logique que index)
         $query = Profil::query();
-        
+
         // Admin et RH voient tous les profils
         if ($user && ($user->isAdmin() || $user->isRh())) {
             // Pas de restriction pour l'admin et RH
@@ -1033,9 +1058,9 @@ class ProfilController extends Controller
             // Les autres voient uniquement leur propre profil et leurs subordonnés
             $profil = $user?->profil;
             if ($profil) {
-                $query->where(function($q) use ($profil) {
+                $query->where(function ($q) use ($profil) {
                     $q->where('id', $profil->id)
-                      ->orWhere('n_plus_1_id', $profil->id);
+                        ->orWhere('n_plus_1_id', $profil->id);
                 });
             } else {
                 $query->where('id', 0);
@@ -1071,18 +1096,18 @@ class ProfilController extends Controller
 
         if ($request->has('search') && $request->search) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('nom', 'like', "%{$search}%")
-                  ->orWhere('prenom', 'like', "%{$search}%")
-                  ->orWhere('matricule', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
+                    ->orWhere('prenom', 'like', "%{$search}%")
+                    ->orWhere('matricule', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
             });
         }
 
         // Trier par nom puis prénom
         $query->orderBy('nom')->orderBy('prenom');
 
-        $fileName = 'profils_' . date('Y-m-d_His') . '.xlsx';
+        $fileName = 'profils_'.date('Y-m-d_His').'.xlsx';
 
         return Excel::download(new ProfilsExport($query), $fileName);
     }

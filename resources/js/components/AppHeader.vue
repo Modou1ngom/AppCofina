@@ -34,7 +34,7 @@ import { toUrl, urlIsActive } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import type { BreadcrumbItem, NavItem } from '@/types';
 import { InertiaLinkProps, Link, usePage } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid, Menu, Search, Users, ShieldCheck, FileCheck, UserCog, Building2, MapPin, Building, Layers, Clock } from 'lucide-vue-next';
+import { BookOpen, Folder, LayoutGrid, Menu, Search, Users, ShieldCheck, FileCheck, UserCog, Building2, MapPin, Building, Layers, Clock, Network } from 'lucide-vue-next';
 import { computed } from 'vue';
 
 interface Props {
@@ -103,11 +103,23 @@ const mainNavItems = computed<NavItem[]>(() => {
                 icon: Layers,
             },
             {
+                title: 'Suivi signature',
+                href: '/suivi-signature/staff',
+                icon: Network,
+            },
+            {
                 title: 'Habilitations',
                 href: '/habilitations',
                 icon: FileCheck,
             }
         );
+    }
+    else if (auth.value?.isConformite) {
+        items.push({
+            title: 'Suivi signature',
+            href: '/suivi-signature/staff',
+            icon: Network,
+        });
     }
     // RH voit les profils et les habilitations qui le concernent
     else if (auth.value?.isRh) {
@@ -146,6 +158,16 @@ const mainNavItems = computed<NavItem[]>(() => {
             title: 'Habilitations',
             href: '/habilitations',
             icon: FileCheck,
+        });
+    }
+
+    const collaborateurAvecProfil =
+        (auth.value?.profil || auth.value?.sigStaffFiche?.exists) && !auth.value?.isAdmin && !auth.value?.isConformite;
+    if (collaborateurAvecProfil) {
+        items.splice(1, 0, {
+            title: 'Suivi signature',
+            href: '/suivi-signature/mes-personnes-liees',
+            icon: Network,
         });
     }
 

@@ -20,12 +20,20 @@ class Profil extends Model
         'email',
         'telephone',
         'site',
+        'numero_compte',
+        'code_agence',
         'type_contrat',
         'statut',
+        'statut_rh',
         'type_office',
         'n_plus_1_id',
         'n_plus_2_id',
-        'filiale_id'
+        'filiale_id',
+        'date_entree',
+    ];
+
+    protected $casts = [
+        'date_entree' => 'date',
     ];
 
     // Relations
@@ -59,13 +67,13 @@ class Profil extends Model
     {
         return $this->hasMany(Habilitation::class, 'beneficiary_profile_id');
     }
-    
+
     // Méthodes alias pour compatibilité ascendante
     public function habilitationsAsRequester()
     {
         return $this->habilitationsEnTantQueDemandeur();
     }
-    
+
     public function habilitationsAsBeneficiary()
     {
         return $this->habilitationsEnTantQueBeneficiaire();
@@ -97,13 +105,13 @@ class Profil extends Model
      */
     public function getDepartementAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             return $value;
         }
-        
+
         // Normaliser "informatique" en "IT" (insensible à la casse)
         $normalized = preg_replace('/informatique/i', 'IT', $value);
-        
+
         return $normalized;
     }
 
@@ -112,38 +120,36 @@ class Profil extends Model
      */
     public function getFonctionAttribute($value)
     {
-        if (!$value) {
+        if (! $value) {
             return $value;
         }
-        
+
         // Normaliser "informatique" en "IT" (insensible à la casse)
         $normalized = preg_replace('/informatique/i', 'IT', $value);
-        
+
         return $normalized;
     }
 
     /**
      * Génère un matricule unique automatiquement
      * Format: M suivi d'un numéro incrémenté (ex: M1, M2, M3, etc.)
-     * 
-     * @return string
      */
     public static function generateMatricule(): string
     {
         $prefix = 'M0';
-        
+
         // Récupérer tous les matricules qui commencent par "M"
         $matricules = self::where('matricule', 'like', "{$prefix}%")
             ->pluck('matricule')
             ->toArray();
-        
+
         $maxNumber = 0;
-        
+
         foreach ($matricules as $matricule) {
             // Extraire le numéro après "M"
             // Gère les formats: M1, M-2025-0001, etc.
             $numberPart = substr($matricule, 1); // Enlève le "M"
-            
+
             // Si le format est M-YYYY-XXXX, extraire le dernier nombre
             if (preg_match('/-(\d+)$/', $numberPart, $matches)) {
                 $number = (int) $matches[1];
@@ -154,14 +160,14 @@ class Profil extends Model
                 // Essayer de convertir directement en extrayant tous les chiffres
                 $number = (int) preg_replace('/[^0-9]/', '', $numberPart);
             }
-            
+
             if ($number > $maxNumber) {
                 $maxNumber = $number;
             }
         }
-        
+
         $nextNumber = $maxNumber + 1;
-        
+
         return "{$prefix}{$nextNumber}";
     }
 }

@@ -32,10 +32,17 @@ interface Filiale {
     nom: string;
 }
 
+interface Agence {
+    id: number;
+    nom: string;
+    filiale_id?: number | null;
+}
+
 interface Props {
     roles: Role[];
     filiales: Filiale[];
     profils: Profil[];
+    agences?: Agence[];
 }
 
 const props = defineProps<Props>();
@@ -87,6 +94,8 @@ const form = useForm({
     roles: [] as number[],
     profil_id: null as number | null,
     filiales: [] as number[],
+    agences: [] as number[],
+    default_agence_id: null as number | null,
 });
 
 const toggleRole = (roleId: number, checked: boolean) => {
@@ -109,6 +118,31 @@ const toggleFiliale = (filialeId: number, checked: boolean) => {
     }
 };
 
+const filteredAgences = computed(() => {
+    const agences = props.agences || [];
+    if (form.filiales.length === 0) {
+        return agences;
+    }
+
+    return agences.filter((agence) => {
+        if (!agence.filiale_id) {
+            return false;
+        }
+
+        return form.filiales.includes(Number(agence.filiale_id));
+    });
+});
+
+const toggleAgence = (agenceId: number, checked: boolean) => {
+    if (checked) {
+        if (!form.agences.includes(agenceId)) {
+            form.agences = [...form.agences, agenceId];
+        }
+    } else {
+        form.agences = form.agences.filter(a => a !== agenceId);
+    }
+};
+
 // Watcher pour ajouter automatiquement la filiale du profil aux environnements
 watch(() => form.profil_id, (newProfilId) => {
     if (newProfilId) {
@@ -122,6 +156,26 @@ watch(() => form.profil_id, (newProfilId) => {
         }
     }
 });
+
+watch(() => form.filiales, () => {
+    const visibleAgenceIds = new Set(filteredAgences.value.map(agence => agence.id));
+    form.agences = form.agences.filter(agenceId => visibleAgenceIds.has(agenceId));
+
+    if (form.default_agence_id && !form.agences.includes(form.default_agence_id)) {
+        form.default_agence_id = form.agences[0] ?? null;
+    }
+}, { deep: true });
+
+watch(() => form.agences, (newAgences) => {
+    if (newAgences.length === 0) {
+        form.default_agence_id = null;
+        return;
+    }
+
+    if (!form.default_agence_id || !newAgences.includes(form.default_agence_id)) {
+        form.default_agence_id = newAgences[0];
+    }
+}, { deep: true });
 
 const submit = () => {
     form.post('/users', {
@@ -332,6 +386,61 @@ const submit = () => {
                         </p>
                     </div>
                     <InputError :message="form.errors.filiales" />
+                </div>
+
+                <div class="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm transition-shadow hover:shadow-md">
+                    <div class="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
+                        <div class="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600 shrink-0">
+                            <Globe class="h-4 w-4 sm:h-5 sm:w-5" />
+                        </div>
+                        <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Agences rattachées</h2>
+                    </div>
+                    <p class="mb-3 text-sm text-gray-600">
+                        Un utilisateur peut etre rattaché à une ou plusieurs agences.
+                    </p>
+                    <div class="flex flex-col gap-3">
+                        <div
+                            v-for="agence in filteredAgences"
+                            :key="agence.id"
+                            class="flex items-center gap-3 rounded-lg border border-gray-200 p-3 cursor-pointer transition-all hover:border-cyan-300 hover:bg-cyan-50/50"
+                            @click="toggleAgence(agence.id, !form.agences.includes(agence.id))"
+                        >
+                            <Checkbox
+                                :id="`agence-${agence.id}`"
+                                :checked="form.agences.includes(agence.id)"
+                                @update:checked="(checked: boolean) => toggleAgence(agence.id, checked)"
+                                @click.stop
+                            />
+                            <Label :for="`agence-${agence.id}`" class="font-medium cursor-pointer text-sm text-gray-700 flex-1">
+                                {{ agence.nom }}
+                            </Label>
+                        </div>
+                        <p v-if="filteredAgences.length === 0" class="text-sm text-gray-500 text-center py-4">
+                            Aucune agence disponible pour les environnements sélectionnés.
+                        </p>
+                    </div>
+                    <div class="mt-4">
+                        <Label for="default_agence_id" class="text-sm font-medium text-gray-700 mb-2 block">
+                            Agence domiciliaire (par défaut)
+                        </Label>
+                        <select
+                            id="default_agence_id"
+                            v-model="form.default_agence_id"
+                            class="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-all outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
+                            :disabled="form.agences.length === 0"
+                        >
+                            <option :value="null">Sélectionner une agence</option>
+                            <option
+                                v-for="agence in filteredAgences.filter(a => form.agences.includes(a.id))"
+                                :key="agence.id"
+                                :value="agence.id"
+                            >
+                                {{ agence.nom }}
+                            </option>
+                        </select>
+                        <InputError :message="form.errors.default_agence_id" />
+                    </div>
+                    <InputError :message="form.errors.agences" />
                 </div>
 
                 <div class="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm transition-shadow hover:shadow-md">

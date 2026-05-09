@@ -12,6 +12,8 @@ interface Agence {
     nom: string;
     code_agent: string;
     description?: string;
+    latitude?: number | null;
+    longitude?: number | null;
     actif: boolean;
     profils_count?: number;
 }
@@ -89,6 +91,10 @@ const columns: Column[] = [
         title: 'DESCRIPTION',
     },
     {
+        key: 'gps',
+        title: 'GPS',
+    },
+    {
         key: 'actif',
         title: 'STATUS',
     },
@@ -106,6 +112,10 @@ const tableData = computed(() => {
         nom: agence.nom,
         code_agent: agence.code_agent,
         description: agence.description || '-',
+        gps:
+            agence.latitude != null && agence.longitude != null
+                ? `${Number(agence.latitude).toFixed(5)}, ${Number(agence.longitude).toFixed(5)}`
+                : '—',
         actif: agence.actif,
         agence: agence,
     }));
@@ -160,6 +170,10 @@ const deleteAgence = (id: number) => {
 
                 <template #item.description="{ item }">
                     <span class="text-gray-900">{{ item.description }}</span>
+                </template>
+
+                <template #item.gps="{ item }">
+                    <span class="text-gray-700 font-mono text-sm">{{ item.gps }}</span>
                 </template>
 
                 <template #item.actif="{ item }">

@@ -1,17 +1,25 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
-use Laravel\Fortify\Features;
+use App\Http\Controllers\AgenceController;
+use App\Http\Controllers\ApplicationController;
+use App\Http\Controllers\AvanceSalaireBaremeController;
+use App\Http\Controllers\AvanceSalaireDemandeController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DepartementController;
+use App\Http\Controllers\FilialeController;
+use App\Http\Controllers\HabilitationController;
+use App\Http\Controllers\PointageController;
+use App\Http\Controllers\PointageDeclarationController;
+use App\Http\Controllers\PointageRapportController;
+use App\Http\Controllers\PointageSiteController;
 use App\Http\Controllers\ProfilController;
 use App\Http\Controllers\RoleController;
-use App\Http\Controllers\HabilitationController;
-use App\Http\Controllers\DepartementController;
-use App\Http\Controllers\AgenceController;
-use App\Http\Controllers\FilialeController;
+use App\Http\Controllers\SigEncoursConformiteController;
+use App\Http\Controllers\SigLookupController;
+use App\Http\Controllers\SigPersonneLieeController;
+use App\Http\Controllers\SigStaffController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\ApplicationController;
-use App\Http\Controllers\DashboardController;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return redirect()->route('login');
@@ -48,6 +56,119 @@ Route::middleware(['auth'])->group(function () {
             'update' => 'applications.update',
             'destroy' => 'applications.destroy',
         ]);
+
+    // Suivi des personnes apparentées ou liées (décret 2008-1366) — auth ; droits fins dans les contrôleurs
+    Route::prefix('avances-salaire')->name('avances-salaire.')->group(function () {
+        Route::get('/', [AvanceSalaireDemandeController::class, 'index'])->name('index');
+        Route::get('/create', [AvanceSalaireDemandeController::class, 'create'])->name('create');
+        Route::post('/', [AvanceSalaireDemandeController::class, 'store'])->name('store');
+        Route::get('/validation-rh', [AvanceSalaireDemandeController::class, 'validationRh'])
+            ->middleware('role:admin,rh')
+            ->name('validation-rh');
+        Route::get('/integration-rh', [AvanceSalaireDemandeController::class, 'priseEnChargeRh'])
+            ->middleware('role:admin,rh')
+            ->name('integration-rh');
+        Route::post('/integration-rh/envoyer-template-externe', [AvanceSalaireDemandeController::class, 'envoyerTemplateVersIntegrationExterne'])
+            ->middleware('role:admin,rh')
+            ->name('integration-rh.envoyer-template-externe');
+        Route::get('/validation-finance', [AvanceSalaireDemandeController::class, 'validationFinance'])
+            ->middleware('role:admin,finance,md')
+            ->name('validation-finance');
+        Route::get('/parametrage', [AvanceSalaireBaremeController::class, 'index'])
+            ->middleware('role:admin,rh')
+            ->name('parametrage.index');
+        Route::post('/parametrage', [AvanceSalaireBaremeController::class, 'store'])
+            ->middleware('role:admin,rh')
+            ->name('parametrage.store');
+        Route::patch('/parametrage/{bareme}', [AvanceSalaireBaremeController::class, 'update'])
+            ->middleware('role:admin,rh')
+            ->name('parametrage.update');
+        Route::delete('/parametrage/{bareme}', [AvanceSalaireBaremeController::class, 'destroy'])
+            ->middleware('role:admin,rh')
+            ->name('parametrage.destroy');
+        Route::get('/{avance_salaire_demande}', [AvanceSalaireDemandeController::class, 'show'])->name('show');
+        Route::patch('/{avance_salaire_demande}', [AvanceSalaireDemandeController::class, 'update'])->name('update');
+        Route::delete('/{avance_salaire_demande}', [AvanceSalaireDemandeController::class, 'destroy'])
+            ->middleware('role:admin')
+            ->name('destroy');
+        Route::post('/{avance_salaire_demande}/soumettre', [AvanceSalaireDemandeController::class, 'soumettre'])->name('soumettre');
+        Route::post('/{avance_salaire_demande}/decision-rh', [AvanceSalaireDemandeController::class, 'decisionRh'])
+            ->middleware('role:admin,rh')
+            ->name('decision-rh');
+        Route::get('/{avance_salaire_demande}/integration-rh/form', [AvanceSalaireDemandeController::class, 'integrationRhForm'])
+            ->middleware('role:admin,rh')
+            ->name('integration-rh.form');
+        Route::post('/{avance_salaire_demande}/integration-rh', [AvanceSalaireDemandeController::class, 'marquerPriseEnChargeRh'])
+            ->middleware('role:admin,rh')
+            ->name('integration-rh.store');
+        Route::post('/{avance_salaire_demande}/terminer-integration-rh', [AvanceSalaireDemandeController::class, 'terminerTraitementRh'])
+            ->middleware('role:admin,rh')
+            ->name('terminer-integration-rh');
+        Route::post('/{avance_salaire_demande}/decision-finance', [AvanceSalaireDemandeController::class, 'decisionFinance'])
+            ->middleware('role:admin,finance')
+            ->name('decision-finance');
+        Route::post('/{avance_salaire_demande}/reprendre', [AvanceSalaireDemandeController::class, 'reprendre'])
+            ->middleware('role:admin,rh,finance,md')
+            ->name('reprendre');
+        Route::post('/{avance_salaire_demande}/signature', [AvanceSalaireDemandeController::class, 'signer'])->name('signature');
+    });
+
+    Route::prefix('pointage')->name('pointage.')->group(function () {
+        Route::get('/', [PointageController::class, 'index'])->name('index');
+        Route::post('/enregistrer', [PointageController::class, 'store'])->name('store');
+
+        Route::get('/declarations', [PointageDeclarationController::class, 'index'])->name('declarations.index');
+        Route::get('/declarations/create', [PointageDeclarationController::class, 'create'])->name('declarations.create');
+        Route::post('/declarations', [PointageDeclarationController::class, 'store'])->name('declarations.store');
+        Route::get('/declarations/validation-manager', [PointageDeclarationController::class, 'validationManager'])
+            ->name('declarations.validation-manager');
+        Route::post('/declarations/{declaration}/decision-manager', [PointageDeclarationController::class, 'decisionManager'])
+            ->name('declarations.decision-manager');
+
+        Route::middleware('role:admin,rh')->group(function () {
+            Route::resource('sites', PointageSiteController::class);
+            Route::post('sites/{site}/regenerer-qr', [PointageSiteController::class, 'regenererQr'])
+                ->name('sites.regenerer-qr');
+            Route::get('/declarations/validation-rh', [PointageDeclarationController::class, 'validationRh'])
+                ->name('declarations.validation-rh');
+            Route::post('/declarations/{declaration}/decision-rh', [PointageDeclarationController::class, 'decisionRh'])
+                ->name('declarations.decision-rh');
+            Route::get('/rapport', [PointageRapportController::class, 'index'])->name('rapport');
+            Route::get('/rapport/export-quotidien', [PointageRapportController::class, 'exportQuotidien'])
+                ->name('rapport.export-quotidien');
+            Route::get('/rapport/export-journalier-rh', [PointageRapportController::class, 'exportJournalierRh'])
+                ->name('rapport.export-journalier-rh');
+            Route::get('/rapport/export-synthese-rh', [PointageRapportController::class, 'exportSyntheseRh'])
+                ->name('rapport.export-synthese-rh');
+        });
+    });
+
+    Route::prefix('suivi-signature')->name('suivi-signature.')->group(function () {
+        Route::post('lookup-client', [SigLookupController::class, 'lookup'])->name('lookup-client');
+        Route::post('personne-liee/resolve-matricule', [SigLookupController::class, 'resolvePersonneLieeParMatricule'])
+            ->name('personne-liee.resolve-matricule');
+        Route::get('mes-personnes-liees', [SigStaffController::class, 'mesPersonnesLiees'])->name('staff.mes-personnes-liees');
+        Route::get('staff/manuel/create', [SigStaffController::class, 'createManuel'])
+            ->middleware('role:admin,conformite')
+            ->name('staff.manuel.create');
+        Route::post('staff/manuel', [SigStaffController::class, 'storeManuel'])
+            ->middleware('role:admin,conformite')
+            ->name('staff.manuel.store');
+        Route::post('staff/ma-fiche/initialiser', [SigStaffController::class, 'initialiserMaFiche'])->name('staff.ma-fiche.initialiser');
+        Route::post('staff/ma-fiche/synchroniser-client-si', [SigStaffController::class, 'synchroniserMaFicheClientSi'])
+            ->name('staff.ma-fiche.synchroniser-client-si');
+        Route::get('conformite/rapport-encours', [SigEncoursConformiteController::class, 'rapport'])->name('conformite.rapport-encours');
+        Route::get('conformite/rapport-encours/export', [SigEncoursConformiteController::class, 'exportCsv'])->name('conformite.rapport-encours.export');
+        Route::post('staff/{staff}/conformite-encours/commentaire', [SigEncoursConformiteController::class, 'storeCommentaire'])
+            ->name('staff.conformite-encours.commentaire');
+        Route::post('staff/{staff}/personnes-liees', [SigStaffController::class, 'attachPersonne'])->name('staff.personnes-liees.attach');
+        Route::delete('staff/{staff}/personnes-liees/{personneLiee}', [SigStaffController::class, 'detachPersonne'])->name('staff.personnes-liees.detach');
+        Route::resource('staff', SigStaffController::class);
+        Route::resource('personnes-liees', SigPersonneLieeController::class)->parameters([
+            'personnes-liees' => 'personneLiee',
+        ]);
+    });
+
     Route::resource('users', UserController::class)->middleware('role:admin');
     Route::post('users/{user}/toggle', [UserController::class, 'toggle'])->name('users.toggle')->middleware('role:admin');
 

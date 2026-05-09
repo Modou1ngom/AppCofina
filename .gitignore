@@ -10,6 +10,7 @@
 /resources/js/routes
 /resources/js/wayfinder
 /vendor
+/scripts/oracle-proxy-python/.venv
 .DS_Store
 .env
 .env.backup

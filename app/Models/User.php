@@ -62,6 +62,60 @@ class User extends Authenticatable
         return $this->hasOne(Profil::class, 'email', 'email');
     }
 
+    public function pointages()
+    {
+        return $this->hasMany(Pointage::class);
+    }
+
+    public function pointageDeclarations()
+    {
+        return $this->hasMany(PointageDeclaration::class);
+    }
+
+    /**
+     * Fiche collaborateur liée au compte : même logique que {@see profil()}, avec correspondance
+     * d’e-mail insensible à la casse et aux espaces (évite les écarts import / compte).
+     *
+     * @return $this
+     */
+    public function profilCollaborateurAssocie(): self
+    {
+        $this->loadMissing('profil');
+        if ($this->profil !== null) {
+            return $this;
+        }
+
+        $email = strtolower(trim((string) $this->email));
+        if ($email === '') {
+            return $this;
+        }
+
+        $found = Profil::query()
+            ->whereNotNull('email')
+            ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
+            ->first();
+
+        // Fallback : si l'e-mail ne matche pas mais l'utilisateur a deja des demandes,
+        // reutiliser le profil precedent pour ne pas bloquer "Nouvelle demande".
+        if ($found === null) {
+            $profileId = AvanceSalaireDemande::query()
+                ->where('user_id', $this->id)
+                ->whereNotNull('profile_id')
+                ->latest('id')
+                ->value('profile_id');
+
+            if ($profileId) {
+                $found = Profil::query()->find($profileId);
+            }
+        }
+
+        if ($found !== null) {
+            $this->setRelation('profil', $found);
+        }
+
+        return $this;
+    }
+
     /**
      * Relation avec les rôles (many-to-many)
      */
@@ -76,6 +130,24 @@ class User extends Authenticatable
     public function filiales()
     {
         return $this->belongsToMany(Filiale::class, 'user_filiale', 'user_id', 'filiale_id');
+    }
+
+    /**
+     * Relation avec les agences (many-to-many).
+     */
+    public function agences()
+    {
+        return $this->belongsToMany(Agence::class, 'agence_user', 'user_id', 'agence_id')
+            ->withPivot('is_default')
+            ->withTimestamps();
+    }
+
+    /**
+     * Retourne l'agence domiciliaire (par défaut) de l'utilisateur.
+     */
+    public function agenceDomiciliaire(): ?Agence
+    {
+        return $this->agences->firstWhere('pivot.is_default', true);
     }
 
     /**
@@ -156,6 +228,57 @@ class User extends Authenticatable
         return $this->hasRole('rh');
     }
 
+    public function isFinance(): bool
+    {
+        return $this->hasRole('finance');
+    }
+
+    public function isMd(): bool
+    {
+        return $this->hasRole('md');
+    }
+
+    public function avanceSalaireDemandes()
+    {
+        return $this->hasMany(AvanceSalaireDemande::class, 'user_id');
+    }
+
+    /**
+     * Vérifie si l'utilisateur est conformité
+     */
+    public function isConformite(): bool
+    {
+        return $this->hasRole('conformite');
+    }
+
+    /**
+     * Fiche suivi signature (personnes apparentées) liée au profil RH de l'utilisateur.
+     */
+    public function sigStaffFiche(): ?SigStaff
+    {
+        $this->loadMissing('profil');
+        if (! $this->profil) {
+            return null;
+        }
+
+        return SigStaff::query()->where('profile_id', $this->profil->id)->first();
+    }
+
+    /**
+     * Peut déclarer des personnes liées via le SI (admin / conformité : tout le module ;
+     * collaborateur : dès qu’un profil RH est lié au compte, y compris avant création de la fiche staff).
+     */
+    public function peutDeclarerPersonnesLieesSig(): bool
+    {
+        if ($this->isAdmin() || $this->isConformite()) {
+            return true;
+        }
+
+        $this->loadMissing('profil');
+
+        return $this->profil !== null;
+    }
+
     /**
      * Vérifie si l'utilisateur est exécuteur IT (basé sur le profil)
      * Note: "informatique" est automatiquement normalisé en "IT" via les accessors du modèle Profil
@@ -168,16 +291,16 @@ class User extends Authenticatable
         }
 
         // Recharger le profil si nécessaire
-        if (!$this->relationLoaded('profil')) {
+        if (! $this->relationLoaded('profil')) {
             $this->load('profil');
         }
 
-        if (!$this->profil) {
+        if (! $this->profil) {
             return false;
         }
 
         $profil = $this->profil;
-        
+
         // Vérifier si le département contient "IT" ou "informatique"
         // On vérifie la valeur brute directement pour éviter les problèmes avec les accessors
         $departement = $profil->getRawOriginal('departement') ?? $profil->departement;
@@ -223,10 +346,10 @@ class User extends Authenticatable
      */
     public function isResponsableDepartement(): bool
     {
-        if (!$this->profil) {
+        if (! $this->profil) {
             return false;
         }
-        
+
         return \App\Models\Departement::where('responsable_departement_id', $this->profil->id)
             ->where('actif', true)
             ->exists();
@@ -237,10 +360,10 @@ class User extends Authenticatable
      */
     public function getDepartementResponsable()
     {
-        if (!$this->profil) {
+        if (! $this->profil) {
             return null;
         }
-        
+
         return \App\Models\Departement::where('responsable_departement_id', $this->profil->id)
             ->where('actif', true)
             ->first();

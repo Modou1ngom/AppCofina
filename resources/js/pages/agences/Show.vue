@@ -3,6 +3,7 @@ import { Head, Link } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
+import { computed } from 'vue';
 
 interface Profil {
     id: number;
@@ -17,6 +18,8 @@ interface Props {
         nom: string;
         code_agent: string;
         description?: string;
+        latitude?: number | null;
+        longitude?: number | null;
         actif: boolean;
         profils?: Profil[];
         chef_agence?: Profil;
@@ -25,6 +28,24 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+
+const gpsLabel = computed(() => {
+    const la = props.agence.latitude;
+    const lo = props.agence.longitude;
+    if (la == null || lo == null) {
+        return null;
+    }
+    return `${Number(la).toFixed(7)}, ${Number(lo).toFixed(7)}`;
+});
+
+const openStreetMapUrl = computed(() => {
+    const la = props.agence.latitude;
+    const lo = props.agence.longitude;
+    if (la == null || lo == null) {
+        return null;
+    }
+    return `https://www.openstreetmap.org/?mlat=${la}&mlon=${lo}#map=16/${la}/${lo}`;
+});
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -70,6 +91,18 @@ const breadcrumbs: BreadcrumbItem[] = [
                         <div v-if="agence.description">
                             <dt class="text-muted-foreground text-sm font-medium">Description</dt>
                             <dd class="mt-1 text-sm">{{ agence.description }}</dd>
+                        </div>
+                        <div v-if="gpsLabel">
+                            <dt class="text-muted-foreground text-sm font-medium">Coordonnées GPS</dt>
+                            <dd class="mt-1 font-mono text-sm">{{ gpsLabel }}</dd>
+                            <dd class="mt-2">
+                                <a
+                                    :href="openStreetMapUrl!"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="text-primary text-sm font-medium hover:underline"
+                                >Voir sur la carte (OpenStreetMap)</a>
+                            </dd>
                         </div>
                         <div>
                             <dt class="text-muted-foreground text-sm font-medium">Statut</dt>

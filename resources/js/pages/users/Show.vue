@@ -20,6 +20,13 @@ interface Props {
             id: number;
             nom: string;
         }[];
+        agences?: {
+            id: number;
+            nom: string;
+            pivot?: {
+                is_default?: boolean;
+            };
+        }[];
         profil?: {
             id: number;
             nom: string;
@@ -135,6 +142,24 @@ const breadcrumbs: BreadcrumbItem[] = [
                         <div v-else>
                             <dt class="text-muted-foreground text-sm font-medium">Environnements</dt>
                             <dd class="mt-1 text-sm text-muted-foreground">Aucun environnement assigné</dd>
+                        </div>
+                        <div v-if="user.agences && user.agences.length > 0">
+                            <dt class="text-muted-foreground text-sm font-medium">Agences rattachées</dt>
+                            <dd class="mt-1">
+                                <div class="flex flex-wrap gap-2">
+                                    <span
+                                        v-for="agence in user.agences"
+                                        :key="agence.id"
+                                        class="rounded-full bg-cyan-100 px-2 py-1 text-xs font-medium text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200"
+                                    >
+                                        {{ agence.nom }}{{ agence.pivot?.is_default ? ' (Domiciliaire)' : '' }}
+                                    </span>
+                                </div>
+                            </dd>
+                        </div>
+                        <div v-else>
+                            <dt class="text-muted-foreground text-sm font-medium">Agences rattachées</dt>
+                            <dd class="mt-1 text-sm text-muted-foreground">Aucune agence assignée</dd>
                         </div>
                     </dl>
                 </div>

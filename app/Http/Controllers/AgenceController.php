@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Agence;
-use App\Models\Profil;
 use App\Models\Filiale;
+use App\Models\Profil;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -18,20 +18,20 @@ class AgenceController extends Controller
     {
         $user = Auth::user();
         $perPage = (int) $request->get('per_page', 5);
-        
+
         $query = Agence::query();
-        
+
         // Filtrer selon l'environnement de l'utilisateur
         $isSuperAdmin = $user && $user->isSuperAdmin();
         $isAdmin = $user && $user->isAdmin();
         $isRh = $user && $user->isRh();
-        
+
         // Super admin voit toutes les agences
-        if (!$isSuperAdmin) {
+        if (! $isSuperAdmin) {
             // Admin normal et RH voient uniquement les agences de leurs filiales assignées
             if (($isAdmin || $isRh) && $user) {
                 $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-                if (!empty($userFilialesIds)) {
+                if (! empty($userFilialesIds)) {
                     $query->whereIn('filiale_id', $userFilialesIds);
                 } else {
                     $query->where('id', 0);
@@ -41,28 +41,28 @@ class AgenceController extends Controller
             elseif ($user) {
                 $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
                 $userProfil = $user->profil;
-                
+
                 if ($userProfil && $userProfil->filiale_id) {
-                    if (!in_array($userProfil->filiale_id, $userFilialesIds)) {
+                    if (! in_array($userProfil->filiale_id, $userFilialesIds)) {
                         $userFilialesIds[] = $userProfil->filiale_id;
                     }
                 }
-                
-                if (!empty($userFilialesIds)) {
+
+                if (! empty($userFilialesIds)) {
                     $query->whereIn('filiale_id', $userFilialesIds);
                 } else {
                     $query->where('id', 0);
                 }
             }
         }
-        
+
         $agences = $query->orderBy('nom')->paginate($perPage);
-        
+
         // Compter le nombre de profils par agence
         $agences->each(function ($agence) {
             $agence->profils_count = Profil::where('site', $agence->nom)->count();
         });
-        
+
         return Inertia::render('agences/Index', [
             'agences' => $agences,
         ]);
@@ -75,7 +75,7 @@ class AgenceController extends Controller
     {
         $profils = Profil::orderBy('nom')->get(['id', 'nom', 'prenom', 'matricule']);
         $filiales = Filiale::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
-        
+
         return Inertia::render('agences/Create', [
             'profils' => $profils,
             'filiales' => $filiales,
@@ -87,10 +87,14 @@ class AgenceController extends Controller
      */
     public function store(Request $request)
     {
+        $request->merge($this->normalizedGpsInput($request));
+
         $validated = $request->validate([
             'nom' => 'required|string|max:255|unique:agences,nom',
             'code_agent' => 'required|string|max:50|unique:agences,code_agent',
             'description' => 'nullable|string',
+            'latitude' => ['nullable', 'required_with:longitude', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'required_with:latitude', 'numeric', 'between:-180,180'],
             'actif' => 'required|in:actif,inactif',
             'chef_agence_id' => 'nullable|exists:profiles,id',
             'filiale_id' => 'nullable|exists:filiales,id',
@@ -100,6 +104,8 @@ class AgenceController extends Controller
             'nom' => $validated['nom'],
             'code_agent' => $validated['code_agent'],
             'description' => $validated['description'] ?? null,
+            'latitude' => $validated['latitude'] ?? null,
+            'longitude' => $validated['longitude'] ?? null,
             'actif' => $validated['actif'] === 'actif',
             'chef_agence_id' => $validated['chef_agence_id'] ?? null,
             'filiale_id' => $validated['filiale_id'] ?? null,
@@ -116,7 +122,7 @@ class AgenceController extends Controller
     {
         $agence->load('chefAgence');
         $profils = Profil::where('site', $agence->nom)->get();
-        
+
         return Inertia::render('agences/Show', [
             'agence' => $agence,
             'profils' => $profils,
@@ -130,7 +136,7 @@ class AgenceController extends Controller
     {
         $profils = Profil::orderBy('nom')->get(['id', 'nom', 'prenom', 'matricule']);
         $filiales = Filiale::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
-        
+
         return Inertia::render('agences/Edit', [
             'agence' => $agence,
             'profils' => $profils,
@@ -143,10 +149,14 @@ class AgenceController extends Controller
      */
     public function update(Request $request, Agence $agence)
     {
+        $request->merge($this->normalizedGpsInput($request));
+
         $validated = $request->validate([
-            'nom' => 'required|string|max:255|unique:agences,nom,' . $agence->id,
-            'code_agent' => 'required|string|max:50|unique:agences,code_agent,' . $agence->id,
+            'nom' => 'required|string|max:255|unique:agences,nom,'.$agence->id,
+            'code_agent' => 'required|string|max:50|unique:agences,code_agent,'.$agence->id,
             'description' => 'nullable|string',
+            'latitude' => ['nullable', 'required_with:longitude', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'required_with:latitude', 'numeric', 'between:-180,180'],
             'actif' => 'required|in:actif,inactif',
             'chef_agence_id' => 'nullable|exists:profiles,id',
             'filiale_id' => 'nullable|exists:filiales,id',
@@ -156,6 +166,8 @@ class AgenceController extends Controller
             'nom' => $validated['nom'],
             'code_agent' => $validated['code_agent'],
             'description' => $validated['description'] ?? null,
+            'latitude' => $validated['latitude'] ?? null,
+            'longitude' => $validated['longitude'] ?? null,
             'actif' => $validated['actif'] === 'actif',
             'chef_agence_id' => $validated['chef_agence_id'] ?? null,
             'filiale_id' => $validated['filiale_id'] ?? null,
@@ -171,8 +183,28 @@ class AgenceController extends Controller
     public function destroy(Agence $agence)
     {
         $agence->delete();
-        
+
         return redirect()->route('agences.index')
             ->with('success', 'Agence supprimée avec succès !');
+    }
+
+    /**
+     * @return array{latitude: float|null, longitude: float|null}
+     */
+    private function normalizedGpsInput(Request $request): array
+    {
+        $lat = $request->input('latitude');
+        $lng = $request->input('longitude');
+        $latNull = $lat === null || $lat === '';
+        $lngNull = $lng === null || $lng === '';
+
+        if ($latNull && $lngNull) {
+            return ['latitude' => null, 'longitude' => null];
+        }
+
+        return [
+            'latitude' => is_numeric($lat) ? (float) $lat : null,
+            'longitude' => is_numeric($lng) ? (float) $lng : null,
+        ];
     }
 }

@@ -14,7 +14,7 @@ import {
 import { dashboard } from '@/routes';
 import { type NavItem } from '@/types';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid, Users, ShieldCheck, FileCheck, Building2, MapPin, Building, UserCog, Layers, Server } from 'lucide-vue-next';
+import { BookOpen, Folder, LayoutGrid, Users, ShieldCheck, FileCheck, Building2, MapPin, Building, UserCog, Layers, Server, Network, Wallet } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { useBeneficiaryDialog } from '@/composables/useBeneficiaryDialog';
 import AppLogo from './AppLogo.vue';
@@ -84,6 +84,24 @@ const mainNavItems = computed<NavItem[]>(() => {
                 title: 'Applications',
                 href: '/applications',
                 icon: Layers,
+            },
+            {
+                title: 'Suivi signature',
+                icon: Network,
+                items: [
+                    {
+                        title: 'Staff & CA',
+                        href: '/suivi-signature/staff',
+                    },
+                    {
+                        title: 'Personnes liées',
+                        href: '/suivi-signature/personnes-liees',
+                    },
+                    {
+                        title: 'Rapport encours / fonds propres',
+                        href: '/suivi-signature/conformite/rapport-encours',
+                    },
+                ],
             },
             {
                 title: 'Habilitations',
@@ -167,6 +185,27 @@ const mainNavItems = computed<NavItem[]>(() => {
                 ],
             });
         }
+    }
+    // Conformité : accès au suivi signature (sans les menus admin)
+    else if (auth.value?.isConformite) {
+        items.push({
+            title: 'Suivi signature',
+            icon: Network,
+            items: [
+                {
+                    title: 'Staff & CA',
+                    href: '/suivi-signature/staff',
+                },
+                {
+                    title: 'Personnes liées',
+                    href: '/suivi-signature/personnes-liees',
+                },
+                {
+                    title: 'Rapport encours / fonds propres',
+                    href: '/suivi-signature/conformite/rapport-encours',
+                },
+            ],
+        });
     }
     // RH voit les profils et les habilitations qui le concernent
     else if (auth.value?.isRh) {
@@ -347,6 +386,48 @@ const mainNavItems = computed<NavItem[]>(() => {
                     href: '/habilitations?filter=rejete',
                 },
             ],
+        });
+    }
+
+    // Collaborateur avec profil RH : accès à « Mes personnes liées » (même si la fiche SI n’est pas encore créée)
+    const collaborateurAvecProfil =
+        (auth.value?.profil || auth.value?.sigStaffFiche?.exists) && !auth.value?.isAdmin && !auth.value?.isConformite;
+    if (collaborateurAvecProfil) {
+        items.splice(1, 0, {
+            title: 'Suivi signature',
+            icon: Network,
+            items: [
+                {
+                    title: 'Mes personnes liées',
+                    href: '/suivi-signature/mes-personnes-liees',
+                },
+            ],
+        });
+    }
+
+    const avancesItems: { title: string; href: string }[] = [];
+    if (auth.value?.user) {
+        avancesItems.push({ title: 'Mes demandes', href: '/avances-salaire' });
+      // avancesItems.push({ title: 'Nouvelle demande', href: '/avances-salaire/create' })
+    }
+    if (auth.value?.isAdmin || auth.value?.isRh || auth.value?.isFinance || auth.value?.isMd) {
+        const historiqueHref =
+            auth.value?.isRh || auth.value?.isAdmin
+                ? '/avances-salaire/validation-rh'
+                : '/avances-salaire/validation-finance';
+        avancesItems.push({ title: 'Historique', href: historiqueHref });
+    }
+    if (auth.value?.isAdmin || auth.value?.isRh) {
+        avancesItems.push({ title: 'Intégration', href: '/avances-salaire/integration-rh' });
+    }
+    if (auth.value?.isAdmin || auth.value?.isRh) {
+        avancesItems.push({ title: 'Paramétrage', href: '/avances-salaire/parametrage' });
+    }
+    if (avancesItems.length) {
+        items.push({
+            title: 'Avances sur salaire',
+            icon: Wallet,
+            items: avancesItems,
         });
     }
 

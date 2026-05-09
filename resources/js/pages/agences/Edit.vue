@@ -27,6 +27,8 @@ interface Props {
         nom: string;
         code_agent: string;
         description?: string;
+        latitude?: number | null;
+        longitude?: number | null;
         actif: boolean;
         chef_agence_id?: number;
         filiale_id?: number | null;
@@ -48,10 +50,19 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
+function coordToFormValue(v: number | null | undefined): string | number {
+    if (v === null || v === undefined) {
+        return '';
+    }
+    return v;
+}
+
 const form = useForm({
     nom: props.agence.nom,
     code_agent: props.agence.code_agent,
     description: props.agence.description || '',
+    latitude: coordToFormValue(props.agence.latitude),
+    longitude: coordToFormValue(props.agence.longitude),
     actif: props.agence.actif ? 'actif' : 'inactif' as 'actif' | 'inactif',
     chef_agence_id: props.agence.chef_agence_id || null,
     filiale_id: props.agence.filiale_id || null,
@@ -109,6 +120,38 @@ const submit = () => {
                             class="mt-1.5 flex w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
                         />
                         <InputError :message="form.errors.description" />
+                    </div>
+
+                    <div class="col-span-2">
+                        <p class="text-muted-foreground mb-2 text-sm">Coordonnées GPS (optionnel, les deux champs doivent être renseignés)</p>
+                        <div class="grid gap-4 md:grid-cols-2">
+                            <div>
+                                <Label for="latitude" class="text-base font-medium text-gray-700">Latitude (°)</Label>
+                                <Input
+                                    id="latitude"
+                                    v-model="form.latitude"
+                                    type="text"
+                                    inputmode="decimal"
+                                    autocomplete="off"
+                                    placeholder="Ex: 14.7167230"
+                                    class="mt-1.5 border-gray-300 font-mono focus-visible:border-gray-400"
+                                />
+                                <InputError :message="form.errors.latitude" />
+                            </div>
+                            <div>
+                                <Label for="longitude" class="text-base font-medium text-gray-700">Longitude (°)</Label>
+                                <Input
+                                    id="longitude"
+                                    v-model="form.longitude"
+                                    type="text"
+                                    inputmode="decimal"
+                                    autocomplete="off"
+                                    placeholder="Ex: -17.4676861"
+                                    class="mt-1.5 border-gray-300 font-mono focus-visible:border-gray-400"
+                                />
+                                <InputError :message="form.errors.longitude" />
+                            </div>
+                        </div>
                     </div>
 
                     <div>

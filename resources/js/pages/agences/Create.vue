@@ -43,6 +43,8 @@ const form = useForm({
     nom: '',
     code_agent: '',
     description: '',
+    latitude: '' as string | number,
+    longitude: '' as string | number,
     actif: 'actif' as 'actif' | 'inactif',
     chef_agence_id: null as number | null,
     filiale_id: null as number | null,
@@ -103,6 +105,38 @@ const submit = () => {
                             placeholder="Description de l'agence..."
                         />
                         <InputError :message="form.errors.description" />
+                    </div>
+
+                    <div class="col-span-2">
+                        <p class="text-muted-foreground mb-2 text-sm">Coordonnées GPS (optionnel, les deux champs doivent être renseignés)</p>
+                        <div class="grid gap-4 md:grid-cols-2">
+                            <div>
+                                <Label for="latitude" class="text-base font-medium text-gray-700">Latitude (°)</Label>
+                                <Input
+                                    id="latitude"
+                                    v-model="form.latitude"
+                                    type="text"
+                                    inputmode="decimal"
+                                    autocomplete="off"
+                                    placeholder="Ex: 14.7167230"
+                                    class="mt-1.5 border-gray-300 font-mono focus-visible:border-gray-400"
+                                />
+                                <InputError :message="form.errors.latitude" />
+                            </div>
+                            <div>
+                                <Label for="longitude" class="text-base font-medium text-gray-700">Longitude (°)</Label>
+                                <Input
+                                    id="longitude"
+                                    v-model="form.longitude"
+                                    type="text"
+                                    inputmode="decimal"
+                                    autocomplete="off"
+                                    placeholder="Ex: -17.4676861"
+                                    class="mt-1.5 border-gray-300 font-mono focus-visible:border-gray-400"
+                                />
+                                <InputError :message="form.errors.longitude" />
+                            </div>
+                        </div>
                     </div>
 
                     <div>
