@@ -6,6 +6,7 @@ use App\Http\Controllers\AvanceSalaireBaremeController;
 use App\Http\Controllers\AvanceSalaireDemandeController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepartementController;
+use App\Http\Controllers\EnqueteSatisfactionController;
 use App\Http\Controllers\FilialeController;
 use App\Http\Controllers\HabilitationController;
 use App\Http\Controllers\PointageController;
@@ -24,6 +25,15 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return redirect()->route('login');
 })->name('home');
+
+// Enquête de satisfaction IT — accessible sans authentification (lien partagé au staff)
+Route::prefix('enquete-satisfaction')->name('enquete-satisfaction.')->group(function () {
+    Route::get('/', [EnqueteSatisfactionController::class, 'create'])->name('create');
+    Route::post('/', [EnqueteSatisfactionController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('store');
+    Route::get('/merci', [EnqueteSatisfactionController::class, 'merci'])->name('merci');
+});
 
 Route::get('dashboard', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
 
@@ -190,4 +200,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('habilitations/{habilitation}/etape6', [HabilitationController::class, 'etape6'])->name('habilitations.etape6')->middleware('role:admin,executeur_it,it');
     Route::post('habilitations/{habilitation}/executer-etape6', [HabilitationController::class, 'executerEtape6'])->name('habilitations.executer-etape6')->middleware('role:admin,executeur_it,it');
     Route::get('habilitations/{habilitation}/pdf', [HabilitationController::class, 'downloadPdf'])->name('habilitations.pdf');
+
+    Route::prefix('enquete-satisfaction')->name('enquete-satisfaction.')->middleware('role:admin,executeur_it,it')->group(function () {
+        Route::get('/reponses', [EnqueteSatisfactionController::class, 'index'])->name('index');
+        Route::get('/reponses/{enqueteSatisfaction}', [EnqueteSatisfactionController::class, 'show'])->name('show');
+    });
 });

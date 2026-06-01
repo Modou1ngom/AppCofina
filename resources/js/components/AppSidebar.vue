@@ -14,7 +14,7 @@ import {
 import { dashboard } from '@/routes';
 import { type NavItem } from '@/types';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid, Users, ShieldCheck, FileCheck, Building2, MapPin, Building, UserCog, Layers, Server, Network, Wallet } from 'lucide-vue-next';
+import { BookOpen, Folder, LayoutGrid, Users, ShieldCheck, FileCheck, Building2, MapPin, Building, UserCog, Layers, Server, Network, Wallet, ClipboardList } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { useBeneficiaryDialog } from '@/composables/useBeneficiaryDialog';
 import AppLogo from './AppLogo.vue';
@@ -183,6 +183,14 @@ const mainNavItems = computed<NavItem[]>(() => {
                         href: '/habilitations/espace-it?filter=terminees',
                     },
                 ],
+            });
+        }
+
+        if (auth.value?.isAdmin || auth.value?.isExecuteurIt) {
+            items.push({
+                title: 'Enquête satisfaction IT',
+                href: '/enquete-satisfaction/reponses',
+                icon: ClipboardList,
             });
         }
     }
@@ -357,6 +365,11 @@ const mainNavItems = computed<NavItem[]>(() => {
                     href: '/habilitations/espace-it?filter=terminees',
                 },
             ],
+        });
+        items.push({
+            title: 'Enquête satisfaction IT',
+            href: '/enquete-satisfaction/reponses',
+            icon: ClipboardList,
         });
     }
     // Si aucun rôle défini, voir au moins les habilitations
