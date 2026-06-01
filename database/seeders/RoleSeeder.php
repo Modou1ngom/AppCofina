@@ -46,13 +46,13 @@ class RoleSeeder extends Seeder
             [
                 'nom' => 'Profil Finance (CFO)',
                 'slug' => 'finance',
-                'description' => 'Profil Finance / CFO — validation des avances sur salaire (circuit CFO ou étape CFO avant MD)',
+                'description' => 'Profil Finance / CFO',
                 'actif' => true,
             ],
             [
                 'nom' => 'Profil MD',
                 'slug' => 'md',
-                'description' => 'Managing Director — validation finale des avances sur salaire lorsque le circuit RH prévoit CFO puis MD',
+                'description' => 'Managing Director',
                 'actif' => true,
             ],
             [

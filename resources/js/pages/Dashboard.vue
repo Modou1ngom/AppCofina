@@ -6,16 +6,9 @@ import { Head, Link } from '@inertiajs/vue3';
 import { 
     FileCheck, 
     Users, 
-    Layers, 
     Clock, 
     CheckCircle, 
-    XCircle, 
     AlertCircle,
-    TrendingUp,
-    Activity,
-    UserCheck,
-    ShieldCheck,
-    Server
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 
@@ -151,6 +144,7 @@ const dashboardTitle = computed(() => {
                 </div>
                 <p class="ml-15 text-base font-medium text-gray-600">Vue d'ensemble des habilitations et statistiques</p>
             </div>
+
             <!-- Actions en attente -->
             <div v-if="actionsEnAttente && actionsEnAttente.length > 0" class="mb-6 overflow-hidden rounded-xl border-2 border-yellow-200 bg-gradient-to-br from-yellow-50 to-orange-50 p-5 shadow-lg">
                 <div class="mb-4 flex items-center gap-3">

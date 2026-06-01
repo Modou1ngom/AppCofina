@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\CheckRole;
+use App\Http\Middleware\EnsureApiUserIsActive;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\ForcePasswordChange;
 use App\Http\Middleware\HandleAppearance;
@@ -32,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'role' => CheckRole::class,
+            'api.active' => EnsureApiUserIsActive::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

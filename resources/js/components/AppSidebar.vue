@@ -14,7 +14,7 @@ import {
 import { dashboard } from '@/routes';
 import { type NavItem } from '@/types';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid, Users, ShieldCheck, FileCheck, Building2, MapPin, Building, UserCog, Layers, Server, Network, Wallet } from 'lucide-vue-next';
+import { BookOpen, Folder, LayoutGrid, Users, ShieldCheck, FileCheck, Building2, MapPin, Building, UserCog, Layers, Server, Network, CalendarClock, ClipboardList, Bell } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { useBeneficiaryDialog } from '@/composables/useBeneficiaryDialog';
 import AppLogo from './AppLogo.vue';
@@ -31,6 +31,14 @@ const mainNavItems = computed<NavItem[]>(() => {
             icon: LayoutGrid,
         },
     ];
+
+    if (auth.value?.user) {
+        items.push({
+            title: 'Notifications',
+            href: '/notifications',
+            icon: Bell,
+        });
+    }
 
     // Admin voit tout
     if (auth.value?.isAdmin) {
@@ -50,6 +58,8 @@ const mainNavItems = computed<NavItem[]>(() => {
                    
                 ],
             },
+           
+            
             {
                 title: 'Enrolement staff',
                 icon: Users,
@@ -183,6 +193,14 @@ const mainNavItems = computed<NavItem[]>(() => {
                         href: '/habilitations/espace-it?filter=terminees',
                     },
                 ],
+            });
+        }
+
+        if (auth.value?.isAdmin || auth.value?.isExecuteurIt) {
+            items.push({
+                title: 'Enquête satisfaction IT',
+                href: '/enquete-satisfaction/reponses',
+                icon: ClipboardList,
             });
         }
     }
@@ -358,6 +376,11 @@ const mainNavItems = computed<NavItem[]>(() => {
                 },
             ],
         });
+        items.push({
+            title: 'Enquête satisfaction IT',
+            href: '/enquete-satisfaction/reponses',
+            icon: ClipboardList,
+        });
     }
     // Si aucun rôle défini, voir au moins les habilitations
     else {
@@ -405,29 +428,24 @@ const mainNavItems = computed<NavItem[]>(() => {
         });
     }
 
-    const avancesItems: { title: string; href: string }[] = [];
+    const pointageItems: { title: string; href: string }[] = [];
     if (auth.value?.user) {
-        avancesItems.push({ title: 'Mes demandes', href: '/avances-salaire' });
-      // avancesItems.push({ title: 'Nouvelle demande', href: '/avances-salaire/create' })
-    }
-    if (auth.value?.isAdmin || auth.value?.isRh || auth.value?.isFinance || auth.value?.isMd) {
-        const historiqueHref =
-            auth.value?.isRh || auth.value?.isAdmin
-                ? '/avances-salaire/validation-rh'
-                : '/avances-salaire/validation-finance';
-        avancesItems.push({ title: 'Historique', href: historiqueHref });
+        pointageItems.push({ title: 'Pointage', href: '/pointage' });
+        pointageItems.push({ title: 'Historique', href: '/pointage/historique' });
+        pointageItems.push({ title: 'Mes déclarations', href: '/pointage/declarations' });
+        pointageItems.push({ title: 'Nouvelle déclaration', href: '/pointage/declarations/create' });
+        pointageItems.push({ title: 'Validation manager', href: '/pointage/declarations/validation-manager' });
     }
     if (auth.value?.isAdmin || auth.value?.isRh) {
-        avancesItems.push({ title: 'Intégration', href: '/avances-salaire/integration-rh' });
+        pointageItems.push({ title: 'Tableau de bord', href: '/pointage/rapport' });
+        pointageItems.push({ title: 'Validation RH', href: '/pointage/declarations/validation-rh' });
+        pointageItems.push({ title: 'Sites de pointage', href: '/pointage/sites' });
     }
-    if (auth.value?.isAdmin || auth.value?.isRh) {
-        avancesItems.push({ title: 'Paramétrage', href: '/avances-salaire/parametrage' });
-    }
-    if (avancesItems.length) {
+    if (pointageItems.length) {
         items.push({
-            title: 'Avances sur salaire',
-            icon: Wallet,
-            items: avancesItems,
+            title: 'Pointage',
+            icon: CalendarClock,
+            items: pointageItems,
         });
     }
 

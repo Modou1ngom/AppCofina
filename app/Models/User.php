@@ -7,11 +7,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, TwoFactorAuthenticatable;
+    use HasApiTokens, HasFactory, Notifiable, TwoFactorAuthenticatable;
 
     /**
      * The attributes that are mass assignable.
@@ -94,20 +95,6 @@ class User extends Authenticatable
             ->whereNotNull('email')
             ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
             ->first();
-
-        // Fallback : si l'e-mail ne matche pas mais l'utilisateur a deja des demandes,
-        // reutiliser le profil precedent pour ne pas bloquer "Nouvelle demande".
-        if ($found === null) {
-            $profileId = AvanceSalaireDemande::query()
-                ->where('user_id', $this->id)
-                ->whereNotNull('profile_id')
-                ->latest('id')
-                ->value('profile_id');
-
-            if ($profileId) {
-                $found = Profil::query()->find($profileId);
-            }
-        }
 
         if ($found !== null) {
             $this->setRelation('profil', $found);
@@ -236,11 +223,6 @@ class User extends Authenticatable
     public function isMd(): bool
     {
         return $this->hasRole('md');
-    }
-
-    public function avanceSalaireDemandes()
-    {
-        return $this->hasMany(AvanceSalaireDemande::class, 'user_id');
     }
 
     /**
