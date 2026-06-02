@@ -68,10 +68,10 @@ const submit = () => {
 
 const downloadTemplate = () => {
     // Créer un fichier Excel exemple (CSV pour simplifier)
-    const headers = ['Nom', 'Prénom', 'Email', 'Téléphone', 'Fonction', 'Département', 'Site', 'Type Contrat', 'Statut', 'Back/Front Office'];
+    const headers = ['Matricule', 'Nom', 'Prénom', 'Email', 'Téléphone', 'Fonction', 'Département', 'Site', 'Type de contrat', 'Statut', 'Back/Front Office'];
     const csvContent = headers.join(',') + '\n' + 
-        'Dupont,Jean,jean.dupont@example.com,+221771234567,Directeur,IT,Dakar,CDI,actif,Back Office\n' +
-        'Martin,Marie,marie.martin@example.com,+221771234568,Manager,Finance,Dakar,CDI,actif,Front Office';
+        'M0001,Dupont,Jean,jean.dupont@example.com,+221771234567,Directeur,IT,Dakar,CDI,actif,Back Office\n' +
+        'M0002,Martin,Marie,marie.martin@example.com,+221771234568,Manager,Finance,Dakar,CDD,actif,Front Office';
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -108,8 +108,10 @@ const downloadTemplate = () => {
                         <ul class="list-disc space-y-1 pl-5 text-sm text-blue-800">
                             <li>Le fichier doit être au format Excel (.xlsx ou .xls)</li>
                             <li>La première ligne doit contenir les en-têtes de colonnes</li>
-                            <li>Les colonnes obligatoires sont : <strong>Nom</strong> et <strong>Prénom</strong></li>
-                            <li>Les colonnes optionnelles sont : <strong>Matricule</strong>, Email, Téléphone, Fonction, Département, Site, Type Contrat, Statut, Back/Front Office</li>
+                            <li>Les colonnes obligatoires sont : <strong>Nom</strong> et <strong>Prénom</strong> (format attendu : Matricul, Nom, Prénom, Departement, Site, Fonction, Email)</li>
+                            <li>Les colonnes optionnelles sont : <strong>Matricule</strong>, <strong>Email</strong> (ou Login AD), Téléphone, Fonction, Département, Site, <strong>Type de contrat</strong> (CDI, CDD, Stagiaire, Autre), Statut, Back/Front Office</li>
+                            <li>Les e-mails doivent être présents dans le fichier (colonne « Email », « E-mail », etc.)</li>
+                            <li>Les comptes utilisateurs sont créés automatiquement à la fin de l'import si un e-mail est renseigné</li>
                           <!--  <li>Si le matricule est fourni dans le fichier, il sera utilisé. Sinon, il sera généré automatiquement (M1, M2, M3...)</li>-->
                             <li>Les lignes avec des matricules ou emails déjà existants seront ignorées</li>
                         </ul>

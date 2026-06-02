@@ -12,8 +12,13 @@ interface Props {
         nom: string;
         fonction?: string;
         departement?: string;
-        email?: string;
+        email?: string | null;
         telephone?: string;
+        compte_utilisateur?: {
+            id: number;
+            email: string;
+            name: string;
+        } | null;
         site?: string;
         type_contrat: string;
         statut: string;
@@ -85,9 +90,23 @@ const breadcrumbs: BreadcrumbItem[] = [
                             <dt class="text-muted-foreground text-sm font-medium">Nom</dt>
                             <dd class="mt-1 text-sm">{{ profil.nom }}</dd>
                         </div>
-                        <div v-if="profil.email">
+                        <div>
                             <dt class="text-muted-foreground text-sm font-medium">Email</dt>
-                            <dd class="mt-1 text-sm">{{ profil.email }}</dd>
+                            <dd class="mt-1 text-sm">
+                                <a
+                                    v-if="profil.email"
+                                    :href="`mailto:${profil.email}`"
+                                    class="text-primary hover:underline"
+                                >{{ profil.email }}</a>
+                                <span v-else class="text-muted-foreground italic">Non renseigné</span>
+                            </dd>
+                        </div>
+                        <div v-if="profil.compte_utilisateur">
+                            <dt class="text-muted-foreground text-sm font-medium">Compte utilisateur</dt>
+                            <dd class="mt-1 text-sm">
+                                {{ profil.compte_utilisateur.name }}
+                                <span class="text-muted-foreground">({{ profil.compte_utilisateur.email }})</span>
+                            </dd>
                         </div>
                         <div v-if="profil.telephone">
                             <dt class="text-muted-foreground text-sm font-medium">Téléphone</dt>

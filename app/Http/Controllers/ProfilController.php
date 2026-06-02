@@ -8,8 +8,10 @@ use App\Models\Departement;
 use App\Models\Filiale;
 use App\Models\Profil;
 use App\Models\User;
+use App\Services\ProfilBulkImportService;
 use App\Services\ProfilSignatureService;
 use App\Services\ProfilUserProvisioningService;
+use App\Support\ProfilExcelImport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -486,9 +488,39 @@ class ProfilController extends Controller
             return $sub->only(['id', 'nom', 'prenom', 'matricule']);
         })->toArray();
 
+        $profilData['email'] = $profil->email;
+        $profilData['compte_utilisateur'] = $this->compteUtilisateurPourProfil($profil);
+
         return Inertia::render('profils/Show', [
             'profil' => $profilData,
         ]);
+    }
+
+    /**
+     * Compte User lié au profil (même e-mail).
+     *
+     * @return array{id: int, email: string, name: string}|null
+     */
+    private function compteUtilisateurPourProfil(Profil $profil): ?array
+    {
+        $email = strtolower(trim((string) $profil->email));
+        if ($email === '') {
+            return null;
+        }
+
+        $user = User::query()
+            ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
+            ->first(['id', 'email', 'name']);
+
+        if ($user === null) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $user->id,
+            'email' => $user->email,
+            'name' => $user->name,
+        ];
     }
 
     /**
@@ -657,423 +689,78 @@ class ProfilController extends Controller
             'file' => 'required|mimes:xlsx,xls|max:10240',
         ]);
 
+        set_time_limit(600);
+
         try {
             $file = $request->file('file');
-            $data = Excel::toArray([], $file);
+            $allRows = ProfilExcelImport::readRowsFromPath($file->getRealPath());
 
-            if (empty($data) || empty($data[0])) {
+            if ($allRows === []) {
                 return back()->withErrors(['file' => 'Le fichier Excel est vide.']);
             }
 
-            $rows = $data[0];
-            $header = array_shift($rows); // Première ligne = en-têtes
-
-            // Normaliser les en-têtes (minuscules, sans espaces)
-            $headerMap = [];
-            foreach ($header as $index => $col) {
-                $normalized = strtolower(trim($col));
-                $headerMap[$normalized] = $index;
-            }
-
-            // Mapping des colonnes possibles
-            $columnMapping = [
-                'nom' => ['nom', 'name', 'lastname', 'last_name'],
-                'prenom' => ['prenom', 'firstname', 'first_name', 'prénom'],
-                'matricule' => ['matricule', 'mat', 'id', 'employee_id'],
-                'email' => ['email', 'e-mail', 'mail'],
-                'telephone' => ['telephone', 'tel', 'phone', 'téléphone', 'mobile'],
-                'fonction' => ['fonction', 'function', 'poste', 'job', 'position'],
-                'departement' => ['departement', 'department', 'département', 'dept'],
-                'site' => ['site', 'agence', 'agency', 'location'],
-                'numero_compte' => ['numero de compte', 'numéro de compte', 'numero_compte', 'num_compte', 'compte'],
-                'code_agence' => ['code agence', 'code_agence', 'agence code', 'branch_code'],
-                'type_contrat' => ['type_contrat', 'type contrat', 'contract_type', 'contrat'],
-                'statut' => ['status', 'etat', 'état', 'statut actif'],
-                'statut_rh' => ['statut', 'statut rh', 'statut_rh', 'classification statut'],
-                'type_office' => ['type_office', 'type office', 'back front office', 'back/front office', 'office', 'back office', 'front office'],
-                'n_plus_1' => ['n+1', 'n_plus_1', 'n plus 1', 'superieur', 'superieur hierarchique', 'superieur_hierarchique', 'manager', 'responsable'],
-            ];
-
-            $mappedColumns = [];
-            foreach ($columnMapping as $dbColumn => $possibleNames) {
-                foreach ($possibleNames as $name) {
-                    if (isset($headerMap[$name])) {
-                        $mappedColumns[$dbColumn] = $headerMap[$name];
-                        break;
-                    }
-                }
-            }
+            $headerIndex = ProfilExcelImport::detectHeaderRowIndex($allRows);
+            $header = $allRows[$headerIndex];
+            $rows = array_slice($allRows, $headerIndex + 1);
+            $mappedColumns = ProfilExcelImport::mapColumns($header);
+            $mappedColumns = ProfilExcelImport::refineEmailColumnMapping($mappedColumns, $header, $rows);
 
             // Vérifier que les colonnes obligatoires sont présentes
             if (! isset($mappedColumns['nom']) || ! isset($mappedColumns['prenom'])) {
                 return back()->withErrors(['file' => 'Le fichier doit contenir au moins les colonnes "Nom" et "Prénom".']);
             }
 
-            $imported = 0;
-            $skipped = 0;
-            $errors = [];
+            $importWarnings = [];
+            if (! isset($mappedColumns['email'])) {
+                $importWarnings[] = 'Aucune colonne « Email » détectée dans les en-têtes (recherche sur chaque ligne).';
+            } else {
+                $headerLabel = ProfilExcelImport::cellToString($header[$mappedColumns['email']] ?? '');
+                if ($headerLabel !== '') {
+                    $importWarnings[] = "Colonne e-mail utilisée : « {$headerLabel} ».";
+                }
+            }
 
             DB::beginTransaction();
 
             try {
-                foreach ($rows as $rowIndex => $row) {
-                    // Ignorer les lignes vides
-                    if (empty(array_filter($row))) {
-                        continue;
-                    }
+                $result = app(ProfilBulkImportService::class)->process($rows, $mappedColumns, $headerIndex, $user);
 
-                    $nom = trim($row[$mappedColumns['nom']] ?? '');
-                    $prenom = trim($row[$mappedColumns['prenom'] ?? ''] ?? '');
+                $imported = $result['imported'];
+                $importedWithEmail = $result['imported_with_email'];
+                $skipped = $result['skipped'];
+                $errors = array_merge($importWarnings, $result['errors']);
 
-                    // Ignorer si nom ou prénom est vide
-                    if (empty($nom) || empty($prenom)) {
-                        $skipped++;
-
-                        continue;
-                    }
-
-                    // Récupérer les valeurs
-                    $matricule = isset($mappedColumns['matricule']) ? trim($row[$mappedColumns['matricule']] ?? '') : null;
-                    $email = isset($mappedColumns['email']) ? trim($row[$mappedColumns['email']] ?? '') : null;
-                    $telephone = isset($mappedColumns['telephone']) ? trim($row[$mappedColumns['telephone']] ?? '') : null;
-                    $fonction = isset($mappedColumns['fonction']) ? trim($row[$mappedColumns['fonction']] ?? '') : null;
-                    $departement = isset($mappedColumns['departement']) ? trim($row[$mappedColumns['departement']] ?? '') : null;
-                    $site = isset($mappedColumns['site']) ? trim($row[$mappedColumns['site']] ?? '') : null;
-                    $numeroCompte = isset($mappedColumns['numero_compte']) ? trim($row[$mappedColumns['numero_compte']] ?? '') : null;
-                    $codeAgence = isset($mappedColumns['code_agence']) ? trim($row[$mappedColumns['code_agence']] ?? '') : null;
-                    $typeContrat = isset($mappedColumns['type_contrat']) ? trim($row[$mappedColumns['type_contrat']] ?? '') : 'CDI';
-                    $statut = isset($mappedColumns['statut']) ? trim($row[$mappedColumns['statut']] ?? '') : 'actif';
-                    $statutRh = isset($mappedColumns['statut_rh']) ? trim($row[$mappedColumns['statut_rh']] ?? '') : null;
-                    $typeOffice = isset($mappedColumns['type_office']) ? trim($row[$mappedColumns['type_office']] ?? '') : null;
-
-                    // Valider le type de contrat
-                    if (! in_array($typeContrat, ['CDI', 'CDD', 'Stagiaire', 'Autre'])) {
-                        $typeContrat = 'CDI';
-                    }
-
-                    // Valider le statut
-                    if (! in_array(strtolower($statut), ['actif', 'inactif'])) {
-                        $statut = 'actif';
-                    } else {
-                        $statut = strtolower($statut);
-                    }
-
-                    // Valider le type_office
-                    if ($typeOffice) {
-                        $typeOfficeNormalized = trim($typeOffice);
-                        // Normaliser les variations possibles
-                        if (stripos($typeOfficeNormalized, 'back') !== false && stripos($typeOfficeNormalized, 'office') !== false) {
-                            $typeOfficeNormalized = 'Back Office';
-                        } elseif (stripos($typeOfficeNormalized, 'front') !== false && stripos($typeOfficeNormalized, 'office') !== false) {
-                            $typeOfficeNormalized = 'Front Office';
-                        } else {
-                            // Si ce n'est pas une valeur valide, mettre à null
-                            if (! in_array($typeOfficeNormalized, ['Back Office', 'Front Office'])) {
-                                $typeOfficeNormalized = null;
-                            }
-                        }
-                        $typeOffice = $typeOfficeNormalized;
-                    } else {
-                        $typeOffice = null;
-                    }
-
-                    // Gérer le matricule : utiliser celui du fichier s'il existe, sinon générer automatiquement
-                    if (empty($matricule)) {
-                        // Générer le matricule automatiquement si absent
-                        $matricule = Profil::generateMatricule();
-                    } else {
-                        // Vérifier si le matricule existe déjà dans la base de données
-                        if (Profil::where('matricule', $matricule)->exists()) {
-                            $skipped++;
-                            $errors[] = 'Ligne '.($rowIndex + 2).": Matricule déjà existant ($matricule)";
-
-                            continue;
-                        }
-                    }
-
-                    // Vérifier si l'email existe déjà (si fourni)
-                    if ($email && Profil::where('email', $email)->exists()) {
-                        $skipped++;
-                        $errors[] = 'Ligne '.($rowIndex + 2).": Email déjà existant ($email)";
-
-                        continue;
-                    }
-
-                    // Synchroniser le département avec la table departements
-                    if ($departement) {
-                        $departementTrimmed = trim($departement);
-
-                        // Normaliser "informatique" en "IT"
-                        $departementNormalized = preg_replace('/informatique/i', 'IT', $departementTrimmed);
-
-                        // Normaliser les variations communes
-                        // Supprimer "Direction" au début si présent
-                        $departementNormalized = preg_replace('/^direction\s+/i', '', $departementNormalized);
-
-                        // Normaliser "exploitation" et toutes ses variations
-                        if (preg_match('/exploitation/i', $departementNormalized)) {
-                            $departementNormalized = 'EXPLOITATION';
-                        }
-
-                        // Mettre en majuscules pour uniformiser
-                        $departementNormalized = strtoupper(trim($departementNormalized));
-
-                        // Chercher un département existant avec un nom similaire (insensible à la casse)
-                        // D'abord chercher par nom exact (en majuscules)
-                        $departementModel = Departement::whereRaw('UPPER(TRIM(nom)) = ?', [$departementNormalized])->first();
-
-                        // Si pas trouvé, chercher en supprimant "DIRECTION" du nom existant
-                        if (! $departementModel) {
-                            $departementModel = Departement::whereRaw('UPPER(TRIM(REPLACE(REPLACE(nom, "DIRECTION ", ""), "DIRECTION", ""))) = ?', [$departementNormalized])->first();
-                        }
-
-                        // Si pas trouvé, chercher par mot-clé (pour regrouper les variations)
-                        if (! $departementModel) {
-                            // Extraire le mot-clé principal (premier mot significatif)
-                            $keywords = explode(' ', $departementNormalized);
-                            $mainKeyword = ! empty($keywords) ? $keywords[0] : $departementNormalized;
-
-                            // Chercher les départements existants qui contiennent ce mot-clé
-                            $existingDepartements = Departement::whereRaw('UPPER(TRIM(nom)) LIKE ?', ["%{$mainKeyword}%"])
-                                ->orWhereRaw('UPPER(TRIM(REPLACE(REPLACE(nom, "DIRECTION ", ""), "DIRECTION", ""))) LIKE ?', ["%{$mainKeyword}%"])
-                                ->get();
-
-                            // Si on trouve un département existant avec le même mot-clé, l'utiliser
-                            if ($existingDepartements->isNotEmpty()) {
-                                $departementModel = $existingDepartements->first();
-                                // Mettre à jour le nom normalisé pour correspondre au département existant
-                                $departementNormalized = $departementModel->nom;
-                            }
-                        }
-
-                        // Si pas trouvé, créer le département
-                        if (! $departementModel) {
-                            $departementModel = Departement::create([
-                                'nom' => $departementNormalized,
-                                'description' => 'Direction '.strtolower($departementNormalized),
-                                'actif' => true,
-                            ]);
-                        }
-
-                        // Utiliser le nom normalisé du département pour le profil
-                        $departement = $departementModel->nom;
-                    }
-
-                    // Trouver ou créer la filiale "Sénégal" par défaut pour tous les profils importés
-                    $filialeSenegal = Filiale::firstOrCreate(
-                        ['nom' => 'Sénégal'],
-                        [
-                            'nom' => 'Sénégal',
-                            'description' => 'Filiale Sénégal',
-                            'actif' => true,
-                        ]
-                    );
-
-                    // Synchroniser le site/agence avec la table agences
-                    if ($site) {
-                        $siteNormalized = trim($site);
-
-                        // Chercher ou créer l'agence dans la table agences
-                        $agenceModel = Agence::firstOrCreate(
-                            ['nom' => $siteNormalized],
-                            [
-                                'nom' => $siteNormalized,
-                                'code_agent' => null, // Laisser vide
-                                'description' => 'Agence '.$siteNormalized,
-                                'actif' => true,
-                                'filiale_id' => $filialeSenegal->id, // Lier à la filiale Sénégal par défaut
-                            ]
-                        );
-
-                        // Si l'agence existait déjà sans filiale, la mettre à jour
-                        if (! $agenceModel->filiale_id) {
-                            $agenceModel->filiale_id = $filialeSenegal->id;
-                            $agenceModel->save();
-                        }
-
-                        // Utiliser le nom normalisé de l'agence pour le profil
-                        $site = $agenceModel->nom;
-                    }
-
-                    // Gérer le N+1 si présent dans le fichier
-                    $nPlus1Id = null;
-                    $nPlus2Id = null;
-
-                    if (isset($mappedColumns['n_plus_1'])) {
-                        $nPlus1Value = trim($row[$mappedColumns['n_plus_1']] ?? '');
-
-                        if (! empty($nPlus1Value)) {
-                            // Chercher le profil N+1 par matricule, email, ou nom/prénom
-                            $nPlus1 = null;
-
-                            // Essayer d'abord par matricule
-                            $nPlus1 = Profil::where('matricule', $nPlus1Value)->first();
-
-                            // Si pas trouvé, essayer par email
-                            if (! $nPlus1) {
-                                $nPlus1 = Profil::where('email', $nPlus1Value)->first();
-                            }
-
-                            // Si pas trouvé, essayer par nom et prénom (insensible à la casse et aux accents)
-                            if (! $nPlus1) {
-                                // Fonction pour normaliser les accents
-                                $normalizeAccents = function ($str) {
-                                    $str = strtolower($str);
-                                    $str = str_replace(
-                                        ['à', 'á', 'â', 'ã', 'ä', 'å', 'è', 'é', 'ê', 'ë', 'ì', 'í', 'î', 'ï', 'ò', 'ó', 'ô', 'õ', 'ö', 'ù', 'ú', 'û', 'ü', 'ý', 'ÿ', 'ç', 'ñ'],
-                                        ['a', 'a', 'a', 'a', 'a', 'a', 'e', 'e', 'e', 'e', 'i', 'i', 'i', 'i', 'o', 'o', 'o', 'o', 'o', 'u', 'u', 'u', 'u', 'y', 'y', 'c', 'n'],
-                                        $str
-                                    );
-
-                                    return $str;
-                                };
-
-                                // Normaliser la valeur (supprimer les espaces multiples, normaliser la casse et les accents)
-                                $nPlus1ValueNormalized = preg_replace('/\s+/', ' ', trim($nPlus1Value));
-                                $nPlus1ValueLower = $normalizeAccents($nPlus1ValueNormalized);
-
-                                $nameParts = preg_split('/\s+/', trim($nPlus1ValueNormalized));
-                                if (count($nameParts) >= 2) {
-                                    // Essayer "Prénom Nom" (insensible à la casse et aux accents)
-                                    $prenomN1 = trim($nameParts[0]);
-                                    $nomN1 = trim($nameParts[count($nameParts) - 1]); // Dernier mot = nom
-
-                                    // Récupérer les profils filtrés selon le rôle et comparer en PHP (plus simple pour gérer les accents)
-                                    $allProfilsQuery = Profil::select('id', 'nom', 'prenom', 'matricule');
-                                    $allProfilsQuery = $this->applyFilialeFilter($allProfilsQuery, $user);
-                                    $allProfils = $allProfilsQuery->get();
-                                    foreach ($allProfils as $profilCandidate) {
-                                        $prenomNormalized = $normalizeAccents($profilCandidate->prenom);
-                                        $nomNormalized = $normalizeAccents($profilCandidate->nom);
-
-                                        if ($prenomNormalized === $normalizeAccents($prenomN1) &&
-                                            $nomNormalized === $normalizeAccents($nomN1)) {
-                                            $nPlus1 = $profilCandidate;
-                                            break;
-                                        }
-                                    }
-
-                                    // Si pas trouvé, essayer "Nom Prénom"
-                                    if (! $nPlus1 && count($nameParts) == 2) {
-                                        foreach ($allProfils as $profilCandidate) {
-                                            $prenomNormalized = $normalizeAccents($profilCandidate->prenom);
-                                            $nomNormalized = $normalizeAccents($profilCandidate->nom);
-
-                                            if ($nomNormalized === $normalizeAccents($nameParts[0]) &&
-                                                $prenomNormalized === $normalizeAccents($nameParts[1])) {
-                                                $nPlus1 = $profilCandidate;
-                                                break;
-                                            }
-                                        }
-                                    }
-
-                                    // Si toujours pas trouvé, essayer une recherche partielle sur le nom complet (insensible aux accents)
-                                    if (! $nPlus1) {
-                                        $allProfilsQuery = Profil::select('id', 'nom', 'prenom', 'matricule');
-                                        $allProfilsQuery = $this->applyFilialeFilter($allProfilsQuery, $user);
-                                        $allProfils = $allProfilsQuery->get();
-                                        foreach ($allProfils as $profilCandidate) {
-                                            $fullNameCandidate = $normalizeAccents(trim($profilCandidate->prenom.' '.$profilCandidate->nom));
-                                            $fullNameCandidateReverse = $normalizeAccents(trim($profilCandidate->nom.' '.$profilCandidate->prenom));
-
-                                            // Correspondance exacte (insensible aux accents)
-                                            if ($fullNameCandidate === $nPlus1ValueLower ||
-                                                $fullNameCandidateReverse === $nPlus1ValueLower) {
-                                                $nPlus1 = $profilCandidate;
-                                                break;
-                                            }
-
-                                            // Correspondance partielle (si le nom recherché contient le prénom et le nom)
-                                            $nPlus1ValueWords = explode(' ', $nPlus1ValueLower);
-                                            if (count($nPlus1ValueWords) >= 2) {
-                                                $firstWord = $nPlus1ValueWords[0];
-                                                $lastWord = $nPlus1ValueWords[count($nPlus1ValueWords) - 1];
-
-                                                // Vérifier si le prénom commence par le premier mot et le nom correspond au dernier mot
-                                                $prenomNormalized = $normalizeAccents($profilCandidate->prenom);
-                                                $nomNormalized = $normalizeAccents($profilCandidate->nom);
-
-                                                if ((strpos($fullNameCandidate, $firstWord) === 0 || strpos($prenomNormalized, $firstWord) === 0) &&
-                                                    (strpos($fullNameCandidate, $lastWord) !== false || strpos($nomNormalized, $lastWord) === 0)) {
-                                                    $nPlus1 = $profilCandidate;
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    // Si un seul mot, chercher par nom ou prénom (insensible à la casse)
-                                    $nPlus1 = Profil::where(function ($q) use ($nPlus1Value) {
-                                        $q->whereRaw('LOWER(nom) = ?', [strtolower($nPlus1Value)])
-                                            ->orWhereRaw('LOWER(prenom) = ?', [strtolower($nPlus1Value)]);
-                                    })->first();
-                                }
-                            }
-
-                            if ($nPlus1) {
-                                // Vérifier que le N+1 trouvé n'est pas le profil en cours de création
-                                // (comparer par matricule si on l'a déjà, sinon par nom/prénom)
-                                $isSelfReference = false;
-                                if (! empty($matricule) && $nPlus1->matricule === $matricule) {
-                                    $isSelfReference = true;
-                                } elseif (strtolower($nPlus1->prenom) === strtolower($prenom) &&
-                                          strtolower($nPlus1->nom) === strtolower($nom)) {
-                                    $isSelfReference = true;
-                                }
-
-                                if (! $isSelfReference) {
-                                    $nPlus1Id = $nPlus1->id;
-
-                                    // Calculer automatiquement N+2 : le N+1 du N+1
-                                    // Mais seulement si le N+2 est différent du N+1 (éviter les boucles)
-                                    if ($nPlus1->n_plus_1_id && $nPlus1->n_plus_1_id != $nPlus1Id) {
-                                        $nPlus2Id = $nPlus1->n_plus_1_id;
-                                    }
-                                } else {
-                                    // Un profil ne peut pas être son propre N+1
-                                    $errors[] = 'Ligne '.($rowIndex + 2).": Le N+1 ($nPlus1Value) correspond au profil en cours de création pour $prenom $nom. Ignoré.";
-                                }
-                            } else {
-                                // N+1 non trouvé, ajouter un avertissement mais continuer l'import
-                                $errors[] = 'Ligne '.($rowIndex + 2).": N+1 non trouvé ($nPlus1Value) pour $prenom $nom. Le profil sera créé sans N+1.";
-                            }
-                        }
-                    }
-
-                    // Créer le profil avec la filiale Sénégal
-                    $profil = Profil::create([
-                        'nom' => $nom,
-                        'prenom' => $prenom,
-                        'matricule' => $matricule,
-                        'email' => $email ?: null,
-                        'telephone' => $telephone ?: null,
-                        'fonction' => $fonction ?: null,
-                        'departement' => $departement ?: null,
-                        'site' => $site ?: null,
-                        'numero_compte' => $numeroCompte ?: null,
-                        'code_agence' => $codeAgence ?: null,
-                        'type_contrat' => $typeContrat,
-                        'statut' => $statut,
-                        'statut_rh' => $statutRh ?: null,
-                        'type_office' => $typeOffice,
-                        'n_plus_1_id' => $nPlus1Id,
-                        'n_plus_2_id' => $nPlus2Id,
-                        'filiale_id' => $filialeSenegal->id, // Assigner la filiale Sénégal
-                    ]);
-
-                    app(ProfilUserProvisioningService::class)->provisionUserForProfil($profil);
-
-                    $imported++;
+                $usersProvisioned = 0;
+                if (config('cofina.provision_user_on_profil_create', true) && $result['created_profils'] !== []) {
+                    $usersProvisioned = app(ProfilUserProvisioningService::class)
+                        ->provisionMany($result['created_profils']);
                 }
 
                 DB::commit();
 
-                $message = "$imported profil(s) importé(s) avec succès.";
-                if ($skipped > 0) {
-                    $message .= " $skipped ligne(s) ignorée(s).";
+                $emailsFromFile = $result['emails_from_file'];
+                $emailsGenerated = $result['emails_generated'];
+                $updated = $result['updated'];
+                $created = $result['created'];
+                $message = "{$imported} profil(s) traité(s) ({$created} créé(s), {$updated} mis à jour)";
+                $message .= " — {$importedWithEmail} avec e-mail ({$emailsFromFile} depuis le fichier";
+                if ($emailsGenerated > 0) {
+                    $message .= ", {$emailsGenerated} généré(s)";
                 }
-                if (! empty($errors)) {
-                    $message .= "\n\nErreurs rencontrées:\n".implode("\n", $errors);
+                $message .= ').';
+                if ($skipped > 0) {
+                    $message .= " {$skipped} ligne(s) ignorée(s).";
+                }
+                if ($usersProvisioned > 0) {
+                    $message .= " {$usersProvisioned} compte(s) utilisateur créé(s).";
+                } elseif ($imported > 0 && config('cofina.provision_user_on_profil_create', true)) {
+                    $message .= ' Aucun compte utilisateur créé (profils sans e-mail valide).';
+                }
+                if ($errors !== []) {
+                    $message .= "\n\nErreurs / avertissements:\n".implode("\n", array_slice($errors, 0, 50));
+                    if (count($errors) > 50) {
+                        $message .= "\n... et ".(count($errors) - 50).' autre(s).';
+                    }
                 }
 
                 return redirect()->route('profils.index')

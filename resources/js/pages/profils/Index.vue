@@ -169,6 +169,10 @@ const columns: Column[] = [
         sortable: true,
     },
     {
+        key: 'email',
+        title: 'EMAIL',
+    },
+    {
         key: 'fonction',
         title: 'FONCTION',
     },
@@ -193,6 +197,7 @@ const tableData = computed(() => {
         id: profil.id,
         name: `${profil.prenom} ${profil.nom}`,
         matricule: profil.matricule,
+        email: profil.email || '—',
         fonction: profil.fonction || '-',
         departement: profil.departement || '-',
         statut: profil.statut,

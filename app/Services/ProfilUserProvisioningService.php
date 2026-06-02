@@ -14,9 +14,32 @@ class ProfilUserProvisioningService
     }
 
     /**
+     * Crée les comptes User pour plusieurs profils (un seul hash Bcrypt).
+     *
+     * @param  iterable<int, Profil>  $profils
+     */
+    public function provisionMany(iterable $profils): int
+    {
+        if (! $this->isEnabled()) {
+            return 0;
+        }
+
+        $passwordHash = Hash::make((string) config('cofina.default_user_password', 'Cofina@2025'));
+        $created = 0;
+
+        foreach ($profils as $profil) {
+            if ($this->provisionUserForProfil($profil, $passwordHash) !== null) {
+                $created++;
+            }
+        }
+
+        return $created;
+    }
+
+    /**
      * Crée ou met à jour le compte User lié au profil (liaison par e-mail).
      */
-    public function provisionUserForProfil(Profil $profil): ?User
+    public function provisionUserForProfil(Profil $profil, ?string $passwordHash = null): ?User
     {
         if (! $this->isEnabled()) {
             return null;
@@ -35,7 +58,7 @@ class ProfilUserProvisioningService
             $user = User::create([
                 'name' => $this->displayName($profil),
                 'email' => $email,
-                'password' => Hash::make((string) config('cofina.default_user_password', 'Cofina@2025')),
+                'password' => $passwordHash ?? Hash::make((string) config('cofina.default_user_password', 'Cofina@2025')),
                 'must_change_password' => true,
                 'is_active' => $this->profilIsActive($profil),
             ]);

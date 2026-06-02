@@ -17,6 +17,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | E-mails collaborateurs (import Excel)
+    |--------------------------------------------------------------------------
+    |
+    | Si le fichier ne contient pas de colonne avec « @ », l'import peut générer
+    | prenom.nom@domaine à partir du nom/prénom, ou compléter un login AD.
+    |
+    */
+    'email_domain' => env('COFINA_EMAIL_DOMAIN', 'cofinacorp.com'),
+
+    'import' => [
+        // false = uniquement les e-mails présents dans le fichier Excel (recommandé)
+        'generate_email_from_name' => env('COFINA_IMPORT_GENERATE_EMAIL', false),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Compte super administrateur (seeder)
     |--------------------------------------------------------------------------
     */
