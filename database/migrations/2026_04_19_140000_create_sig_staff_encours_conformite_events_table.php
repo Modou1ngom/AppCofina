@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\MysqlIdentifier;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -10,8 +11,15 @@ return new class extends Migration
     {
         Schema::create('sig_staff_encours_conformite_events', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('sig_staff_id')->constrained('sig_staffs')->cascadeOnDelete();
-            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('sig_staff_id')
+                ->constrained('sig_staffs')
+                ->cascadeOnDelete()
+                ->name(MysqlIdentifier::foreign('sig_enc_evt', 'staff'));
+            $table->foreignId('user_id')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete()
+                ->name(MysqlIdentifier::foreign('sig_enc_evt', 'user'));
             $table->string('type', 32);
             $table->decimal('fonds_propres', 18, 2)->nullable();
             $table->decimal('encours_consolide', 18, 2);
@@ -20,8 +28,14 @@ return new class extends Migration
             $table->text('commentaire')->nullable();
             $table->timestamps();
 
-            $table->index(['sig_staff_id', 'created_at']);
-            $table->index(['type', 'created_at']);
+            $table->index(
+                ['sig_staff_id', 'created_at'],
+                MysqlIdentifier::index('sig_enc_evt', 'staff_created')
+            );
+            $table->index(
+                ['type', 'created_at'],
+                MysqlIdentifier::index('sig_enc_evt', 'type_created')
+            );
         });
     }
 

@@ -7,8 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import InputError from '@/components/InputError.vue';
 import { validerEtape3 } from '@/routes/habilitations';
-import { ref, computed } from 'vue';
-import SignaturePad from '@/components/SignaturePad.vue';
+import { ref } from 'vue';
+import ProfilSignatureSelector from '@/components/ProfilSignatureSelector.vue';
 
 interface Profil {
     id: number;
@@ -33,6 +33,7 @@ interface Habilitation {
 
 interface Props {
     habilitation: Habilitation;
+    validatorSignature?: string | null;
 }
 
 const props = defineProps<Props>();
@@ -51,10 +52,11 @@ const breadcrumbs: BreadcrumbItem[] = [
 const form = useForm({
     action: '' as 'approuver' | 'rejeter' | '',
     comment_n1: '',
-    signature_n1: '',
+    signature_n1: props.validatorSignature ?? '',
+    use_registered_signature: !!props.validatorSignature,
 });
 
-const signatureRef = ref<InstanceType<typeof SignaturePad> | null>(null);
+const signatureSelectorRef = ref<InstanceType<typeof ProfilSignatureSelector> | null>(null);
 
 const submit = (action: 'approuver' | 'rejeter') => {
     // Si rejet, vérifier qu'un commentaire est fourni
@@ -63,12 +65,8 @@ const submit = (action: 'approuver' | 'rejeter') => {
         return;
     }
 
-    // Sauvegarder la signature si elle existe
-    if (signatureRef.value) {
-        const signature = signatureRef.value.save();
-        if (signature) {
-            form.signature_n1 = signature;
-        }
+    if (!form.use_registered_signature) {
+        signatureSelectorRef.value?.saveFromPad();
     }
 
     // Réinitialiser les erreurs précédentes
@@ -178,13 +176,14 @@ const submit = (action: 'approuver' | 'rejeter') => {
                         </div>
                     </div>
 
-                    <!-- Signature électronique -->
+                    <!-- Signature -->
                     <div class="space-y-4">
-                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Signature électronique</h2>
-                        <p class="text-sm text-muted-foreground">Veuillez signer dans le champ ci-dessous</p>
-                        <SignaturePad
-                            ref="signatureRef"
+                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Signature</h2>
+                        <ProfilSignatureSelector
+                            ref="signatureSelectorRef"
                             v-model="form.signature_n1"
+                            v-model:use-registered="form.use_registered_signature"
+                            :stored-signature="validatorSignature"
                             :width="500"
                             :height="200"
                         />

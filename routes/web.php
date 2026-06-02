@@ -7,11 +7,6 @@ use App\Http\Controllers\DepartementController;
 use App\Http\Controllers\EnqueteSatisfactionController;
 use App\Http\Controllers\FilialeController;
 use App\Http\Controllers\HabilitationController;
-use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\PointageController;
-use App\Http\Controllers\PointageDeclarationController;
-use App\Http\Controllers\PointageRapportController;
-use App\Http\Controllers\PointageSiteController;
 use App\Http\Controllers\ProfilController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SigEncoursConformiteController;
@@ -46,10 +41,6 @@ require __DIR__.'/settings.php';
 
 // Routes pour les profils - Admin et RH peuvent créer/éditer/supprimer
 Route::middleware(['auth'])->group(function () {
-    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
-    Route::post('notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
-    Route::post('notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
-
     Route::get('profils/import', [ProfilController::class, 'showImport'])->name('profils.import')->middleware('role:admin,rh');
     Route::post('profils/import', [ProfilController::class, 'import'])->name('profils.import.store')->middleware('role:admin,rh');
     Route::get('profils/export', [ProfilController::class, 'export'])->name('profils.export')->middleware('role:admin,rh');
@@ -69,37 +60,6 @@ Route::middleware(['auth'])->group(function () {
             'update' => 'applications.update',
             'destroy' => 'applications.destroy',
         ]);
-
-    Route::prefix('pointage')->name('pointage.')->group(function () {
-        Route::get('/', [PointageController::class, 'index'])->name('index');
-        Route::post('/enregistrer', [PointageController::class, 'store'])->name('store');
-        Route::get('/historique', [PointageController::class, 'historique'])->name('historique');
-
-        Route::get('/declarations', [PointageDeclarationController::class, 'index'])->name('declarations.index');
-        Route::get('/declarations/create', [PointageDeclarationController::class, 'create'])->name('declarations.create');
-        Route::post('/declarations', [PointageDeclarationController::class, 'store'])->name('declarations.store');
-        Route::get('/declarations/validation-manager', [PointageDeclarationController::class, 'validationManager'])
-            ->name('declarations.validation-manager');
-        Route::post('/declarations/{declaration}/decision-manager', [PointageDeclarationController::class, 'decisionManager'])
-            ->name('declarations.decision-manager');
-
-        Route::middleware('role:admin,rh')->group(function () {
-            Route::resource('sites', PointageSiteController::class);
-            Route::post('sites/{site}/regenerer-qr', [PointageSiteController::class, 'regenererQr'])
-                ->name('sites.regenerer-qr');
-            Route::get('/declarations/validation-rh', [PointageDeclarationController::class, 'validationRh'])
-                ->name('declarations.validation-rh');
-            Route::post('/declarations/{declaration}/decision-rh', [PointageDeclarationController::class, 'decisionRh'])
-                ->name('declarations.decision-rh');
-            Route::get('/rapport', [PointageRapportController::class, 'index'])->name('rapport');
-            Route::get('/rapport/export-quotidien', [PointageRapportController::class, 'exportQuotidien'])
-                ->name('rapport.export-quotidien');
-            Route::get('/rapport/export-journalier-rh', [PointageRapportController::class, 'exportJournalierRh'])
-                ->name('rapport.export-journalier-rh');
-            Route::get('/rapport/export-synthese-rh', [PointageRapportController::class, 'exportSyntheseRh'])
-                ->name('rapport.export-synthese-rh');
-        });
-    });
 
     Route::prefix('suivi-signature')->name('suivi-signature.')->group(function () {
         Route::post('lookup-client', [SigLookupController::class, 'lookup'])->name('lookup-client');

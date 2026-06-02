@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import InputError from '@/components/InputError.vue';
 import FormSection from '@/components/FormSection.vue';
+import ProfilSearchSelect from '@/components/ProfilSearchSelect.vue';
+import ProfilSignatureSelector from '@/components/ProfilSignatureSelector.vue';
 import { Code } from 'lucide-vue-next';
 import { computed, watch, ref } from 'vue';
 
@@ -90,6 +92,8 @@ const form = useForm({
     statut: props.profil.statut as 'actif' | 'inactif',
     type_office: (props.profil.type_office || '') as '' | 'Back Office' | 'Front Office',
     n_plus_1_id: props.profil.n_plus_1_id || null,
+    signature: props.profil.signature ?? '',
+    replace_signature: false,
 });
 
 // Filtrer les profils pour exclure le profil actuel
@@ -352,23 +356,34 @@ const submit = () => {
 
                     <div>
                         <Label for="n_plus_1" class="text-base font-medium text-gray-700">N+1</Label>
-                        <select
-                            id="n_plus_1"
-                            v-model="form.n_plus_1_id"
-                            class="mt-1.5 flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                        >
-                            <option :value="null">Sélectionner un N+1</option>
-                            <option
-                                v-for="profil in availableProfils"
-                                :key="profil.id"
-                                :value="profil.id"
-                            >
-                                {{ profil.prenom }} {{ profil.nom }} ({{ profil.matricule }})
-                            </option>
-                        </select>
+                        <div class="mt-1.5">
+                            <ProfilSearchSelect
+                                id="n_plus_1"
+                                v-model="form.n_plus_1_id"
+                                :profils="availableProfils"
+                                :exclude-id="profil.id"
+                                input-class="border-gray-300"
+                            />
+                        </div>
                         <InputError :message="form.errors.n_plus_1_id" />
-                        
                     </div>
+                </FormSection>
+
+                <FormSection title="Signature du collaborateur">
+                    <p class="text-sm text-muted-foreground mb-4">
+                        Importez ou enregistrez la signature sur le profil (réutilisée aux validations d'habilitation).
+                    </p>
+                    <ProfilSignatureSelector
+                        v-model="form.signature"
+                        :stored-signature="profil.signature"
+                        :width="400"
+                        :height="160"
+                    />
+                    <div v-if="profil.signature" class="mt-3 flex items-center gap-2">
+                        <Checkbox id="replace_signature" v-model:checked="form.replace_signature" />
+                        <Label for="replace_signature" class="cursor-pointer text-sm">Remplacer la signature existante</Label>
+                    </div>
+                    <InputError :message="form.errors.signature" />
                 </FormSection>
 
                 <div class="flex justify-end gap-2">

@@ -1,10 +1,7 @@
 <script setup lang="ts">
 import Breadcrumbs from '@/components/Breadcrumbs.vue';
-import NotificationBell from '@/components/NotificationBell.vue';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import type { BreadcrumbItemType } from '@/types';
-import { usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
 
 withDefaults(
     defineProps<{
@@ -14,9 +11,6 @@ withDefaults(
         breadcrumbs: () => [],
     },
 );
-
-const page = usePage();
-const showNotifications = computed(() => !!page.props.auth?.user);
 </script>
 
 <template>
@@ -29,6 +23,5 @@ const showNotifications = computed(() => !!page.props.auth?.user);
                 <Breadcrumbs :breadcrumbs="breadcrumbs" class="min-w-0" />
             </template>
         </div>
-        <NotificationBell v-if="showNotifications" />
     </header>
 </template>

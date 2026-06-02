@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\MysqlIdentifier;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -10,7 +11,10 @@ return new class extends Migration
     {
         Schema::create('avance_salaire_integrations', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('avance_salaire_demande_id')->constrained('avance_salaire_demandes')->cascadeOnDelete();
+            $table->foreignId('avance_salaire_demande_id')
+                ->constrained('avance_salaire_demandes')
+                ->cascadeOnDelete()
+                ->name(MysqlIdentifier::foreign('av_sal_int', 'demande'));
 
             // Identifiant batch (format libre, utilisé dans l’export écritures)
             $table->string('no_batch', 64);
@@ -26,16 +30,26 @@ return new class extends Migration
             // Statut de l’intégration (vue / export / traitement)
             $table->string('statut', 32)->default('en_attente');
 
-            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('created_by')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete()
+                ->name(MysqlIdentifier::foreign('av_sal_int', 'created_by'));
 
             $table->timestamps();
 
-            $table->unique('avance_salaire_demande_id');
+            $table->unique(
+                'avance_salaire_demande_id',
+                MysqlIdentifier::unique('av_sal_int', 'demande')
+            );
         });
 
         Schema::create('avance_salaire_integration_lignes', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('integration_id')->constrained('avance_salaire_integrations')->cascadeOnDelete();
+            $table->foreignId('integration_id')
+                ->constrained('avance_salaire_integrations')
+                ->cascadeOnDelete()
+                ->name(MysqlIdentifier::foreign('av_sal_int_lig', 'integration'));
 
             $table->unsignedInteger('numero')->default(1);
             $table->string('no_batch', 64);
@@ -53,11 +67,18 @@ return new class extends Migration
             $table->unsignedSmallInteger('annee_compte')->nullable();
             $table->unsignedTinyInteger('mois_compte')->nullable();
 
-            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('user_id')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete()
+                ->name(MysqlIdentifier::foreign('av_sal_int_lig', 'user'));
 
             $table->timestamps();
 
-            $table->index(['integration_id', 'numero']);
+            $table->index(
+                ['integration_id', 'numero'],
+                MysqlIdentifier::index('av_sal_int_lig', 'int_numero')
+            );
         });
     }
 

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import InputError from '@/components/InputError.vue';
 import FormSection from '@/components/FormSection.vue';
+import ProfilSearchSelect from '@/components/ProfilSearchSelect.vue';
 import { User, Mail, Phone, Globe, Building2, Briefcase, FileText, Users, ArrowLeft, ArrowRight } from 'lucide-vue-next';
 import { computed, watch, ref } from 'vue';
 
@@ -216,6 +217,9 @@ const submit = () => {
                                 placeholder="johndoe@email.com"
                             />
                             <InputError :message="form.errors.email" />
+                            <p class="mt-1 text-xs text-muted-foreground">
+                                Si renseigné, un compte de connexion est créé automatiquement avec le mot de passe par défaut (à changer à la première connexion).
+                            </p>
                         </div>
 
                         <div>
@@ -409,20 +413,12 @@ const submit = () => {
                                     <span>N+1</span>
                                 </div>
                             </Label>
-                            <select
+                            <ProfilSearchSelect
                                 id="n_plus_1"
                                 v-model="form.n_plus_1_id"
-                                class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-all outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
-                            >
-                                <option :value="null">Sélectionner un N+1</option>
-                                <option
-                                    v-for="profil in props.profils"
-                                    :key="profil.id"
-                                    :value="profil.id"
-                                >
-                                    {{ profil.prenom }} {{ profil.nom }} ({{ profil.matricule }})
-                                </option>
-                            </select>
+                                :profils="props.profils"
+                                input-class="h-10 rounded-lg border-gray-300 focus-visible:border-purple-500 focus-visible:ring-purple-500/20"
+                            />
                             <InputError :message="form.errors.n_plus_1_id" />
                         </div>
                     </div>

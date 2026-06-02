@@ -3,10 +3,8 @@
 namespace App\Http\Middleware;
 
 use App\Models\SigStaff;
-use App\Support\NotificationPresenter;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
-use Illuminate\Notifications\DatabaseNotification;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -46,8 +44,6 @@ class HandleInertiaRequests extends Middleware
         $roles = [];
 
         $sigStaffFiche = ['exists' => false, 'id' => null];
-        $notificationsPreview = [];
-        $notificationsUnreadCount = 0;
         if ($user) {
             $user->load('roles');
             $user->profilCollaborateurAssocie();
@@ -60,15 +56,6 @@ class HandleInertiaRequests extends Middleware
                     'id' => $sig?->id,
                 ];
             }
-
-            $notificationsUnreadCount = $user->unreadNotifications()->count();
-            $notificationsPreview = $user->notifications()
-                ->orderByDesc('created_at')
-                ->limit(8)
-                ->get()
-                ->map(fn (DatabaseNotification $n) => NotificationPresenter::toWebArray($n))
-                ->values()
-                ->all();
         }
 
         return [
@@ -98,10 +85,6 @@ class HandleInertiaRequests extends Middleware
                 'isResponsableDepartement' => $user ? $user->isResponsableDepartement() : false,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
-            'notifications' => [
-                'unread_count' => $notificationsUnreadCount,
-                'preview' => $notificationsPreview,
-            ],
         ];
     }
 }

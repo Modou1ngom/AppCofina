@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Departement;
 use App\Models\Profil;
+use App\Services\ProfilUserProvisioningService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -16,12 +17,12 @@ class DepartementController extends Controller
     {
         $perPage = (int) $request->get('per_page', 5);
         $departements = Departement::orderBy('nom')->paginate($perPage);
-        
+
         // Compter le nombre de profils par département
         $departements->each(function ($departement) {
             $departement->profils_count = Profil::where('departement', $departement->nom)->count();
         });
-        
+
         return Inertia::render('departements/Index', [
             'departements' => $departements,
         ]);
@@ -55,7 +56,7 @@ class DepartementController extends Controller
         $responsableId = null;
 
         // Créer le profil du responsable si les informations sont fournies
-        if (!empty($validated['responsable_nom']) && !empty($validated['responsable_prenom'])) {
+        if (! empty($validated['responsable_nom']) && ! empty($validated['responsable_prenom'])) {
             $responsable = Profil::create([
                 'nom' => $validated['responsable_nom'],
                 'prenom' => $validated['responsable_prenom'],
@@ -66,6 +67,8 @@ class DepartementController extends Controller
                 'telephone' => $validated['responsable_telephone'] ?? null,
                 'statut' => 'actif',
             ]);
+
+            app(ProfilUserProvisioningService::class)->provisionUserForProfil($responsable);
 
             $responsableId = $responsable->id;
         }
@@ -88,7 +91,7 @@ class DepartementController extends Controller
     {
         $departement->load('responsable');
         $profils = Profil::where('departement', $departement->nom)->get();
-        
+
         return Inertia::render('departements/Show', [
             'departement' => $departement,
             'profils' => $profils,
@@ -101,7 +104,7 @@ class DepartementController extends Controller
     public function edit(Departement $departement)
     {
         $departement->load('responsable');
-        
+
         return Inertia::render('departements/Edit', [
             'departement' => $departement,
         ]);
@@ -114,13 +117,13 @@ class DepartementController extends Controller
     {
         $emailRule = 'nullable|email';
         if ($departement->responsable_departement_id) {
-            $emailRule .= '|unique:profiles,email,' . $departement->responsable_departement_id;
+            $emailRule .= '|unique:profiles,email,'.$departement->responsable_departement_id;
         } else {
             $emailRule .= '|unique:profiles,email';
         }
 
         $validated = $request->validate([
-            'nom' => 'required|string|max:255|unique:departements,nom,' . $departement->id,
+            'nom' => 'required|string|max:255|unique:departements,nom,'.$departement->id,
             'description' => 'nullable|string',
             'actif' => 'required|in:actif,inactif',
             // Informations du responsable
@@ -134,7 +137,7 @@ class DepartementController extends Controller
         $responsableId = $departement->responsable_departement_id;
 
         // Si un responsable existe déjà, le mettre à jour
-        if ($responsableId && !empty($validated['responsable_nom']) && !empty($validated['responsable_prenom'])) {
+        if ($responsableId && ! empty($validated['responsable_nom']) && ! empty($validated['responsable_prenom'])) {
             $responsable = Profil::find($responsableId);
             if ($responsable) {
                 $responsable->update([
@@ -145,10 +148,12 @@ class DepartementController extends Controller
                     'email' => $validated['responsable_email'] ?? $responsable->email,
                     'telephone' => $validated['responsable_telephone'] ?? $responsable->telephone,
                 ]);
+
+                app(ProfilUserProvisioningService::class)->provisionUserForProfil($responsable->fresh());
             }
-        } 
+        }
         // Sinon, créer un nouveau responsable si les informations sont fournies
-        elseif (!empty($validated['responsable_nom']) && !empty($validated['responsable_prenom'])) {
+        elseif (! empty($validated['responsable_nom']) && ! empty($validated['responsable_prenom'])) {
             $responsable = Profil::create([
                 'nom' => $validated['responsable_nom'],
                 'prenom' => $validated['responsable_prenom'],
@@ -159,6 +164,8 @@ class DepartementController extends Controller
                 'telephone' => $validated['responsable_telephone'] ?? null,
                 'statut' => 'actif',
             ]);
+
+            app(ProfilUserProvisioningService::class)->provisionUserForProfil($responsable);
 
             $responsableId = $responsable->id;
         }
@@ -180,7 +187,7 @@ class DepartementController extends Controller
     public function destroy(Departement $departement)
     {
         $departement->delete();
-        
+
         return redirect()->route('departements.index')
             ->with('success', 'Département supprimé avec succès !');
     }

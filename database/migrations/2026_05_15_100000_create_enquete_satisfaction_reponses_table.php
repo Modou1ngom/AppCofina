@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\MysqlIdentifier;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -31,7 +32,7 @@ return new class extends Migration
             $table->text('user_agent')->nullable();
             $table->timestamps();
 
-            $table->index('created_at');
+            $table->index('created_at', MysqlIdentifier::index('enq_sat', 'created'));
         });
     }
 

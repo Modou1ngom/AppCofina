@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\MysqlIdentifier;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -48,8 +49,11 @@ return new class extends Migration
             $table->foreignId('filiale_id')->nullable()->constrained('filiales')->nullOnDelete();
             $table->timestamps();
 
-            $table->index(['statut', 'created_at']);
-            $table->index('profile_id');
+            $table->index(
+                ['statut', 'created_at'],
+                MysqlIdentifier::index('av_sal_dem', 'statut_created')
+            );
+            $table->index('profile_id', MysqlIdentifier::index('av_sal_dem', 'profile'));
         });
     }
 

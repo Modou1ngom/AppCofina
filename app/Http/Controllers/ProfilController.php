@@ -7,10 +7,14 @@ use App\Models\Agence;
 use App\Models\Departement;
 use App\Models\Filiale;
 use App\Models\Profil;
+use App\Models\User;
+use App\Services\ProfilSignatureService;
+use App\Services\ProfilUserProvisioningService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -349,7 +353,7 @@ class ProfilController extends Controller
                 'prenom' => 'required|string|max:255',
                 'fonction' => 'nullable|string',
                 'departement' => 'nullable|string',
-                'email' => 'nullable|email|unique:profiles,email',
+                'email' => ['nullable', 'email', 'unique:profiles,email', 'unique:users,email'],
                 'telephone' => ['nullable', 'string', 'max:20', 'regex:/^(\\+221|00221|221)?[0-9]{9}$/'],
                 'site' => 'nullable|string|max:100',
                 'numero_compte' => 'nullable|string|max:255',
@@ -433,10 +437,27 @@ class ProfilController extends Controller
             'n_plus_2_id' => $nPlus2Id,
         ];
 
-        Profil::create($data);
+        $provisioner = app(ProfilUserProvisioningService::class);
+
+        $hadEmail = trim((string) ($data['email'] ?? '')) !== '';
+
+        $createdUser = DB::transaction(function () use ($data, $provisioner) {
+            $profil = Profil::create($data);
+
+            return $provisioner->provisionUserForProfil($profil);
+        });
+
+        $message = 'Profil créé avec succès !';
+        if (! $hadEmail) {
+            $message .= ' Aucun compte utilisateur : renseignez un e-mail pour activer la connexion.';
+        } elseif ($createdUser?->wasRecentlyCreated) {
+            $message .= ' Un compte utilisateur a été créé avec le mot de passe par défaut (changement obligatoire à la première connexion).';
+        } elseif ($createdUser) {
+            $message .= ' Compte utilisateur existant associé à cet e-mail.';
+        }
 
         return redirect()->route('profils.index')
-            ->with('success', 'Profil créé avec succès !');
+            ->with('success', $message);
     }
 
     /**
@@ -515,13 +536,22 @@ class ProfilController extends Controller
             abort(403, 'Vous n\'avez pas accès à ce profil.');
         }
 
+        $linkedUserId = User::query()
+            ->whereRaw('LOWER(TRIM(email)) = ?', [strtolower(trim((string) $request->input('email', $profil->email ?? '')))])
+            ->value('id');
+
         $validated = $request->validate([
             'nom' => 'sometimes|required|string|max:255',
             'prenom' => 'sometimes|required|string|max:255',
             'matricule' => 'sometimes|required|string|max:50|unique:profiles,matricule,'.$profil->id,
             'fonction' => 'nullable|string',
             'departement' => 'nullable|string',
-            'email' => 'nullable|email|unique:profiles,email,'.$profil->id,
+            'email' => [
+                'nullable',
+                'email',
+                Rule::unique('profiles', 'email')->ignore($profil->id),
+                Rule::unique('users', 'email')->ignore($linkedUserId),
+            ],
             'telephone' => ['nullable', 'string', 'max:20', 'regex:/^(\\+221|00221|221)?[0-9]{9}$/'],
             'site' => 'nullable|string|max:100',
             'numero_compte' => 'nullable|string|max:255',
@@ -531,6 +561,9 @@ class ProfilController extends Controller
             'statut_rh' => 'nullable|string|max:255',
             'type_office' => 'nullable|in:Back Office,Front Office',
             'n_plus_1_id' => 'nullable|exists:profiles,id',
+            'signature' => 'nullable|string',
+            'replace_signature' => 'nullable|boolean',
+            'signature_file' => 'nullable|image|max:2048',
         ]);
 
         // Calculer automatiquement N+2 : le N+1 du N+1
@@ -548,10 +581,28 @@ class ProfilController extends Controller
 
         $validated['n_plus_2_id'] = $nPlus2Id;
 
+        $signaturePayload = $validated['signature'] ?? null;
+        $replaceSignature = (bool) ($validated['replace_signature'] ?? false);
+        unset($validated['signature'], $validated['replace_signature'], $validated['signature_file']);
+
         // Vérifier si le N+1 a changé
         $nPlus1Changed = isset($validated['n_plus_1_id']) && $profil->n_plus_1_id != $validated['n_plus_1_id'];
 
         $profil->update($validated);
+        $profil->refresh();
+
+        $signatureService = app(ProfilSignatureService::class);
+        if ($request->hasFile('signature_file')) {
+            $signatureService->storeFromUpload($profil, $request->file('signature_file'), true);
+        } elseif ($signaturePayload) {
+            $signatureService->attachToProfilAfterFirstSignature(
+                $profil,
+                $signaturePayload,
+                $replaceSignature
+            );
+        }
+
+        app(ProfilUserProvisioningService::class)->provisionUserForProfil($profil);
 
         // Si le N+1 a changé, recalculer les N+2 de tous les subordonnés
         if ($nPlus1Changed) {
@@ -603,7 +654,7 @@ class ProfilController extends Controller
         $user = Auth::user();
 
         $request->validate([
-            'file' => 'required|mimes:xlsx,xls|max:10240', // 10MB max
+            'file' => 'required|mimes:xlsx,xls|max:10240',
         ]);
 
         try {
@@ -990,7 +1041,7 @@ class ProfilController extends Controller
                     }
 
                     // Créer le profil avec la filiale Sénégal
-                    Profil::create([
+                    $profil = Profil::create([
                         'nom' => $nom,
                         'prenom' => $prenom,
                         'matricule' => $matricule,
@@ -1009,6 +1060,8 @@ class ProfilController extends Controller
                         'n_plus_2_id' => $nPlus2Id,
                         'filiale_id' => $filialeSenegal->id, // Assigner la filiale Sénégal
                     ]);
+
+                    app(ProfilUserProvisioningService::class)->provisionUserForProfil($profil);
 
                     $imported++;
                 }

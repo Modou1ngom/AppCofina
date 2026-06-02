@@ -9,6 +9,7 @@ use App\Models\Filiale;
 use App\Models\Role;
 use App\Models\User;
 use App\Helpers\FilialeHelper;
+use App\Http\Controllers\Concerns\ResolvesHabilitationValidatorSignature;
 use App\Services\HabilitationNotificationService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -17,6 +18,8 @@ use Illuminate\Support\Facades\DB;
 
 class HabilitationController extends Controller
 {
+    use ResolvesHabilitationValidatorSignature;
+
     /**
      * Filiales gérées pour les listes de bénéficiaires (user_filiale + filiale du profil).
      *
@@ -734,7 +737,7 @@ class HabilitationController extends Controller
     public function etape3(Habilitation $habilitation)
     {
         $user = Auth::user();
-        $profil = $user?->profil;
+        $profil = $user?->profilCollaborateurAssocie()->profil;
         
         // Admin peut accéder à toutes les étapes
         if (!$user || !$user->isAdmin()) {
@@ -755,6 +758,7 @@ class HabilitationController extends Controller
 
         return Inertia::render('habilitations/Etape3', [
             'habilitation' => $habilitation,
+            'validatorSignature' => $this->validatorProfilSignature($profil),
         ]);
     }
 
@@ -764,7 +768,7 @@ class HabilitationController extends Controller
     public function validerEtape3(Request $request, Habilitation $habilitation)
     {
         $user = Auth::user();
-        $profil = $user?->profil;
+        $profil = $user?->profilCollaborateurAssocie()->profil;
         
         // Charger le bénéficiaire avec ses relations
         $habilitation->load('beneficiary');
@@ -788,14 +792,17 @@ class HabilitationController extends Controller
             'action' => 'required|in:approuver,rejeter',
             'comment_n1' => 'nullable|string|required_if:action,rejeter',
             'signature_n1' => 'nullable|string',
+            'use_registered_signature' => 'nullable|boolean',
         ]);
+
+        $signatureN1 = $this->resolveHabilitationSignature($request, $profil, 'signature_n1');
 
         if ($validated['action'] === 'approuver') {
             $habilitation->update([
                 'validator_n1_id' => Auth::id() ?? null,
                 'validated_n1_at' => now(),
                 'comment_n1' => $validated['comment_n1'] ?? null,
-                'signature_n1' => $validated['signature_n1'] ?? null,
+                'signature_n1' => $signatureN1,
                 'status' => 'pending_n2',
             ]);
 
@@ -808,7 +815,7 @@ class HabilitationController extends Controller
                 'validator_n1_id' => Auth::id() ?? null,
                 'validated_n1_at' => now(),
                 'comment_n1' => $validated['comment_n1'] ?? null,
-                'signature_n1' => $validated['signature_n1'] ?? null,
+                'signature_n1' => $signatureN1,
                 'status' => 'rejected',
             ]);
 
@@ -825,7 +832,7 @@ class HabilitationController extends Controller
     public function etape4(Habilitation $habilitation)
     {
         $user = Auth::user();
-        $profil = $user?->profil;
+        $profil = $user?->profilCollaborateurAssocie()->profil;
         
         // Admin peut accéder à toutes les étapes
         if (!$user || !$user->isAdmin()) {
@@ -846,6 +853,7 @@ class HabilitationController extends Controller
 
         return Inertia::render('habilitations/Etape4', [
             'habilitation' => $habilitation,
+            'validatorSignature' => $this->validatorProfilSignature($profil),
         ]);
     }
 
@@ -855,7 +863,7 @@ class HabilitationController extends Controller
     public function validerEtape4(Request $request, Habilitation $habilitation)
     {
         $user = Auth::user();
-        $profil = $user?->profil;
+        $profil = $user?->profilCollaborateurAssocie()->profil;
         
         // Charger le demandeur avec ses relations
         $habilitation->load('requester');
@@ -873,14 +881,17 @@ class HabilitationController extends Controller
             'action' => 'required|in:approuver,rejeter',
             'comment_n2' => 'nullable|string|required_if:action,rejeter',
             'signature_n2' => 'nullable|string',
+            'use_registered_signature' => 'nullable|boolean',
         ]);
+
+        $signatureN2 = $this->resolveHabilitationSignature($request, $profil, 'signature_n2');
 
         if ($validated['action'] === 'approuver') {
             $habilitation->update([
                 'validator_n2_id' => Auth::id() ?? null,
                 'validated_n2_at' => now(),
                 'comment_n2' => $validated['comment_n2'] ?? null,
-                'signature_n2' => $validated['signature_n2'] ?? null,
+                'signature_n2' => $signatureN2,
                 'status' => 'pending_control',
             ]);
 
@@ -901,7 +912,7 @@ class HabilitationController extends Controller
                 'validator_n2_id' => Auth::id() ?? null,
                 'validated_n2_at' => now(),
                 'comment_n2' => $validated['comment_n2'] ?? null,
-                'signature_n2' => $validated['signature_n2'] ?? null,
+                'signature_n2' => $signatureN2,
                 'status' => 'rejected',
             ]);
 
@@ -952,8 +963,11 @@ class HabilitationController extends Controller
                 ->with('error', 'Le contrôle permanent ne peut pas valider tant que le N+2 n\'a pas validé la demande.');
         }
 
+        $profil = $user?->profilCollaborateurAssocie()->profil;
+
         return Inertia::render('habilitations/Etape5', [
             'habilitation' => $habilitation,
+            'validatorSignature' => $this->validatorProfilSignature($profil),
         ]);
     }
 
@@ -963,6 +977,7 @@ class HabilitationController extends Controller
     public function validerEtape5(Request $request, Habilitation $habilitation)
     {
         $user = Auth::user();
+        $profil = $user?->profilCollaborateurAssocie()->profil;
         
         // Vérifier que l'utilisateur a le rôle Contrôle (sauf admin)
         if (!$user || !$user->isAdmin()) {
@@ -994,14 +1009,17 @@ class HabilitationController extends Controller
             'action' => 'required|in:approuver,rejeter',
             'comment_control' => 'nullable|string|required_if:action,rejeter',
             'signature_control' => 'nullable|string',
+            'use_registered_signature' => 'nullable|boolean',
         ]);
+
+        $signatureControl = $this->resolveHabilitationSignature($request, $profil, 'signature_control');
 
         if ($validated['action'] === 'approuver') {
             $habilitation->update([
                 'validator_control_id' => Auth::id() ?? null,
                 'validated_control_at' => now(),
                 'comment_control' => $validated['comment_control'] ?? null,
-                'signature_control' => $validated['signature_control'] ?? null,
+                'signature_control' => $signatureControl,
                 'status' => 'approved',
             ]);
 
@@ -1014,7 +1032,7 @@ class HabilitationController extends Controller
                 'validator_control_id' => Auth::id() ?? null,
                 'validated_control_at' => now(),
                 'comment_control' => $validated['comment_control'] ?? null,
-                'signature_control' => $validated['signature_control'] ?? null,
+                'signature_control' => $signatureControl,
                 'status' => 'rejected',
             ]);
 

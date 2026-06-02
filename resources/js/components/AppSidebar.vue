@@ -14,7 +14,7 @@ import {
 import { dashboard } from '@/routes';
 import { type NavItem } from '@/types';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid, Users, ShieldCheck, FileCheck, Building2, MapPin, Building, UserCog, Layers, Server, Network, CalendarClock, ClipboardList, Bell } from 'lucide-vue-next';
+import { BookOpen, Folder, LayoutGrid, Users, ShieldCheck, FileCheck, Building2, MapPin, Building, UserCog, Layers, Server, Network, ClipboardList } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { useBeneficiaryDialog } from '@/composables/useBeneficiaryDialog';
 import AppLogo from './AppLogo.vue';
@@ -31,14 +31,6 @@ const mainNavItems = computed<NavItem[]>(() => {
             icon: LayoutGrid,
         },
     ];
-
-    if (auth.value?.user) {
-        items.push({
-            title: 'Notifications',
-            href: '/notifications',
-            icon: Bell,
-        });
-    }
 
     // Admin voit tout
     if (auth.value?.isAdmin) {
@@ -425,27 +417,6 @@ const mainNavItems = computed<NavItem[]>(() => {
                     href: '/suivi-signature/mes-personnes-liees',
                 },
             ],
-        });
-    }
-
-    const pointageItems: { title: string; href: string }[] = [];
-    if (auth.value?.user) {
-        pointageItems.push({ title: 'Pointage', href: '/pointage' });
-        pointageItems.push({ title: 'Historique', href: '/pointage/historique' });
-        pointageItems.push({ title: 'Mes déclarations', href: '/pointage/declarations' });
-        pointageItems.push({ title: 'Nouvelle déclaration', href: '/pointage/declarations/create' });
-        pointageItems.push({ title: 'Validation manager', href: '/pointage/declarations/validation-manager' });
-    }
-    if (auth.value?.isAdmin || auth.value?.isRh) {
-        pointageItems.push({ title: 'Tableau de bord', href: '/pointage/rapport' });
-        pointageItems.push({ title: 'Validation RH', href: '/pointage/declarations/validation-rh' });
-        pointageItems.push({ title: 'Sites de pointage', href: '/pointage/sites' });
-    }
-    if (pointageItems.length) {
-        items.push({
-            title: 'Pointage',
-            icon: CalendarClock,
-            items: pointageItems,
         });
     }
 
