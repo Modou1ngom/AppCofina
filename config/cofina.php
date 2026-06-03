@@ -33,6 +33,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Rôles utilisateur selon le département (import / provisioning)
+    |--------------------------------------------------------------------------
+    |
+    | Clé = nom de département normalisé (ex. IT, RH). Valeur = slug du rôle.
+    | Tout autre département reçoit default_departement_role (metier).
+    |
+    */
+    'departement_role_map' => [
+        'IT' => 'admin',
+        'RH' => 'rh',
+        'RESSOURCES HUMAINES' => 'rh',
+        'CONTROLE' => 'controle',
+        'CONFORMITE' => 'conformite',
+    ],
+
+    'default_departement_role' => env('COFINA_DEFAULT_DEPARTEMENT_ROLE', 'metier'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Compte super administrateur (seeder)
     |--------------------------------------------------------------------------
     */

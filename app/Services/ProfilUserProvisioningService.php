@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\Profil;
+use App\Models\Role;
 use App\Models\User;
+use App\Support\ProfilDepartementRoleResolver;
 use Illuminate\Support\Facades\Hash;
 
 class ProfilUserProvisioningService
@@ -71,10 +73,7 @@ class ProfilUserProvisioningService
         }
 
         $this->attachFilialeFromProfil($user, $profil);
-
-        if ($profil->roles()->exists()) {
-            $user->roles()->sync($profil->roles()->pluck('role_id'));
-        }
+        $this->syncRolesFromProfil($user, $profil);
 
         return $user;
     }
@@ -87,6 +86,29 @@ class ProfilUserProvisioningService
         ]);
 
         $this->attachFilialeFromProfil($user, $profil);
+        $this->syncRolesFromProfil($user, $profil);
+    }
+
+    /**
+     * Rôles : mapping département (import Excel), sinon rôles déjà définis sur le profil.
+     */
+    private function syncRolesFromProfil(User $user, Profil $profil): void
+    {
+        $roleSlug = ProfilDepartementRoleResolver::resolve($profil->departement);
+
+        if ($roleSlug !== null) {
+            $role = Role::query()
+                ->where('slug', $roleSlug)
+                ->where('actif', true)
+                ->first();
+
+            if ($role !== null) {
+                $profil->roles()->sync([$role->id]);
+                $user->roles()->sync([$role->id]);
+
+                return;
+            }
+        }
 
         if ($profil->roles()->exists()) {
             $user->roles()->sync($profil->roles()->pluck('role_id'));
