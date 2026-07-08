@@ -109,6 +109,63 @@ Route::middleware(['auth'])->group(function () {
     Route::post('habilitations/{habilitation}/executer-etape6', [HabilitationController::class, 'executerEtape6'])->name('habilitations.executer-etape6')->middleware('role:admin,executeur_it,it');
     Route::get('habilitations/{habilitation}/pdf', [HabilitationController::class, 'downloadPdf'])->name('habilitations.pdf');
 
+    // MODULE DE GESTION DES MISSIONS
+    Route::prefix('missions')->name('missions.')->group(function () {
+        
+        // ACCÈS COLLABORATEURS ET MANAGERS ---
+        Route::get('/', [\App\Http\Controllers\MissionController::class, 'index'])->name('index');
+        Route::get('/create', [\App\Http\Controllers\MissionController::class, 'create'])->name('create');
+        Route::post('/', [\App\Http\Controllers\MissionController::class, 'store'])->name('store');
+
+        // Files d'attente métiers (avant /{mission})
+        Route::get('/validation/rh', [\App\Http\Controllers\MissionController::class, 'vueRh'])->name('validation-rh');
+        Route::get('/validation/rh-logistique', [\App\Http\Controllers\MissionController::class, 'vueRhLogistique'])->name('validation-rh-logistique');
+        Route::get('/validation/signature-rrh', [\App\Http\Controllers\MissionController::class, 'vueSignatureRrh'])->name('validation-signature-rrh');
+        Route::get('/validation/n1', [\App\Http\Controllers\MissionController::class, 'vueValidationN1'])->name('validation-n1');
+        Route::get('/validation/dga', [\App\Http\Controllers\MissionController::class, 'vueDga'])->name('validation-dga');
+        Route::get('/validation/md', [\App\Http\Controllers\MissionController::class, 'vueMd'])->name('validation-md');
+        Route::get('/validation/facilities', [\App\Http\Controllers\MissionController::class, 'vueFacilities'])->middleware('logistique')->name('validation-facilities');
+        Route::get('/validation/facilities/{mission}', [\App\Http\Controllers\MissionController::class, 'traitementFacilities'])->middleware('logistique')->name('traitement-facilities');
+        Route::get('/validation/finance', [\App\Http\Controllers\MissionController::class, 'vueFinance'])->name('validation-finance');
+        Route::get('/recap-logistique', [\App\Http\Controllers\MissionController::class, 'recapLogistique'])->name('recap-logistique');
+        Route::get('/rapports', [\App\Http\Controllers\MissionController::class, 'vueRapportsMission'])->name('rapports');
+        Route::get('/espace-missionnaire', [\App\Http\Controllers\MissionController::class, 'espaceMissionnaire'])->name('espace-missionnaire');
+        Route::get('/traitees', [\App\Http\Controllers\MissionController::class, 'vueMissionsTraitees'])->name('traitees');
+        Route::get('/traitees/recap', [\App\Http\Controllers\MissionController::class, 'recapMissionsTraitees'])->name('traitees-recap');
+
+        Route::get('/{mission}', [\App\Http\Controllers\MissionController::class, 'show'])->name('show');
+
+        // Actions du Workflow (6 niveaux)
+        Route::post('/{mission}/valider', [\App\Http\Controllers\MissionController::class, 'valider'])->name('valider');
+        Route::post('/{mission}/valider-dga', [\App\Http\Controllers\MissionController::class, 'validerDga'])->name('valider-dga');
+        Route::post('/{mission}/valider-md', [\App\Http\Controllers\MissionController::class, 'validerMd'])->name('valider-md');
+        Route::post('/{mission}/facilities', [\App\Http\Controllers\MissionController::class, 'marquerPriseEnChargeFacilities'])->middleware('logistique')->name('facilities');
+        Route::post('/{mission}/valider-rh-logistique', [\App\Http\Controllers\MissionController::class, 'validerRhLogistique'])->name('valider-rh-logistique');
+        Route::post('/{mission}/signer-ordre-rrh', [\App\Http\Controllers\MissionController::class, 'signerOrdreRrh'])->name('signer-ordre-rrh');
+        Route::post('/{mission}/valider-finance', [\App\Http\Controllers\MissionController::class, 'validerLogistiqueFinance'])->name('valider-finance');
+        Route::post('/{mission}/rapport', [\App\Http\Controllers\MissionController::class, 'soumettreRapportMission'])->name('soumettre-rapport');
+        Route::post('/{mission}/valider-rapport', [\App\Http\Controllers\MissionController::class, 'validerRapportMission'])->name('valider-rapport');
+        Route::post('/{mission}/modifier-duree', [\App\Http\Controllers\MissionController::class, 'modifierDureeMission'])->name('modifier-duree');
+        Route::get('/{mission}/rapport-preview', [\App\Http\Controllers\MissionController::class, 'apercuRapportMission'])->name('rapport-preview');
+        Route::get('/{mission}/rapport-pdf', [\App\Http\Controllers\MissionController::class, 'telechargerRapportPdf'])->name('rapport-pdf');
+        Route::get('/{mission}/rapport-pieces/{pieceJointe}', [\App\Http\Controllers\MissionController::class, 'telechargerPieceJointeRapport'])->name('rapport-piece-jointe');
+        Route::post('/{mission}/renvoyer', [\App\Http\Controllers\MissionController::class, 'renvoyer'])->name('renvoyer');
+        Route::post('/{mission}/rejeter', [\App\Http\Controllers\MissionController::class, 'rejeter'])->name('rejeter');
+
+        // GESTION DES IMPRESSIONS PDF ---
+        Route::get('/{mission}/fiche-validation', [\App\Http\Controllers\MissionController::class, 'apercuFicheValidation'])->name('fiche-validation');
+        Route::get('/{mission}/ordre-preview', [\App\Http\Controllers\MissionController::class, 'apercuOrdreMission'])->name('ordre-preview');
+        Route::get('/{mission}/ordre-prolongation-preview', [\App\Http\Controllers\MissionController::class, 'apercuOrdreProlongation'])->name('ordre-prolongation-preview');
+        Route::get('/{mission}/pdf', [\App\Http\Controllers\MissionController::class, 'telechargerPdf'])->name('pdf');
+
+        // GESTION DES MODIFICATIONS
+        Route::get('/{mission}/edit', [\App\Http\Controllers\MissionController::class, 'edit'])->name('edit');
+        Route::put('/{mission}', [\App\Http\Controllers\MissionController::class, 'update'])->name('update');
+        Route::delete('/{mission}', [\App\Http\Controllers\MissionController::class, 'destroy'])->name('destroy');
+
+    });
+
+
     Route::prefix('enquete-satisfaction')->name('enquete-satisfaction.')->middleware('role:admin,executeur_it,it')->group(function () {
         Route::get('/reponses', [EnqueteSatisfactionController::class, 'index'])->name('index');
         Route::get('/reponses/{enqueteSatisfaction}', [EnqueteSatisfactionController::class, 'show'])->name('show');

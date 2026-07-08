@@ -50,6 +50,11 @@ class HandleInertiaRequests extends Middleware
             $profil = $user->profil;
             $roles = $user->roles->pluck('slug')->toArray();
             if ($profil) {
+                $profil->load('roles');
+                $roles = array_values(array_unique(array_merge(
+                    $roles,
+                    $profil->roles->pluck('slug')->toArray(),
+                )));
                 $sig = SigStaff::query()->where('profile_id', $profil->id)->first();
                 $sigStaffFiche = [
                     'exists' => $sig !== null,
@@ -76,13 +81,21 @@ class HandleInertiaRequests extends Middleware
                 'isSuperAdmin' => $user ? $user->isSuperAdmin() : false,
                 'isMetier' => $user ? $user->isMetier() : false,
                 'isControle' => $user ? $user->isControle() : false,
-                'isRh' => $user ? $user->isRh() : false,
-                'isFinance' => $user ? $user->isFinance() : false,
+                'isRh' => $user ? ($user->isRh() || in_array('rh', $roles, true)) : false,
+                'isResponsableRh' => $user ? ($user->isResponsableRh() || in_array('responsable_rh', $roles, true)) : false,
+                'isAudit' => $user ? $user->isAudit() : false,
+                'canVoirHistoriqueMissions' => $user ? $user->peutVoirHistoriqueMissions() : false,
+                'isFacilities' => $user ? $user->isFacilities() : false,
+                'isLogistique' => $user ? $user->isLogistique() : false,
+                'isFinance' => $user ? ($user->isFinance() || in_array('finance', $roles, true)) : false,
                 'isMd' => $user ? $user->isMd() : false,
+                'isDga' => $user ? $user->isDga() : false,
                 'isConformite' => $user ? $user->isConformite() : false,
                 'sigStaffFiche' => $sigStaffFiche,
                 'isExecuteurIt' => $user ? $user->isExecuteurIt() : false,
                 'isResponsableDepartement' => $user ? $user->isResponsableDepartement() : false,
+                'estDesigneN1Profil' => $user ? $user->estDesigneN1DunProfil() : false,
+                'peutVoirRecapLogistique' => $user ? $user->peutVoirRecapLogistique() : false,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
