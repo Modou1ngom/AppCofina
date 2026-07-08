@@ -30,13 +30,10 @@ class Profil extends Model
         'n_plus_2_id',
         'filiale_id',
         'date_entree',
-        'signature',
-        'signature_enregistree_at',
     ];
 
     protected $casts = [
         'date_entree' => 'date',
-        'signature_enregistree_at' => 'datetime',
     ];
 
     // Relations
@@ -96,14 +93,6 @@ class Profil extends Model
     public function filiale()
     {
         return $this->belongsTo(Filiale::class, 'filiale_id');
-    }
-
-    /**
-     * Compte applicatif lié par e-mail (même logique que User::profil()).
-     */
-    public function user()
-    {
-        return $this->hasOne(User::class, 'email', 'email');
     }
 
     public function getFullNameAttribute()

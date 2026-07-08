@@ -62,6 +62,16 @@ class User extends Authenticatable
         return $this->hasOne(Profil::class, 'email', 'email');
     }
 
+    public function pointages()
+    {
+        return $this->hasMany(Pointage::class);
+    }
+
+    public function pointageDeclarations()
+    {
+        return $this->hasMany(PointageDeclaration::class);
+    }
+
     /**
      * Fiche collaborateur liée au compte : même logique que {@see profil()}, avec correspondance
      * d’e-mail insensible à la casse et aux espaces (évite les écarts import / compte).
@@ -84,6 +94,20 @@ class User extends Authenticatable
             ->whereNotNull('email')
             ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
             ->first();
+
+        // Fallback : si l'e-mail ne matche pas mais l'utilisateur a deja des demandes,
+        // reutiliser le profil precedent pour ne pas bloquer "Nouvelle demande".
+        if ($found === null) {
+            $profileId = AvanceSalaireDemande::query()
+                ->where('user_id', $this->id)
+                ->whereNotNull('profile_id')
+                ->latest('id')
+                ->value('profile_id');
+
+            if ($profileId) {
+                $found = Profil::query()->find($profileId);
+            }
+        }
 
         if ($found !== null) {
             $this->setRelation('profil', $found);
@@ -137,7 +161,8 @@ class User extends Authenticatable
             return true;
         }
 
-        // Vérifier les rôles du profil si disponible
+        $this->profilCollaborateurAssocie();
+
         if ($this->profil) {
             return $this->profil->roles()->where('slug', $roleSlug)->exists();
         }
@@ -156,7 +181,8 @@ class User extends Authenticatable
             return true;
         }
 
-        // Vérifier les rôles du profil si disponible
+        $this->profilCollaborateurAssocie();
+
         if ($this->profil) {
             return $this->profil->roles()->whereIn('slug', $roleSlugs)->exists();
         }
@@ -204,14 +230,122 @@ class User extends Authenticatable
         return $this->hasRole('rh');
     }
 
+    /**
+     * Responsable RH (DRH) — signature des ordres de mission.
+     */
+    public function isResponsableRh(): bool
+    {
+        return $this->hasRole('responsable_rh');
+    }
+
     public function isFinance(): bool
     {
         return $this->hasRole('finance');
     }
 
+    /**
+     * Profil logistique — traitement des demandes au niveau Facilities.
+     */
+    public function isLogistique(): bool
+    {
+        return $this->hasAnyRole(['logistique', 'facilities']);
+    }
+
+    public function isFacilities(): bool
+    {
+        return $this->isLogistique();
+    }
+
     public function isMd(): bool
     {
         return $this->hasRole('md');
+    }
+
+    public function isDga(): bool
+    {
+        return $this->hasRole('dga');
+    }
+
+    /**
+     * Profil rattaché au département RH (collaborateurs RH hors rôle métier).
+     */
+    public function estDansDepartementRh(): bool
+    {
+        if ($this->isRh() || $this->isResponsableRh()) {
+            return true;
+        }
+
+        return $this->departementCorrespond('/\b(rh|ressources?\s*humaines|drh)\b/i');
+    }
+
+    public function estDansDepartementDga(): bool
+    {
+        if ($this->isDga()) {
+            return true;
+        }
+
+        return $this->departementCorrespond('/\b(dga|direction\s+g[eé]n[eé]rale\s+adjointe?)\b/i');
+    }
+
+    public function estDansDepartementMd(): bool
+    {
+        if ($this->isMd()) {
+            return true;
+        }
+
+        return $this->departementCorrespond('/\b(md|directeur\s+g[eé]n[eé]ral|direction\s+g[eé]n[eé]rale)\b/i');
+    }
+
+    public function estDansDepartementLogistique(): bool
+    {
+        if ($this->isLogistique()) {
+            return true;
+        }
+
+        return $this->departementCorrespond('/\b(logistique|facilities)\b/i');
+    }
+
+    public function estDansDepartementFinance(): bool
+    {
+        if ($this->isFinance()) {
+            return true;
+        }
+
+        return $this->departementCorrespond('/\b(finance|financier|comptabilit[eé])\b/i');
+    }
+
+    /**
+     * Récap logistique : rôles RH, RRH, Facilities/Logistique, Finance, DGA, MD
+     * ou départements logistique, finance et RH.
+     */
+    public function peutVoirRecapLogistique(): bool
+    {
+        return $this->isAdmin()
+            || $this->isRh()
+            || $this->isResponsableRh()
+            || $this->isLogistique()
+            || $this->isFinance()
+            || $this->isDga()
+            || $this->isMd()
+            || $this->estDansDepartementRh()
+            || $this->estDansDepartementLogistique()
+            || $this->estDansDepartementFinance();
+    }
+
+    private function departementCorrespond(string $pattern): bool
+    {
+        $this->loadMissing('profil');
+        $departement = strtolower(trim((string) ($this->profil?->departement ?? '')));
+        if ($departement === '') {
+            return false;
+        }
+
+        return (bool) preg_match($pattern, $departement);
+    }
+
+    public function avanceSalaireDemandes()
+    {
+        return $this->hasMany(AvanceSalaireDemande::class, 'user_id');
     }
 
     /**
@@ -310,6 +444,32 @@ class User extends Authenticatable
     public function isAudit(): bool
     {
         return $this->hasRole('audit') || $this->hasRole('direction_audit');
+    }
+
+    /**
+     * Consultation de l'historique des workflows mission (profils IT ou Audit).
+     * IT : rôle « it » ou profil RH rattaché au département / fonction informatique.
+     */
+    public function peutVoirHistoriqueMissions(): bool
+    {
+        return $this->isExecuteurIt() || $this->isAudit();
+    }
+
+    /**
+     * Au moins un profil collaborateur a cet utilisateur comme N+1 (champ n_plus_1_id).
+     */
+    public function estDesigneN1DunProfil(): bool
+    {
+        $this->profilCollaborateurAssocie();
+
+        $profilId = $this->profil?->id;
+        if ($profilId === null) {
+            return false;
+        }
+
+        return Profil::query()
+            ->where('n_plus_1_id', $profilId)
+            ->exists();
     }
 
     /**

@@ -14,14 +14,25 @@ import {
 import { dashboard } from '@/routes';
 import { type NavItem } from '@/types';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid, Users, ShieldCheck, FileCheck, Building2, MapPin, Building, UserCog, Layers, Server, Network, ClipboardList } from 'lucide-vue-next';
+import { BookOpen, Briefcase, LayoutGrid, Users, ShieldCheck, FileCheck, Building2, MapPin, Building, UserCog, Layers, Server, Network, Wallet } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { useBeneficiaryDialog } from '@/composables/useBeneficiaryDialog';
 import AppLogo from './AppLogo.vue';
 
+
+
 const page = usePage();
 const auth = computed(() => page.props.auth as any);
 const { openDialog } = useBeneficiaryDialog();
+
+const possedeRole = (slug: string) => {
+    const roles = auth.value?.roles as string[] | undefined;
+    return roles?.includes(slug) ?? false;
+};
+
+const estRh = computed(() => Boolean(auth.value?.isRh) || possedeRole('rh'));
+const estResponsableRh = computed(() => Boolean(auth.value?.isResponsableRh) || possedeRole('responsable_rh'));
+const estFinance = computed(() => Boolean(auth.value?.isFinance) || possedeRole('finance'));
 
 const mainNavItems = computed<NavItem[]>(() => {
     const items: NavItem[] = [
@@ -50,8 +61,6 @@ const mainNavItems = computed<NavItem[]>(() => {
                    
                 ],
             },
-           
-            
             {
                 title: 'Enrolement staff',
                 icon: Users,
@@ -185,14 +194,6 @@ const mainNavItems = computed<NavItem[]>(() => {
                         href: '/habilitations/espace-it?filter=terminees',
                     },
                 ],
-            });
-        }
-
-        if (auth.value?.isAdmin || auth.value?.isExecuteurIt) {
-            items.push({
-                title: 'Enquête satisfaction IT',
-                href: '/enquete-satisfaction/reponses',
-                icon: ClipboardList,
             });
         }
     }
@@ -348,7 +349,7 @@ const mainNavItems = computed<NavItem[]>(() => {
             ],
         });
     }
-    // Exécuteur IT voit son espace dédié
+    // Exécuteur IT
     else if (auth.value?.isExecuteurIt) {
         items.push({
             title: 'Espace IT',
@@ -367,11 +368,6 @@ const mainNavItems = computed<NavItem[]>(() => {
                     href: '/habilitations/espace-it?filter=terminees',
                 },
             ],
-        });
-        items.push({
-            title: 'Enquête satisfaction IT',
-            href: '/enquete-satisfaction/reponses',
-            icon: ClipboardList,
         });
     }
     // Si aucun rôle défini, voir au moins les habilitations
@@ -404,7 +400,7 @@ const mainNavItems = computed<NavItem[]>(() => {
         });
     }
 
-    // Collaborateur avec profil RH : accès à « Mes personnes liées » (même si la fiche SI n’est pas encore créée)
+    // Collaborateur avec profil RH
     const collaborateurAvecProfil =
         (auth.value?.profil || auth.value?.sigStaffFiche?.exists) && !auth.value?.isAdmin && !auth.value?.isConformite;
     if (collaborateurAvecProfil) {
@@ -420,9 +416,87 @@ const mainNavItems = computed<NavItem[]>(() => {
         });
     }
 
+    const avancesItems: { title: string; href: string }[] = [];
+    if (auth.value?.user) {
+        avancesItems.push({ title: 'Mes demandes', href: '/avances-salaire' });
+      // avancesItems.push({ title: 'Nouvelle demande', href: '/avances-salaire/create' })
+    }
+    if (auth.value?.isAdmin || auth.value?.isRh || estFinance.value || auth.value?.isMd) {
+        const historiqueHref =
+            auth.value?.isRh || auth.value?.isAdmin
+                ? '/avances-salaire/validation-rh'
+                : '/avances-salaire/validation-finance';
+        avancesItems.push({ title: 'Historique', href: historiqueHref });
+    }
+    if (auth.value?.isAdmin || auth.value?.isRh) {
+        avancesItems.push({ title: 'Intégration', href: '/avances-salaire/integration-rh' });
+    }
+    if (auth.value?.isAdmin || auth.value?.isRh) {
+        avancesItems.push({ title: 'Paramétrage', href: '/avances-salaire/parametrage' });
+    }
+    if (avancesItems.length) {
+        items.push({
+            title: 'Avances sur salaire',
+            icon: Wallet,
+            items: avancesItems,
+        });
+    }
+
+    // Gestion des missions — onglets selon le rôle / la hiérarchie du workflow
+    const missionSubItems = [
+        { title: 'Mon tableau de bord', href: '/missions' },
+        { title: 'Planifier une mission', href: '/missions/create' },
+    ];
+
+    // N+1 et/ou DGA (pas le MD qui a sa propre file)
+    if ((auth.value?.isDga || auth.value?.estDesigneN1Profil) && !auth.value?.isMd) {
+        missionSubItems.push({ title: 'Validations', href: '/missions/validation/dga' });
+    }
+
+    // Directeur Général (MD)
+    if (auth.value?.isMd) {
+        missionSubItems.push({ title: 'Validations', href: '/missions/validation/md' });
+    }
+
+    // Facilities / logistique
+    if (auth.value?.isLogistique || auth.value?.isFacilities) {
+        missionSubItems.push({ title: 'Dotations Logistique (Facilities)', href: '/missions/validation/facilities' });
+    }
+
+    // RH — génération des ordres de mission (rôle rh uniquement)
+    if (estRh.value) {
+        missionSubItems.push({ title: 'Validation RH', href: '/missions/validation/rh-logistique' });
+    }
+
+    // Responsable RH — signature des ordres (rôle responsable_rh uniquement)
+    if (estResponsableRh.value) {
+        missionSubItems.push({ title: 'Signature RRH', href: '/missions/validation/signature-rrh' });
+    }
+
+    // Finance (CFO)
+    if (estFinance.value) {
+        missionSubItems.push({ title: 'Validation Finance', href: '/missions/validation/finance' });
+    }
+
+    missionSubItems.push({ title: 'Rapport de mission', href: '/missions/rapports' });
+    missionSubItems.push({ title: 'Traitées/Cloturées', href: '/missions/traitees' });
+
+    if (auth.value?.peutVoirRecapLogistique && !auth.value?.isLogistique && !auth.value?.isFinance) {
+        missionSubItems.push({ title: 'Récap logistique', href: '/missions/recap-logistique?context=finance' });
+    }
+
+    //ajoute le menu des missions dans le menu principal
+    items.push({
+        title: 'Gestion des missions',
+        icon: Briefcase,
+        items: missionSubItems,
+    });
+
+
+
     // Seul le super admin peut voir le menu Filiales
+
     if (auth.value?.isSuperAdmin) {
-        // Trouver l'index où insérer "Filiales" (après Agences, avant Applications)
         const agencesIndex = items.findIndex(item => item.title === 'Agences');
         if (agencesIndex !== -1) {
             items.splice(agencesIndex + 1, 0, {
@@ -431,7 +505,6 @@ const mainNavItems = computed<NavItem[]>(() => {
                 icon: Building,
             });
         } else {
-            // Si Agences n'est pas trouvé, ajouter à la fin
             items.push({
                 title: 'Filiales',
                 href: '/filiales',
