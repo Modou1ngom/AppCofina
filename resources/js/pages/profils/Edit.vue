@@ -362,6 +362,7 @@ const submit = () => {
                                 v-model="form.n_plus_1_id"
                                 :profils="availableProfils"
                                 :exclude-id="profil.id"
+                                clear-option-label="Aucun N+1"
                                 input-class="border-gray-300"
                             />
                         </div>

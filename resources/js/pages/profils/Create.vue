@@ -417,6 +417,7 @@ const submit = () => {
                                 id="n_plus_1"
                                 v-model="form.n_plus_1_id"
                                 :profils="props.profils"
+                                clear-option-label="Aucun N+1"
                                 input-class="h-10 rounded-lg border-gray-300 focus-visible:border-purple-500 focus-visible:ring-purple-500/20"
                             />
                             <InputError :message="form.errors.n_plus_1_id" />

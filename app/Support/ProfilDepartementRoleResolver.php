@@ -36,6 +36,9 @@ class ProfilDepartementRoleResolver
         if (preg_match('/exploitation/i', (string) $normalized)) {
             $normalized = 'EXPLOITATION';
         }
+        if (preg_match('/controle\s+permanent|contrôle\s+permanent/i', (string) $normalized)) {
+            $normalized = 'CONTROLE PERMANENT';
+        }
         $key = mb_strtoupper(trim((string) $normalized), 'UTF-8');
 
         return str_replace(
@@ -55,6 +58,7 @@ class ProfilDepartementRoleResolver
             'RH' => 'rh',
             'RESSOURCES HUMAINES' => 'rh',
             'CONTROLE' => 'controle',
+            'CONTROLE PERMANENT' => 'controle',
             'CONFORMITE' => 'conformite',
         ];
     }

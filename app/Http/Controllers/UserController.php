@@ -8,6 +8,7 @@ use App\Models\Filiale;
 use App\Models\Profil;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\ProfilDepartementRoleResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -223,16 +224,16 @@ class UserController extends Controller
      */
     public function create()
     {
-        $roles = Role::where('actif', true)->orderBy('nom')->get();
         $filiales = Filiale::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
-        $profils = Profil::orderBy('nom')->orderBy('prenom')->get(['id', 'nom', 'prenom', 'matricule', 'email', 'site', 'filiale_id']);
-        $agences = Agence::where('actif', true)->orderBy('nom')->get(['id', 'nom', 'filiale_id']);
+        $profils = Profil::orderBy('nom')->orderBy('prenom')->get([
+            'id', 'nom', 'prenom', 'matricule', 'email', 'site', 'filiale_id', 'departement',
+        ]);
 
         return Inertia::render('users/Create', [
-            'roles' => $roles,
             'filiales' => $filiales,
             'profils' => $profils,
-            'agences' => $agences,
+            'departementRoleMap' => config('cofina.departement_role_map', []),
+            'defaultDepartementRole' => config('cofina.default_departement_role', 'metier'),
         ]);
     }
 
@@ -248,7 +249,7 @@ class UserController extends Controller
             'must_change_password' => 'nullable|boolean',
             'roles' => 'nullable|array',
             'roles.*' => 'required|integer|exists:roles,id',
-            'profil_id' => 'nullable|integer|exists:profiles,id',
+            'profil_id' => 'required|integer|exists:profiles,id',
             'filiales' => 'nullable|array',
             'filiales.*' => 'required|integer|exists:filiales,id',
             'agences' => 'nullable|array',
@@ -263,13 +264,9 @@ class UserController extends Controller
             'must_change_password' => $validated['must_change_password'] ?? true,
         ]);
 
-        // Attacher les rôles si fournis
-        if (! empty($validated['roles']) && is_array($validated['roles'])) {
-            $user->roles()->sync(array_map('intval', $validated['roles']));
-        }
-
         // Associer le profil si sélectionné (avant l'attachement des filiales)
         $profilFilialeId = null;
+        $profil = null;
         if (isset($validated['profil_id']) && ! empty($validated['profil_id'])) {
             $profil = Profil::find($validated['profil_id']);
             if ($profil) {
@@ -288,6 +285,17 @@ class UserController extends Controller
                     $profil->update(['email' => $validated['email']]);
                 }
             }
+        }
+
+        $roleIds = [];
+        if (! empty($validated['roles']) && is_array($validated['roles'])) {
+            $roleIds = array_map('intval', $validated['roles']);
+        } elseif ($profil !== null) {
+            $roleIds = $this->roleIdsFromProfilDepartement($profil);
+        }
+
+        if ($roleIds !== []) {
+            $user->roles()->sync($roleIds);
         }
 
         // Attacher les filiales/environnements
@@ -504,5 +512,23 @@ class UserController extends Controller
 
         return redirect()->route('users.index')
             ->with('success', "Utilisateur {$status} avec succès !");
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function roleIdsFromProfilDepartement(Profil $profil): array
+    {
+        $roleSlug = ProfilDepartementRoleResolver::resolve($profil->departement);
+        if ($roleSlug === null) {
+            return [];
+        }
+
+        $role = Role::query()
+            ->where('slug', $roleSlug)
+            ->where('actif', true)
+            ->first();
+
+        return $role ? [(int) $role->id] : [];
     }
 }

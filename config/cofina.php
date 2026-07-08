@@ -45,6 +45,7 @@ return [
         'RH' => 'rh',
         'RESSOURCES HUMAINES' => 'rh',
         'CONTROLE' => 'controle',
+        'CONTROLE PERMANENT' => 'controle',
         'CONFORMITE' => 'conformite',
     ],
 

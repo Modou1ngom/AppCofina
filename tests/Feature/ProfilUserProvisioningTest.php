@@ -85,7 +85,7 @@ test('le role rh est assigne pour un profil du departement rh', function () {
     expect($user->hasRole('rh'))->toBeTrue();
 });
 
-test('le role controle est assigne pour le departement controle', function () {
+test('le role controle est assigne pour le departement controle permanent', function () {
     $this->seed(RoleSeeder::class);
 
     config(['cofina.provision_user_on_profil_create' => true]);
@@ -95,7 +95,7 @@ test('le role controle est assigne pour le departement controle', function () {
         'prenom' => 'Omar',
         'nom' => 'Fall',
         'email' => 'omar.fall.controle@cofina.test',
-        'departement' => 'CONTROLE',
+        'departement' => 'CONTROLE PERMANENT',
         'statut' => 'actif',
     ]);
 

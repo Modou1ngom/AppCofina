@@ -13,9 +13,11 @@ test('departement rh mappe vers rh', function () {
         ->and(ProfilDepartementRoleResolver::resolve('Ressources Humaines'))->toBe('rh');
 });
 
-test('departement controle mappe vers controle', function () {
-    expect(ProfilDepartementRoleResolver::resolve('CONTROLE'))->toBe('controle')
-        ->and(ProfilDepartementRoleResolver::resolve('Contrôle'))->toBe('controle');
+test('departement controle permanent mappe vers controle', function () {
+    expect(ProfilDepartementRoleResolver::resolve('CONTROLE PERMANENT'))->toBe('controle')
+        ->and(ProfilDepartementRoleResolver::resolve('Contrôle permanent'))->toBe('controle')
+        ->and(ProfilDepartementRoleResolver::resolve('Departement controle permanent'))->toBe('controle')
+        ->and(ProfilDepartementRoleResolver::resolve('CONTROLE'))->toBe('controle');
 });
 
 test('departement conformite mappe vers conformite', function () {

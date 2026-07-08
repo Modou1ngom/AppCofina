@@ -32,9 +32,9 @@ class RoleSeeder extends Seeder
                 'actif' => true,
             ],
             [
-                'nom' => 'Controle',
+                'nom' => 'Contrôle permanent',
                 'slug' => 'controle',
-                'description' => 'Profil de contrôle et validation',
+                'description' => 'Profil de contrôle permanent et validation',
                 'actif' => true,
             ],
             [
