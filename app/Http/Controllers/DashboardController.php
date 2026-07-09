@@ -29,40 +29,6 @@ class DashboardController extends Controller
         if ($isSuperAdmin) {
             // Pas de restriction pour le super admin - il voit tout
         }
-        // Admin normal voit uniquement ses filiales assignées
-        elseif ($isAdmin && $user) {
-            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-            if (!empty($userFilialesIds)) {
-                $query->where(function($q) use ($userFilialesIds) {
-                    $q->whereHas('requester', function($subQ) use ($userFilialesIds) {
-                        $subQ->whereIn('filiale_id', $userFilialesIds);
-                    })->orWhereHas('beneficiary', function($subQ) use ($userFilialesIds) {
-                        $subQ->whereIn('filiale_id', $userFilialesIds);
-                    });
-                });
-            } else {
-                // Si l'admin n'a aucune filiale assignée, il ne voit rien
-                $query->where('id', 0);
-            }
-        }
-        // RH : périmètre des filiales gérées
-        elseif ($user && $user->isRh() && $profil) {
-            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-            if ($profil->filiale_id && !in_array($profil->filiale_id, $userFilialesIds, true)) {
-                $userFilialesIds[] = $profil->filiale_id;
-            }
-            if (!empty($userFilialesIds)) {
-                $query->where(function($q) use ($userFilialesIds) {
-                    $q->whereHas('requester', function($subQ) use ($userFilialesIds) {
-                        $subQ->whereIn('filiale_id', $userFilialesIds)->whereNotNull('filiale_id');
-                    })->orWhereHas('beneficiary', function($subQ) use ($userFilialesIds) {
-                        $subQ->whereIn('filiale_id', $userFilialesIds)->whereNotNull('filiale_id');
-                    });
-                });
-            } else {
-                $query->where('id', 0);
-            }
-        }
         // Exécuteur IT : file d'attente ou dossiers assignés
         elseif ($user && $user->isExecuteurIt()) {
             $query->where(function($q) use ($user) {
@@ -78,6 +44,10 @@ class DashboardController extends Controller
                 $q->where('status', 'pending_control')
                   ->orWhere('validator_control_id', $user->id);
             });
+        }
+        // Admin / RH : toutes les habilitations de leur filiale (scope appliqué ci-dessous)
+        elseif ($user && ($user->isAdmin() || $user->isRh())) {
+            // Pas de filtre métier supplémentaire
         }
         // Métier : périmètre personnel / hiérarchie (hors rôles fonctionnels ci-dessus)
         elseif ($profil) {
@@ -103,19 +73,13 @@ class DashboardController extends Controller
                   });
             });
 
-            // Contexte filiale en session : intersection avec le périmètre ci-dessus
-            if ($currentFilialeId) {
-                $query->where(function($q) use ($currentFilialeId) {
-                    $q->whereHas('requester', function($subQ) use ($currentFilialeId) {
-                        $subQ->where('filiale_id', $currentFilialeId);
-                    })->orWhereHas('beneficiary', function($subQ) use ($currentFilialeId) {
-                        $subQ->where('filiale_id', $currentFilialeId);
-                    });
-                });
-            }
-        } 
+        }
         else {
             $query->where('id', 0); // Aucune habilitation
+        }
+
+        if ($user && ! $user->isSuperAdmin()) {
+            $user->applyHabilitationFilialeScope($query);
         }
 
         // Statistiques générales des habilitations (filtrées selon le rôle)
@@ -133,35 +97,10 @@ class DashboardController extends Controller
 
         // Statistiques des profils (selon le rôle)
         $profilQuery = Profil::query();
-        
-        // Super admin voit tous les environnements
-        if ($isSuperAdmin) {
-            // Pas de filtre pour le super admin
-        }
-        // Admin normal voit uniquement ses filiales assignées
-        elseif ($isAdmin && $user) {
-            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-            if (!empty($userFilialesIds)) {
-                $profilQuery->whereIn('filiale_id', $userFilialesIds);
-            } else {
-                // Si l'admin n'a aucune filiale assignée, il ne voit rien
-                $profilQuery->where('id', 0);
-            }
-        }
-        // Filtrer par filiale si une filiale est définie dans la session
-        elseif ($currentFilialeId) {
-            $profilQuery->where('filiale_id', $currentFilialeId);
-        }
-        
-        if ($user && ($user->isAdmin() || $user->isRh())) {
-            // Admin et RH voient les profils selon leurs filiales (ou tous pour super admin)
-        } elseif ($profil) {
-            // Métier voit son profil et ses subordonnés
-            $subordonnesIds = $profil->subordonnes()->pluck('id')->toArray();
-            $subordonnesIds[] = $profil->id;
-            $profilQuery->whereIn('id', $subordonnesIds);
+        if ($user) {
+            $user->applyProfilVisibilityScope($profilQuery);
         } else {
-            $profilQuery->where('id', 0);
+            $profilQuery->whereRaw('0 = 1');
         }
 
         $statsProfils = [
@@ -172,25 +111,10 @@ class DashboardController extends Controller
 
         // Statistiques des applications (filtrées par filiale si définie)
         $applicationQuery = Application::where('actif', true);
-        
-        // Super admin voit tous les environnements
-        if ($isSuperAdmin) {
-            // Pas de filtre pour le super admin
+        if ($user) {
+            $user->applyFilialeScopeToQuery($applicationQuery);
         }
-        // Admin normal voit uniquement ses filiales assignées
-        elseif ($isAdmin && $user) {
-            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-            if (!empty($userFilialesIds)) {
-                $applicationQuery->whereIn('filiale_id', $userFilialesIds);
-            } else {
-                // Si l'admin n'a aucune filiale assignée, il ne voit rien
-                $applicationQuery->where('id', 0);
-            }
-        }
-        // Filtrer par filiale si une filiale est définie dans la session
-        elseif ($currentFilialeId) {
-            $applicationQuery->where('filiale_id', $currentFilialeId);
-        }
+
         $statsApplications = [
             'total' => $applicationQuery->count(),
         ];

@@ -95,8 +95,6 @@ class User extends Authenticatable
             ->whereRaw('LOWER(TRIM(email)) = ?', [$email])
             ->first();
 
-        // Fallback : si l'e-mail ne matche pas mais l'utilisateur a deja des demandes,
-        // reutiliser le profil precedent pour ne pas bloquer "Nouvelle demande".
         if ($found === null) {
             $profileId = AvanceSalaireDemande::query()
                 ->where('user_id', $this->id)
@@ -188,6 +186,210 @@ class User extends Authenticatable
         }
 
         return false;
+    }
+
+    /**
+     * Filiale unique accessible (hors super admin).
+     * Priorité : filiale du profil collaborateur, puis pivot user_filiale.
+     */
+    public function primaryFilialeId(): ?int
+    {
+        $this->profilCollaborateurAssocie();
+
+        if ($this->profil?->filiale_id) {
+            return (int) $this->profil->filiale_id;
+        }
+
+        $pivotId = $this->filiales()->orderBy('filiales.id')->value('filiales.id');
+
+        return $pivotId ? (int) $pivotId : null;
+    }
+
+    /**
+     * Filiales visibles : null = toutes (super admin), sinon une seule filiale ou aucune.
+     *
+     * @return list<int>|null
+     */
+    public function allowedFilialeIds(): ?array
+    {
+        if ($this->isSuperAdmin()) {
+            return null;
+        }
+
+        $id = $this->primaryFilialeId();
+
+        return $id !== null ? [$id] : [];
+    }
+
+    public function canAccessFiliale(?int $filialeId): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        if ($filialeId === null) {
+            return false;
+        }
+
+        $allowed = $this->allowedFilialeIds();
+
+        return in_array($filialeId, $allowed ?? [], true);
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     */
+    public function applyFilialeScopeToQuery($query, string $column = 'filiale_id'): void
+    {
+        $allowed = $this->allowedFilialeIds();
+
+        if ($allowed === null) {
+            return;
+        }
+
+        if ($allowed === []) {
+            $query->whereRaw('0 = 1');
+
+            return;
+        }
+
+        $query->whereIn($column, $allowed);
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<\App\Models\Profil>  $query
+     */
+    public function applyProfilVisibilityScope($query): void
+    {
+        if ($this->isSuperAdmin()) {
+            return;
+        }
+
+        $allowed = $this->allowedFilialeIds();
+
+        if ($this->isAdmin() || $this->isRh()) {
+            $this->applyFilialeScopeToQuery($query);
+
+            return;
+        }
+
+        $this->profilCollaborateurAssocie();
+        $profil = $this->profil;
+
+        if (! $profil) {
+            $query->whereRaw('0 = 1');
+
+            return;
+        }
+
+        $query->where(function ($q) use ($profil) {
+            $q->where('id', $profil->id)
+                ->orWhere('n_plus_1_id', $profil->id);
+        });
+
+        if ($allowed !== []) {
+            $query->whereIn('filiale_id', $allowed);
+        }
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<\App\Models\User>  $query
+     */
+    public function applyUserVisibilityScope($query): void
+    {
+        if ($this->isSuperAdmin()) {
+            return;
+        }
+
+        $allowed = $this->allowedFilialeIds();
+
+        if ($allowed === []) {
+            $query->where('users.id', $this->id);
+
+            return;
+        }
+
+        $query->where(function ($q) use ($allowed) {
+            $q->where('users.id', $this->id)
+                ->orWhereHas('profil', fn ($sub) => $sub->whereIn('filiale_id', $allowed))
+                ->orWhereHas('filiales', fn ($sub) => $sub->whereIn('filiales.id', $allowed));
+        });
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<\App\Models\Habilitation>  $query
+     */
+    public function applyHabilitationFilialeScope($query): void
+    {
+        if ($this->isSuperAdmin()) {
+            return;
+        }
+
+        $allowed = $this->allowedFilialeIds();
+
+        if ($allowed === []) {
+            $query->whereRaw('0 = 1');
+
+            return;
+        }
+
+        $query->where(function ($q) use ($allowed) {
+            $q->whereHas('requester', fn ($sub) => $sub->whereIn('filiale_id', $allowed))
+                ->orWhereHas('beneficiary', fn ($sub) => $sub->whereIn('filiale_id', $allowed));
+        });
+    }
+
+    public function canAccessUser(User $target): bool
+    {
+        if ($this->isSuperAdmin() || $this->id === $target->id) {
+            return true;
+        }
+
+        $target->loadMissing('profil');
+
+        if ($target->profil?->filiale_id && $this->canAccessFiliale((int) $target->profil->filiale_id)) {
+            return true;
+        }
+
+        $targetFilialeIds = $target->filiales()->pluck('filiales.id')->map(fn ($id) => (int) $id)->all();
+        $allowed = $this->allowedFilialeIds() ?? [];
+
+        return ! empty(array_intersect($allowed, $targetFilialeIds));
+    }
+
+    public function canAccessProfil(?Profil $profil): bool
+    {
+        if (! $profil) {
+            return false;
+        }
+
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        if ($this->isAdmin() || $this->isRh()) {
+            return $this->canAccessFiliale($profil->filiale_id ? (int) $profil->filiale_id : null);
+        }
+
+        $this->profilCollaborateurAssocie();
+        $userProfil = $this->profil;
+
+        if ($userProfil && ($profil->id === $userProfil->id || $profil->n_plus_1_id === $userProfil->id)) {
+            return $profil->filiale_id === null || $this->canAccessFiliale((int) $profil->filiale_id);
+        }
+
+        return false;
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Builder<\App\Models\Filiale>
+     */
+    public function visibleFilialesQuery()
+    {
+        $query = Filiale::query()->where('actif', true)->orderBy('nom');
+        $this->applyFilialeScopeToQuery($query, 'id');
+
+        return $query;
     }
 
     /**

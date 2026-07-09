@@ -27,15 +27,7 @@ class HabilitationController extends Controller
      */
     private function managedFilialeIdsForHabilitation(User $user, ?Profil $profil): array
     {
-        $ids = $user->filiales()->get()->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
-        if ($profil && $profil->filiale_id) {
-            $fid = (int) $profil->filiale_id;
-            if (!in_array($fid, $ids, true)) {
-                $ids[] = $fid;
-            }
-        }
-
-        return $ids;
+        return $user->allowedFilialeIds() ?? [];
     }
 
     /**
@@ -73,10 +65,10 @@ class HabilitationController extends Controller
 
         $query = Habilitation::with(['requester', 'requester.nPlus1', 'requester.nPlus2', 'beneficiary', 'beneficiary.nPlus1', 'beneficiary.nPlus2', 'validatorN1', 'validatorControl', 'validatorN2', 'executorIt']);
 
-        // Admin voit toutes les habilitations
-        if ($user && $user->isAdmin()) {
-            // Pas de restriction pour l'admin
-        } 
+        // Super admin voit toutes les habilitations
+        if ($user && $user->isSuperAdmin()) {
+            // Pas de restriction pour le super admin
+        }
         // Utilisateurs avec plusieurs rôles (RH + Exécuteur IT, etc.) : combiner les conditions
         elseif ($user && $profil) {
             $hasMultipleRoles = ($user->isRh() ? 1 : 0) + ($user->isExecuteurIt() ? 1 : 0) + ($user->isControle() ? 1 : 0) > 1;
@@ -188,6 +180,10 @@ class HabilitationController extends Controller
                         $q->where('status', 'pending_control')
                           ->orWhere('validator_control_id', $user->id);
                     });
+                }
+                // Admin : périmètre filiale appliqué en fin de requête
+                elseif ($user->isAdmin()) {
+                    // Pas de filtre métier supplémentaire
                 } else {
                     // Métier : un seul « rôle fonctionnel » mais profil présent (pas RH / IT / Contrôle)
                     $subordonnesIds = $profil->subordonnes()->pluck('id')->toArray();
@@ -229,6 +225,10 @@ class HabilitationController extends Controller
                   ->orWhere('validator_control_id', $user->id);
             });
         }
+        // Admin / RH sans filtre métier supplémentaire
+        elseif ($user && ($user->isAdmin() || $user->isRh())) {
+            // Périmètre filiale appliqué ci-dessous
+        }
         else {
             $query->where('id', 0); // Aucune habilitation
         }
@@ -267,6 +267,10 @@ class HabilitationController extends Controller
                          ->orWhere('prenom', 'like', "%{$search}%");
                 });
             });
+        }
+
+        if ($user && ! $user->isSuperAdmin()) {
+            $user->applyHabilitationFilialeScope($query);
         }
 
         $habilitations = $query->orderBy('created_at', 'desc')->paginate($request->get('per_page', 5));

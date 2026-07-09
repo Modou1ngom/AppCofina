@@ -96,6 +96,8 @@ class HandleInertiaRequests extends Middleware
                 'isResponsableDepartement' => $user ? $user->isResponsableDepartement() : false,
                 'estDesigneN1Profil' => $user ? $user->estDesigneN1DunProfil() : false,
                 'peutVoirRecapLogistique' => $user ? $user->peutVoirRecapLogistique() : false,
+                'primaryFilialeId' => $user ? $user->primaryFilialeId() : null,
+                'currentFilialeId' => session('current_filiale_id'),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];

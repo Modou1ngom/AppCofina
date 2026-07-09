@@ -24,6 +24,12 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
+interface Role {
+    id: number;
+    nom: string;
+    slug: string;
+}
+
 interface Profil {
     id: number;
     nom: string;
@@ -43,6 +49,7 @@ interface Filiale {
 interface Props {
     filiales: Filiale[];
     profils: Profil[];
+    roles: Role[];
     departementRoleMap: Record<string, string>;
     defaultDepartementRole: string;
 }
@@ -120,7 +127,15 @@ const selectedFilialeNom = computed(() => {
     return props.filiales.find((f) => f.id === selectedProfil.value?.filiale_id)?.nom ?? null;
 });
 
-const assignedRoleSlug = computed(() => {
+function roleIdFromSlug(slug: string | null | undefined): number | null {
+    if (!slug) {
+        return null;
+    }
+
+    return props.roles.find((role) => role.slug === slug)?.id ?? null;
+}
+
+const suggestedRoleSlug = computed(() => {
     if (!selectedProfil.value?.departement) {
         return null;
     }
@@ -132,13 +147,37 @@ const assignedRoleSlug = computed(() => {
     );
 });
 
+const selectedRoleId = computed({
+    get: () => form.roles[0] ?? null,
+    set: (roleId: number | null) => {
+        form.roles = roleId ? [roleId] : [];
+    },
+});
+
+const selectedRole = computed(() =>
+    props.roles.find((role) => role.id === selectedRoleId.value) ?? null,
+);
+
+const assignedRoleSlug = computed(() => selectedRole.value?.slug ?? suggestedRoleSlug.value);
+
 const assignedRoleLabel = computed(() => {
+    if (selectedRole.value) {
+        return selectedRole.value.nom;
+    }
+
     if (!assignedRoleSlug.value) {
         return null;
     }
 
     return roleLabels[assignedRoleSlug.value] ?? assignedRoleSlug.value;
 });
+
+const isRoleOverridden = computed(
+    () =>
+        !!suggestedRoleSlug.value &&
+        !!selectedRole.value &&
+        selectedRole.value.slug !== suggestedRoleSlug.value,
+);
 
 const roleBadgeClass = computed(() => {
     const slug = assignedRoleSlug.value ?? 'metier';
@@ -156,7 +195,8 @@ const isReadyToSubmit = computed(
         !!form.name.trim() &&
         !!form.email.trim() &&
         !!form.password &&
-        !!form.password_confirmation,
+        !!form.password_confirmation &&
+        form.roles.length > 0,
 );
 
 watch(
@@ -175,6 +215,17 @@ watch(
         form.name = `${profil.prenom} ${profil.nom}`.trim();
         if (profil.email) {
             form.email = profil.email;
+        }
+
+        const suggestedId = roleIdFromSlug(
+            resolveDepartementRoleSlug(
+                profil.departement,
+                props.departementRoleMap,
+                props.defaultDepartementRole,
+            ),
+        );
+        if (suggestedId) {
+            form.roles = [suggestedId];
         }
     },
 );
@@ -385,6 +436,46 @@ const submit = () => {
                             </div>
                         </div>
 
+                        <div
+                            class="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm transition-opacity"
+                            :class="!form.profil_id ? 'pointer-events-none opacity-50' : ''"
+                        >
+                            <div class="flex items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white px-5 py-4 sm:px-6">
+                                <span
+                                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold shadow-sm"
+                                    :class="form.profil_id ? 'bg-primary text-white' : 'bg-gray-200 text-gray-500'"
+                                >3</span>
+                                <div class="flex items-center gap-2">
+                                    <Shield class="h-5 w-5 text-gray-400" />
+                                    <h2 class="font-semibold text-gray-900">Rôle applicatif</h2>
+                                </div>
+                            </div>
+                            <div class="space-y-5 p-5 sm:p-6">
+                                <div>
+                                    <Label for="role_id" class="mb-2 block text-sm font-medium text-gray-700">
+                                        Rôle <span class="text-primary">*</span>
+                                    </Label>
+                                    <select id="role_id" v-model="selectedRoleId" :class="selectClass">
+                                        <option :value="null" disabled>Sélectionnez un rôle</option>
+                                        <option v-for="role in props.roles" :key="role.id" :value="role.id">
+                                            {{ role.nom }}
+                                        </option>
+                                    </select>
+                                    <InputError :message="form.errors.roles" />
+                                    <p
+                                        v-if="suggestedRoleSlug && !isRoleOverridden"
+                                        class="mt-2 text-xs text-gray-500"
+                                    >
+                                        Suggestion selon le département :
+                                        {{ roleLabels[suggestedRoleSlug] ?? suggestedRoleSlug }}.
+                                    </p>
+                                    <p v-else-if="isRoleOverridden" class="mt-2 text-xs text-amber-700">
+                                        Rôle personnalisé (différent de la suggestion département).
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Actions mobile -->
                         <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end lg:hidden">
                             <Button type="button" variant="outline" class="h-11 rounded-xl" @click="router.visit('/users')">
@@ -481,7 +572,11 @@ const submit = () => {
                                                 {{ assignedRoleLabel }}
                                             </span>
                                             <p class="mt-2 text-xs text-gray-500">
-                                                Attribué automatiquement selon le département.
+                                                {{
+                                                    isRoleOverridden
+                                                        ? 'Rôle personnalisé (différent du département).'
+                                                        : 'Attribué selon le département, modifiable ci-dessus.'
+                                                }}
                                             </p>
                                         </div>
                                         <p v-else class="mt-2 text-sm text-amber-700">

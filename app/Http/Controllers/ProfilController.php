@@ -27,23 +27,10 @@ class ProfilController extends Controller
      */
     private function applyFilialeFilter($query, $user)
     {
-        $isSuperAdmin = $user && $user->isSuperAdmin();
-        $isAdmin = $user && $user->isAdmin();
-        $isRh = $user && $user->isRh();
-
-        // Super admin voit tous les profils
-        if ($isSuperAdmin) {
-            return $query;
-        }
-        // Admin normal et RH voient uniquement les profils de leurs filiales assignées
-        elseif (($isAdmin || $isRh) && $user) {
-            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-            if (! empty($userFilialesIds)) {
-                return $query->whereIn('filiale_id', $userFilialesIds);
-            } else {
-                // Si l'admin/RH n'a aucune filiale assignée, il ne voit rien
-                return $query->where('id', 0);
-            }
+        if ($user) {
+            $user->applyProfilVisibilityScope($query);
+        } else {
+            $query->whereRaw('0 = 1');
         }
 
         return $query;
@@ -54,47 +41,15 @@ class ProfilController extends Controller
      */
     private function filterAgencesByFiliale($user)
     {
-        $isSuperAdmin = $user && $user->isSuperAdmin();
-        $isAdmin = $user && $user->isAdmin();
-        $isRh = $user && $user->isRh();
-
         $query = Agence::where('actif', true);
 
-        // Super admin voit toutes les agences
-        if ($isSuperAdmin) {
-            return $query;
-        }
-        // Admin normal et RH voient uniquement les agences de leurs filiales assignées
-        elseif (($isAdmin || $isRh) && $user) {
-            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-            if (! empty($userFilialesIds)) {
-                return $query->whereIn('filiale_id', $userFilialesIds);
-            } else {
-                // Si l'admin/RH n'a aucune filiale assignée, il ne voit rien
-                return $query->where('id', 0);
-            }
-        }
-        // Les autres utilisateurs voient les agences de leurs filiales assignées ou de leur profil
-        elseif ($user) {
-            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-            $userProfil = $user->profil;
-
-            // Si l'utilisateur a un profil avec une filiale_id, l'ajouter aussi
-            if ($userProfil && $userProfil->filiale_id) {
-                if (! in_array($userProfil->filiale_id, $userFilialesIds)) {
-                    $userFilialesIds[] = $userProfil->filiale_id;
-                }
-            }
-
-            if (! empty($userFilialesIds)) {
-                return $query->whereIn('filiale_id', $userFilialesIds);
-            } else {
-                // Si l'utilisateur n'a aucune filiale assignée, il ne voit rien
-                return $query->where('id', 0);
-            }
+        if ($user) {
+            $user->applyFilialeScopeToQuery($query);
+        } else {
+            $query->whereRaw('0 = 1');
         }
 
-        return $query->where('id', 0);
+        return $query;
     }
 
     /**
@@ -102,52 +57,7 @@ class ProfilController extends Controller
      */
     private function canAccessProfil(Profil $profil, $user)
     {
-        if (! $user) {
-            return false;
-        }
-
-        $isSuperAdmin = $user->isSuperAdmin();
-
-        // Super admin peut accéder à tous les profils
-        if ($isSuperAdmin) {
-            return true;
-        }
-
-        $isAdmin = $user->isAdmin();
-        $isRh = $user->isRh();
-
-        // Admin normal et RH peuvent accéder uniquement aux profils de leurs filiales assignées
-        if (($isAdmin || $isRh)) {
-            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-            if (! empty($userFilialesIds) && $profil->filiale_id) {
-                return in_array($profil->filiale_id, $userFilialesIds);
-            }
-
-            return false;
-        }
-
-        // Pour les autres utilisateurs, vérifier leurs filiales assignées ou leur profil
-        $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-        $userProfil = $user->profil;
-
-        // Si l'utilisateur a un profil avec une filiale_id, l'ajouter aussi
-        if ($userProfil && $userProfil->filiale_id) {
-            if (! in_array($userProfil->filiale_id, $userFilialesIds)) {
-                $userFilialesIds[] = $userProfil->filiale_id;
-            }
-        }
-
-        // Si l'utilisateur a des filiales assignées, vérifier si le profil appartient à une de ces filiales
-        if (! empty($userFilialesIds) && $profil->filiale_id) {
-            return in_array($profil->filiale_id, $userFilialesIds);
-        }
-
-        // Sinon, vérifier s'ils peuvent voir leur propre profil ou leurs subordonnés
-        if ($userProfil) {
-            return $profil->id === $userProfil->id || $profil->n_plus_1_id === $userProfil->id;
-        }
-
-        return false;
+        return $user && $user->canAccessProfil($profil);
     }
 
     /**
@@ -161,79 +71,10 @@ class ProfilController extends Controller
         // Construire la requête de base
         $query = Profil::query();
 
-        // Distinguer super admin, admin normal et RH
-        $isSuperAdmin = $user && $user->isSuperAdmin();
-        $isAdmin = $user && $user->isAdmin();
-        $isRh = $user && $user->isRh();
-
-        // Super admin voit tous les profils
-        if ($isSuperAdmin) {
-            // Pas de restriction pour le super admin
-        }
-        // Admin normal voit uniquement les profils de ses filiales assignées
-        elseif ($isAdmin && $user) {
-            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-
-            // Si l'admin a un profil avec une filiale_id, l'ajouter aussi
-            $userProfil = $user->profil;
-            if ($userProfil && $userProfil->filiale_id) {
-                if (! in_array($userProfil->filiale_id, $userFilialesIds)) {
-                    $userFilialesIds[] = $userProfil->filiale_id;
-                }
-            }
-
-            if (! empty($userFilialesIds)) {
-                $query->whereIn('filiale_id', $userFilialesIds);
-            } else {
-                // Si l'admin n'a aucune filiale assignée, il ne voit rien
-                $query->where('id', 0);
-            }
-        }
-        // RH voit uniquement les profils de ses filiales assignées (si applicable)
-        elseif ($isRh && $user) {
-            $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-
-            // Si le RH a un profil avec une filiale_id, l'ajouter aussi
-            $userProfil = $user->profil;
-            if ($userProfil && $userProfil->filiale_id) {
-                if (! in_array($userProfil->filiale_id, $userFilialesIds)) {
-                    $userFilialesIds[] = $userProfil->filiale_id;
-                }
-            }
-
-            if (! empty($userFilialesIds)) {
-                $query->whereIn('filiale_id', $userFilialesIds);
-            } else {
-                // Si le RH n'a aucune filiale assignée, il ne voit rien
-                $query->where('id', 0);
-            }
-        }
-        // Les autres utilisateurs
-        else {
-            $profil = $user?->profil;
-
-            // Vérifier d'abord si l'utilisateur a des filiales assignées
-            $userFilialesIds = $user ? $user->filiales()->get()->pluck('id')->toArray() : [];
-
-            // Si l'utilisateur a un profil avec une filiale_id, l'ajouter aussi
-            if ($profil && $profil->filiale_id) {
-                if (! in_array($profil->filiale_id, $userFilialesIds)) {
-                    $userFilialesIds[] = $profil->filiale_id;
-                }
-            }
-
-            if (! empty($userFilialesIds)) {
-                // L'utilisateur voit les profils de ses filiales assignées
-                $query->whereIn('filiale_id', $userFilialesIds);
-            } elseif ($profil) {
-                // Sinon, il voit uniquement son propre profil et ses subordonnés
-                $query->where(function ($q) use ($profil) {
-                    $q->where('id', $profil->id)
-                        ->orWhere('n_plus_1_id', $profil->id);
-                });
-            } else {
-                $query->where('id', 0);
-            }
+        if ($user) {
+            $user->applyProfilVisibilityScope($query);
+        } else {
+            $query->whereRaw('0 = 1');
         }
 
         // Filtre par statut
@@ -791,20 +632,10 @@ class ProfilController extends Controller
         // Construire la requête de base (même logique que index)
         $query = Profil::query();
 
-        // Admin et RH voient tous les profils
-        if ($user && ($user->isAdmin() || $user->isRh())) {
-            // Pas de restriction pour l'admin et RH
+        if ($user) {
+            $user->applyProfilVisibilityScope($query);
         } else {
-            // Les autres voient uniquement leur propre profil et leurs subordonnés
-            $profil = $user?->profil;
-            if ($profil) {
-                $query->where(function ($q) use ($profil) {
-                    $q->where('id', $profil->id)
-                        ->orWhere('n_plus_1_id', $profil->id);
-                });
-            } else {
-                $query->where('id', 0);
-            }
+            $query->whereRaw('0 = 1');
         }
 
         // Appliquer les mêmes filtres que dans index

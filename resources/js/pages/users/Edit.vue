@@ -1,14 +1,28 @@
 <script setup lang="ts">
-import { Head, useForm, router } from '@inertiajs/vue3';
+import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import InputError from '@/components/InputError.vue';
-import FormSection from '@/components/FormSection.vue';
-import { User, Mail, Lock, Shield, UserCircle, Globe, Settings, Edit } from 'lucide-vue-next';
+import ProfilSearchSelect from '@/components/ProfilSearchSelect.vue';
+import { getInitials } from '@/composables/useInitials';
+import { resolveDepartementRoleSlug } from '@/lib/profilDepartementRole';
+import {
+    User,
+    Mail,
+    Lock,
+    UserCircle,
+    ArrowLeft,
+    Shield,
+    Building2,
+    BadgeCheck,
+    Sparkles,
+    Pencil,
+} from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
 interface Role {
@@ -25,20 +39,12 @@ interface Profil {
     email?: string;
     site?: string;
     filiale_id?: number | null;
+    departement?: string | null;
 }
 
 interface Filiale {
     id: number;
     nom: string;
-}
-
-interface Agence {
-    id: number;
-    nom: string;
-    filiale_id?: number | null;
-    pivot?: {
-        is_default?: boolean;
-    };
 }
 
 interface Props {
@@ -48,55 +54,67 @@ interface Props {
         email: string;
         must_change_password?: boolean;
         roles?: Role[];
-        profil?: Profil;
-        filiales?: Filiale[];
-        agences?: Agence[];
+        profil?: Profil | null;
     };
-    roles: Role[];
+    filiales: Filiale[];
     profils: Profil[];
-    filiales?: Filiale[];
-    agences?: Agence[];
+    roles: Role[];
+    departementRoleMap: Record<string, string>;
+    defaultDepartementRole: string;
 }
 
 const props = defineProps<Props>();
 
-// Initialiser avec la première filiale si disponible, ou null
-const selectedFiliale = ref<number | null>(
-    props.filiales && props.filiales.length > 0 ? props.filiales[0].id : null
-);
+const selectedFiliale = ref<number | null>(props.user.profil?.filiale_id ?? null);
+const isInitialProfilSync = ref(true);
 
-// Filtrer les profils en fonction de la filiale sélectionnée
+const inputClass =
+    'h-11 rounded-xl border-gray-200 bg-white shadow-sm transition-all focus-visible:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/15';
+
+const selectClass =
+    'flex h-11 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-all outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/15';
+
+const roleLabels: Record<string, string> = {
+    admin: 'Admin',
+    rh: 'RH',
+    controle: 'Contrôle permanent',
+    conformite: 'Conformité',
+    metier: 'Métier',
+    finance: 'Profil Finance (CFO)',
+    md: 'Profil MD',
+    super_admin: 'Super Admin',
+};
+
+const roleBadgeStyles: Record<string, string> = {
+    admin: 'bg-red-50 text-red-700 ring-red-200',
+    rh: 'bg-blue-50 text-blue-700 ring-blue-200',
+    controle: 'bg-violet-50 text-violet-700 ring-violet-200',
+    conformite: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+    metier: 'bg-slate-100 text-slate-700 ring-slate-200',
+    finance: 'bg-amber-50 text-amber-700 ring-amber-200',
+    md: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
+    super_admin: 'bg-rose-50 text-rose-700 ring-rose-200',
+};
+
 const filteredProfils = computed(() => {
-    // Si aucune filiale n'est sélectionnée, retourner tous les profils
     if (!selectedFiliale.value) {
         return props.profils;
     }
-    
-    // Convertir en nombre pour la comparaison
+
     const filialeId = Number(selectedFiliale.value);
-    
-    // Filtrer les profils
-    const filtered = props.profils.filter(profil => {
-        // Gérer les cas où filiale_id peut être null, undefined, ou un nombre
+
+    return props.profils.filter((profil) => {
         if (profil.filiale_id === null || profil.filiale_id === undefined) {
             return false;
         }
-        const profilFilialeId = Number(profil.filiale_id);
-        return profilFilialeId === filialeId;
+
+        return Number(profil.filiale_id) === filialeId;
     });
-    
-    return filtered;
 });
 
 const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Utilisateurs',
-        href: '/users',
-    },
-    {
-        title: 'Modifier l\'utilisateur',
-        href: '#',
-    },
+    { title: 'Utilisateurs', href: '/users' },
+    { title: "Modifier l'utilisateur", href: '#' },
 ];
 
 const form = useForm({
@@ -105,96 +123,129 @@ const form = useForm({
     password: '',
     password_confirmation: '',
     must_change_password: props.user.must_change_password ?? false,
-    roles: (props.user.roles || []).map(r => r.id) as number[],
-    profil_id: props.user.profil?.id || null as number | null,
-    filiales: (props.user.filiales || []).map(f => f.id) as number[],
-    agences: (props.user.agences || []).map(a => a.id) as number[],
-    default_agence_id: props.user.agences?.find(a => a.pivot?.is_default)?.id ?? null as number | null,
+    roles: (props.user.roles?.map((role) => role.id) ?? []) as number[],
+    profil_id: (props.user.profil?.id ?? null) as number | null,
 });
 
-const toggleRole = (roleId: number, checked: boolean) => {
-    if (checked) {
-        if (!form.roles.includes(roleId)) {
-            form.roles = [...form.roles, roleId];
-        }
-    } else {
-        form.roles = form.roles.filter(r => r !== roleId);
-    }
-};
+const selectedProfil = computed(() =>
+    props.profils.find((p) => p.id === form.profil_id) ?? props.user.profil ?? null,
+);
 
-const toggleFiliale = (filialeId: number, checked: boolean) => {
-    if (checked) {
-        if (!form.filiales.includes(filialeId)) {
-            form.filiales = [...form.filiales, filialeId];
-        }
-    } else {
-        form.filiales = form.filiales.filter(f => f !== filialeId);
-    }
-};
-
-const filteredAgences = computed(() => {
-    const agences = props.agences || [];
-    if (form.filiales.length === 0) {
-        return agences;
+const selectedFilialeNom = computed(() => {
+    if (!selectedProfil.value?.filiale_id) {
+        return null;
     }
 
-    return agences.filter((agence) => {
-        if (!agence.filiale_id) {
-            return false;
-        }
-
-        return form.filiales.includes(Number(agence.filiale_id));
-    });
+    return props.filiales.find((f) => f.id === selectedProfil.value?.filiale_id)?.nom ?? null;
 });
 
-const toggleAgence = (agenceId: number, checked: boolean) => {
-    if (checked) {
-        if (!form.agences.includes(agenceId)) {
-            form.agences = [...form.agences, agenceId];
-        }
-    } else {
-        form.agences = form.agences.filter(a => a !== agenceId);
+function roleIdFromSlug(slug: string | null | undefined): number | null {
+    if (!slug) {
+        return null;
     }
-};
 
-// Watcher pour ajouter automatiquement la filiale du profil aux environnements
-watch(() => form.profil_id, (newProfilId) => {
-    if (newProfilId) {
-        const selectedProfil = props.profils.find(p => p.id === newProfilId);
-        if (selectedProfil && selectedProfil.filiale_id) {
-            const filialeId = Number(selectedProfil.filiale_id);
-            // Ajouter la filiale du profil aux environnements si elle n'est pas déjà présente
-            if (!form.filiales.includes(filialeId)) {
-                form.filiales = [...form.filiales, filialeId];
-            }
-        }
+    return props.roles.find((role) => role.slug === slug)?.id ?? null;
+}
+
+const suggestedRoleSlug = computed(() => {
+    if (!selectedProfil.value?.departement) {
+        return null;
     }
+
+    return resolveDepartementRoleSlug(
+        selectedProfil.value.departement,
+        props.departementRoleMap,
+        props.defaultDepartementRole,
+    );
 });
 
-watch(() => form.filiales, () => {
-    const visibleAgenceIds = new Set(filteredAgences.value.map(agence => agence.id));
-    form.agences = form.agences.filter(agenceId => visibleAgenceIds.has(agenceId));
+const selectedRoleId = computed({
+    get: () => form.roles[0] ?? null,
+    set: (roleId: number | null) => {
+        form.roles = roleId ? [roleId] : [];
+    },
+});
 
-    if (form.default_agence_id && !form.agences.includes(form.default_agence_id)) {
-        form.default_agence_id = form.agences[0] ?? null;
-    }
-}, { deep: true });
+const selectedRole = computed(() =>
+    props.roles.find((role) => role.id === selectedRoleId.value) ?? null,
+);
 
-watch(() => form.agences, (newAgences) => {
-    if (newAgences.length === 0) {
-        form.default_agence_id = null;
-        return;
+const assignedRoleSlug = computed(() => selectedRole.value?.slug ?? suggestedRoleSlug.value);
+
+const assignedRoleLabel = computed(() => {
+    if (selectedRole.value) {
+        return selectedRole.value.nom;
     }
 
-    if (!form.default_agence_id || !newAgences.includes(form.default_agence_id)) {
-        form.default_agence_id = newAgences[0];
+    if (!assignedRoleSlug.value) {
+        return null;
     }
-}, { deep: true });
+
+    return roleLabels[assignedRoleSlug.value] ?? assignedRoleSlug.value;
+});
+
+const isRoleOverridden = computed(
+    () =>
+        !!suggestedRoleSlug.value &&
+        !!selectedRole.value &&
+        selectedRole.value.slug !== suggestedRoleSlug.value,
+);
+
+const roleBadgeClass = computed(() => {
+    const slug = assignedRoleSlug.value ?? 'metier';
+
+    return roleBadgeStyles[slug] ?? roleBadgeStyles.metier;
+});
+
+const profilInitials = computed(() => {
+    if (selectedProfil.value) {
+        return getInitials(`${selectedProfil.value.prenom} ${selectedProfil.value.nom}`);
+    }
+
+    return getInitials(form.name);
+});
+
+const isReadyToSubmit = computed(
+    () => !!form.name.trim() && !!form.email.trim() && form.roles.length > 0,
+);
+
+watch(
+    () => form.profil_id,
+    (newProfilId) => {
+        if (isInitialProfilSync.value) {
+            isInitialProfilSync.value = false;
+            return;
+        }
+
+        if (!newProfilId) {
+            return;
+        }
+
+        const profil = props.profils.find((p) => p.id === newProfilId);
+        if (!profil) {
+            return;
+        }
+
+        form.name = `${profil.prenom} ${profil.nom}`.trim();
+        if (profil.email) {
+            form.email = profil.email;
+        }
+
+        const suggestedId = roleIdFromSlug(
+            resolveDepartementRoleSlug(
+                profil.departement,
+                props.departementRoleMap,
+                props.defaultDepartementRole,
+            ),
+        );
+        if (suggestedId) {
+            form.roles = [suggestedId];
+        }
+    },
+);
 
 const submit = () => {
-    form.put(`/users/${props.user.id}`, {
-        preserveScroll: true,
-    });
+    form.put(`/users/${props.user.id}`, { preserveScroll: true });
 };
 </script>
 
@@ -202,326 +253,363 @@ const submit = () => {
     <Head title="Modifier l'utilisateur" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex flex-col gap-4 sm:gap-6 p-4 sm:p-6">
-            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div class="flex items-center gap-3">
-                    <div class="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shrink-0">
-                        <Edit class="h-5 w-5 sm:h-6 sm:w-6" />
-                    </div>
-                    <div class="min-w-0 flex-1">
-                        <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Modifier l'utilisateur</h1>
-                        <p class="text-xs sm:text-sm text-gray-500 mt-1">Mettez à jour les informations de l'utilisateur</p>
-                    </div>
-                </div>
-            </div>
-
-            <form @submit.prevent="submit" class="flex flex-col gap-4 sm:gap-6">
-                <!-- Informations de base -->
-                <div class="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm transition-shadow hover:shadow-md">
-                    <div class="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
-                        <div class="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 shrink-0">
-                            <User class="h-4 w-4 sm:h-5 sm:w-5" />
-                        </div>
-                        <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Informations de base</h2>
-                    </div>
-                    <div class="grid gap-4 grid-cols-1 md:grid-cols-2">
-                        <div class="space-y-2">
-                            <Label for="name" class="text-sm font-medium text-gray-700 flex items-center gap-2">
-                                <User class="h-4 w-4 text-gray-400" />
-                                Nom complet
-                            </Label>
-                            <Input
-                                id="name"
-                                v-model="form.name"
-                                type="text"
-                                required
-                                class="h-10 rounded-lg border-gray-300 focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/20"
-                            />
-                            <InputError :message="form.errors.name" />
-                        </div>
-
-                        <div class="space-y-2">
-                            <Label for="email" class="text-sm font-medium text-gray-700 flex items-center gap-2">
-                                <Mail class="h-4 w-4 text-gray-400" />
-                                Email
-                            </Label>
-                            <Input
-                                id="email"
-                                v-model="form.email"
-                                type="email"
-                                required
-                                class="h-10 rounded-lg border-gray-300 focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/20"
-                            />
-                            <InputError :message="form.errors.email" />
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Changer le mot de passe -->
-                <div class="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm transition-shadow hover:shadow-md">
-                    <div class="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
-                        <div class="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-600 shrink-0">
-                            <Lock class="h-4 w-4 sm:h-5 sm:w-5" />
-                        </div>
-                        <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Changer le mot de passe</h2>
-                    </div>
-                    <p class="mb-4 text-sm text-gray-600">
-                        Laissez ces champs vides si vous ne souhaitez pas modifier le mot de passe.
-                    </p>
-                    <div class="grid gap-4 grid-cols-1 md:grid-cols-2">
-                        <div class="space-y-2">
-                            <Label for="password" class="text-sm font-medium text-gray-700 flex items-center gap-2">
-                                <Lock class="h-4 w-4 text-gray-400" />
-                                Nouveau mot de passe
-                            </Label>
-                            <Input
-                                id="password"
-                                v-model="form.password"
-                                type="password"
-                                class="h-10 rounded-lg border-gray-300 focus-visible:border-amber-500 focus-visible:ring-2 focus-visible:ring-amber-500/20"
-                                placeholder="Minimum 8 caractères"
-                            />
-                            <InputError :message="form.errors.password" />
-                        </div>
-
-                        <div class="space-y-2">
-                            <Label for="password_confirmation" class="text-sm font-medium text-gray-700 flex items-center gap-2">
-                                <Lock class="h-4 w-4 text-gray-400" />
-                                Confirmer le mot de passe
-                            </Label>
-                            <Input
-                                id="password_confirmation"
-                                v-model="form.password_confirmation"
-                                type="password"
-                                class="h-10 rounded-lg border-gray-300 focus-visible:border-amber-500 focus-visible:ring-2 focus-visible:ring-amber-500/20"
-                                placeholder="Répétez le mot de passe"
-                            />
-                            <InputError :message="form.errors.password_confirmation" />
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Rôles -->
-                <div class="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm transition-shadow hover:shadow-md">
-                    <div class="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
-                        <div class="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-purple-50 text-purple-600 shrink-0">
-                            <Shield class="h-4 w-4 sm:h-5 sm:w-5" />
-                        </div>
-                        <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Rôles</h2>
-                    </div>
-                    <div class="flex flex-col gap-3">
+        <div class="min-h-full bg-gradient-to-b from-slate-50/80 via-white to-white">
+            <div class="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+                <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="flex items-center gap-4">
                         <div
-                            v-for="role in props.roles"
-                            :key="role.id"
-                            class="flex items-center gap-3 rounded-lg border border-gray-200 p-3 cursor-pointer transition-all hover:border-purple-300 hover:bg-purple-50/50"
-                            @click="toggleRole(role.id, !form.roles.includes(role.id))"
+                            class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg shadow-red-500/20"
                         >
-                            <Checkbox
-                                :id="`role-${role.id}`"
-                                :checked="form.roles.includes(role.id)"
-                                @update:checked="(checked: boolean) => toggleRole(role.id, checked)"
-                                @click.stop
-                            />
-                            <Label :for="`role-${role.id}`" class="font-medium cursor-pointer text-sm text-gray-700 flex-1">
-                                {{ role.nom }}
-                            </Label>
-                        </div>
-                        <p v-if="props.roles.length === 0" class="text-sm text-gray-500 text-center py-4">
-                            Aucun rôle disponible. <a href="/roles/create" class="text-blue-600 hover:underline">Créer un rôle</a>
-                        </p>
-                    </div>
-                    <InputError :message="form.errors.roles" />
-                </div>
-
-                <!-- Profil associé -->
-                <div class="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm transition-shadow hover:shadow-md">
-                    <div class="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
-                        <div class="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-green-50 text-green-600 shrink-0">
-                            <UserCircle class="h-4 w-4 sm:h-5 sm:w-5" />
-                        </div>
-                        <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Profil associé</h2>
-                    </div>
-                    <p class="mb-4 text-sm text-gray-600">
-                        Associez un profil à cet utilisateur. L'email du profil sera automatiquement mis à jour pour correspondre à l'email de l'utilisateur.
-                    </p>
-                    <div class="space-y-4">
-                        <div v-if="props.filiales && props.filiales.length > 0">
-                            <Label for="filiale" class="text-sm font-medium text-gray-700 mb-2 block">Filtrer par filiale</Label>
-                            <select
-                                id="filiale"
-                                v-model="selectedFiliale"
-                                class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-all outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
-                            >
-                                <option :value="null">Toutes les filiales</option>
-                                <option
-                                    v-for="filiale in props.filiales"
-                                    :key="filiale.id"
-                                    :value="filiale.id"
-                                >
-                                    {{ filiale.nom }}
-                                </option>
-                            </select>
+                            <Pencil class="h-7 w-7" />
                         </div>
                         <div>
-                            <Label for="profil_id" class="text-sm font-medium text-gray-700 mb-2 block">Sélectionner un profil</Label>
-                            <select
-                                id="profil_id"
-                                v-model="form.profil_id"
-                                class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-all outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
-                            >
-                                <option :value="null">Aucun profil</option>
-                                <option
-                                    v-for="profil in filteredProfils"
-                                    :key="profil.id"
-                                    :value="profil.id"
-                                >
-                                    {{ profil.prenom }} {{ profil.nom }} ({{ profil.matricule }})
-                                </option>
-                            </select>
-                            <InputError :message="form.errors.profil_id" />
-                            <p v-if="filteredProfils.length === 0 && selectedFiliale" class="mt-2 text-sm text-amber-600 bg-amber-50 p-2 rounded-lg">
-                                Aucun profil trouvé pour la filiale sélectionnée.
-                            </p>
-                            <p v-if="props.user.profil" class="mt-3 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-200">
-                                <span class="font-medium">Profil actuellement associé :</span> 
-                                <span class="text-gray-900">{{ props.user.profil.prenom }} {{ props.user.profil.nom }}</span> 
-                                <span class="text-gray-500">({{ props.user.profil.matricule }})</span>
+                            <h1 class="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
+                                Modifier l'utilisateur
+                            </h1>
+                            <p class="mt-1 text-sm text-gray-500">
+                                Mettez à jour le compte lié au profil collaborateur
                             </p>
                         </div>
                     </div>
-                </div>
-
-                <!-- Environnements -->
-                <div class="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm transition-shadow hover:shadow-md">
-                    <div class="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
-                        <div class="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-orange-50 text-orange-600 shrink-0">
-                            <Globe class="h-4 w-4 sm:h-5 sm:w-5" />
-                        </div>
-                        <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Environnements</h2>
-                    </div>
-                    <div class="flex flex-col gap-3">
-                        <div
-                            v-for="filiale in props.filiales"
-                            :key="filiale.id"
-                            class="flex items-center gap-3 rounded-lg border border-gray-200 p-3 cursor-pointer transition-all hover:border-orange-300 hover:bg-orange-50/50"
-                            @click="toggleFiliale(filiale.id, !form.filiales.includes(filiale.id))"
-                        >
-                            <Checkbox
-                                :id="`filiale-${filiale.id}`"
-                                :checked="form.filiales.includes(filiale.id)"
-                                @update:checked="(checked: boolean) => toggleFiliale(filiale.id, checked)"
-                                @click.stop
-                            />
-                            <Label :for="`filiale-${filiale.id}`" class="font-medium cursor-pointer text-sm text-gray-700 flex-1">
-                                {{ filiale.nom }}
-                            </Label>
-                        </div>
-                        <p v-if="!props.filiales || props.filiales.length === 0" class="text-sm text-gray-500 text-center py-4">
-                            Aucun environnement disponible. <a href="/filiales/create" class="text-blue-600 hover:underline">Créer un environnement</a>
-                        </p>
-                    </div>
-                    <InputError :message="form.errors.filiales" />
-                </div>
-
-                <div class="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm transition-shadow hover:shadow-md">
-                    <div class="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
-                        <div class="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600 shrink-0">
-                            <Globe class="h-4 w-4 sm:h-5 sm:w-5" />
-                        </div>
-                        <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Agences rattachées</h2>
-                    </div>
-                    <p class="mb-3 text-sm text-gray-600">
-                        Un utilisateur peut etre rattaché à une ou plusieurs agences.
-                    </p>
-                    <div class="flex flex-col gap-3">
-                        <div
-                            v-for="agence in filteredAgences"
-                            :key="agence.id"
-                            class="flex items-center gap-3 rounded-lg border border-gray-200 p-3 cursor-pointer transition-all hover:border-cyan-300 hover:bg-cyan-50/50"
-                            @click="toggleAgence(agence.id, !form.agences.includes(agence.id))"
-                        >
-                            <Checkbox
-                                :id="`agence-${agence.id}`"
-                                :checked="form.agences.includes(agence.id)"
-                                @update:checked="(checked: boolean) => toggleAgence(agence.id, checked)"
-                                @click.stop
-                            />
-                            <Label :for="`agence-${agence.id}`" class="font-medium cursor-pointer text-sm text-gray-700 flex-1">
-                                {{ agence.nom }}
-                            </Label>
-                        </div>
-                        <p v-if="filteredAgences.length === 0" class="text-sm text-gray-500 text-center py-4">
-                            Aucune agence disponible pour les environnements sélectionnés.
-                        </p>
-                    </div>
-                    <div class="mt-4">
-                        <Label for="default_agence_id" class="text-sm font-medium text-gray-700 mb-2 block">
-                            Agence domiciliaire (par défaut)
-                        </Label>
-                        <select
-                            id="default_agence_id"
-                            v-model="form.default_agence_id"
-                            class="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-all outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
-                            :disabled="form.agences.length === 0"
-                        >
-                            <option :value="null">Sélectionner une agence</option>
-                            <option
-                                v-for="agence in filteredAgences.filter(a => form.agences.includes(a.id))"
-                                :key="agence.id"
-                                :value="agence.id"
-                            >
-                                {{ agence.nom }}
-                            </option>
-                        </select>
-                        <InputError :message="form.errors.default_agence_id" />
-                    </div>
-                    <InputError :message="form.errors.agences" />
-                </div>
-
-                <!-- Options de sécurité -->
-                <div class="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 shadow-sm transition-shadow hover:shadow-md">
-                    <div class="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
-                        <div class="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-gray-50 text-gray-600 shrink-0">
-                            <Settings class="h-4 w-4 sm:h-5 sm:w-5" />
-                        </div>
-                        <h2 class="text-lg sm:text-xl font-semibold text-gray-900">Options de sécurité</h2>
-                    </div>
-                    <div class="flex items-center gap-3 rounded-lg border border-gray-200 p-4 transition-all hover:border-gray-300 hover:bg-gray-50/50">
-                        <Checkbox
-                            id="must_change_password"
-                            v-model:checked="form.must_change_password"
-                        />
-                        <Label for="must_change_password" class="font-medium cursor-pointer text-sm text-gray-700 flex-1">
-                            Exiger le changement de mot de passe à la prochaine connexion
-                        </Label>
-                    </div>
-                    <InputError :message="form.errors.must_change_password" />
-                </div>
-
-                <!-- Actions -->
-                <div class="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 border-t border-gray-200 pt-4 sm:pt-6">
-                    <Button 
-                        type="button" 
-                        variant="outline" 
+                    <Button
+                        type="button"
+                        variant="outline"
+                        class="rounded-xl border-gray-200 bg-white shadow-sm"
                         @click="router.visit('/users')"
-                        class="w-full sm:w-auto h-11 px-6 rounded-lg border-gray-300 hover:bg-gray-50"
                     >
-                        Annuler
-                    </Button>
-                    <Button 
-                        type="submit" 
-                        :disabled="form.processing"
-                        class="w-full sm:w-auto h-11 px-8 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
-                    >
-                        <span v-if="form.processing">Mise à jour en cours...</span>
-                        <span v-else class="flex items-center gap-2">
-                            <Edit class="h-4 w-4" />
-                            Mettre à jour
-                        </span>
+                        <ArrowLeft class="mr-2 h-4 w-4" />
+                        Retour
                     </Button>
                 </div>
-            </form>
+
+                <form class="grid gap-6 lg:grid-cols-5 lg:gap-8" @submit.prevent="submit">
+                    <div class="flex flex-col gap-5 lg:col-span-3">
+                        <div class="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm">
+                            <div class="flex items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white px-5 py-4 sm:px-6">
+                                <span
+                                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white shadow-sm"
+                                >1</span>
+                                <div class="flex items-center gap-2">
+                                    <UserCircle class="h-5 w-5 text-gray-400" />
+                                    <h2 class="font-semibold text-gray-900">Profil collaborateur</h2>
+                                </div>
+                            </div>
+                            <div class="space-y-5 p-5 sm:p-6">
+                                <div class="grid gap-4 sm:grid-cols-2">
+                                    <div v-if="props.filiales.length > 0">
+                                        <Label for="filiale" class="mb-2 block text-sm font-medium text-gray-700">
+                                            Filiale
+                                        </Label>
+                                        <select id="filiale" v-model="selectedFiliale" :class="selectClass">
+                                            <option :value="null">Toutes les filiales</option>
+                                            <option
+                                                v-for="filiale in props.filiales"
+                                                :key="filiale.id"
+                                                :value="filiale.id"
+                                            >
+                                                {{ filiale.nom }}
+                                            </option>
+                                        </select>
+                                    </div>
+                                    <div :class="props.filiales.length > 0 ? '' : 'sm:col-span-2'">
+                                        <Label for="profil_id" class="mb-2 block text-sm font-medium text-gray-700">
+                                            Collaborateur
+                                        </Label>
+                                        <ProfilSearchSelect
+                                            id="profil_id"
+                                            v-model="form.profil_id"
+                                            :profils="filteredProfils"
+                                            clear-option-label="Aucun profil"
+                                            placeholder="Nom, prénom ou matricule…"
+                                            input-class="h-11 rounded-xl border-gray-200 shadow-sm"
+                                        />
+                                        <InputError :message="form.errors.profil_id" />
+                                    </div>
+                                </div>
+                                <p
+                                    v-if="filteredProfils.length === 0 && selectedFiliale"
+                                    class="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800"
+                                >
+                                    Aucun profil pour cette filiale.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm">
+                            <div class="flex items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white px-5 py-4 sm:px-6">
+                                <span
+                                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white shadow-sm"
+                                >2</span>
+                                <div class="flex items-center gap-2">
+                                    <Lock class="h-5 w-5 text-gray-400" />
+                                    <h2 class="font-semibold text-gray-900">Identité & sécurité</h2>
+                                </div>
+                            </div>
+                            <div class="space-y-5 p-5 sm:p-6">
+                                <div>
+                                    <Label for="name" class="mb-2 block text-sm font-medium text-gray-700">
+                                        Nom complet
+                                    </Label>
+                                    <Input
+                                        id="name"
+                                        v-model="form.name"
+                                        type="text"
+                                        required
+                                        :class="inputClass"
+                                        placeholder="Prénom Nom"
+                                    />
+                                    <InputError :message="form.errors.name" />
+                                </div>
+                                <div>
+                                    <Label for="email" class="mb-2 block text-sm font-medium text-gray-700">
+                                        Adresse e-mail
+                                    </Label>
+                                    <div class="relative">
+                                        <Mail
+                                            class="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-gray-400"
+                                        />
+                                        <Input
+                                            id="email"
+                                            v-model="form.email"
+                                            type="email"
+                                            required
+                                            :class="[inputClass, 'pl-10']"
+                                            placeholder="collaborateur@cofinacorp.com"
+                                        />
+                                    </div>
+                                    <InputError :message="form.errors.email" />
+                                </div>
+                                <div class="rounded-xl border border-dashed border-gray-200 bg-gray-50/50 p-4">
+                                    <p class="mb-4 text-sm text-gray-600">
+                                        Laissez les champs mot de passe vides pour conserver le mot de passe actuel.
+                                    </p>
+                                    <div class="grid gap-4 sm:grid-cols-2">
+                                        <div>
+                                            <Label for="password" class="mb-2 block text-sm font-medium text-gray-700">
+                                                Nouveau mot de passe
+                                            </Label>
+                                            <div class="relative">
+                                                <Lock
+                                                    class="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-gray-400"
+                                                />
+                                                <Input
+                                                    id="password"
+                                                    v-model="form.password"
+                                                    type="password"
+                                                    :class="[inputClass, 'pl-10']"
+                                                    placeholder="8 caractères min."
+                                                />
+                                            </div>
+                                            <InputError :message="form.errors.password" />
+                                        </div>
+                                        <div>
+                                            <Label
+                                                for="password_confirmation"
+                                                class="mb-2 block text-sm font-medium text-gray-700"
+                                            >
+                                                Confirmation
+                                            </Label>
+                                            <div class="relative">
+                                                <Lock
+                                                    class="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-gray-400"
+                                                />
+                                                <Input
+                                                    id="password_confirmation"
+                                                    v-model="form.password_confirmation"
+                                                    type="password"
+                                                    :class="[inputClass, 'pl-10']"
+                                                    placeholder="Répétez le mot de passe"
+                                                />
+                                            </div>
+                                            <InputError :message="form.errors.password_confirmation" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <label
+                                    class="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-100 bg-gray-50/60 p-4 transition-colors hover:bg-gray-50"
+                                >
+                                    <Checkbox
+                                        id="must_change_password"
+                                        v-model:checked="form.must_change_password"
+                                        class="mt-0.5"
+                                    />
+                                    <div>
+                                        <span class="block text-sm font-medium text-gray-900">
+                                            Exiger le changement de mot de passe à la prochaine connexion
+                                        </span>
+                                        <span class="mt-0.5 block text-xs text-gray-500">
+                                            L'utilisateur devra choisir un nouveau mot de passe.
+                                        </span>
+                                    </div>
+                                </label>
+                                <InputError :message="form.errors.must_change_password" />
+                            </div>
+                        </div>
+
+                        <div class="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm">
+                            <div class="flex items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white px-5 py-4 sm:px-6">
+                                <span
+                                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white shadow-sm"
+                                >3</span>
+                                <div class="flex items-center gap-2">
+                                    <Shield class="h-5 w-5 text-gray-400" />
+                                    <h2 class="font-semibold text-gray-900">Rôle applicatif</h2>
+                                </div>
+                            </div>
+                            <div class="space-y-5 p-5 sm:p-6">
+                                <div>
+                                    <Label for="role_id" class="mb-2 block text-sm font-medium text-gray-700">
+                                        Rôle <span class="text-primary">*</span>
+                                    </Label>
+                                    <select id="role_id" v-model="selectedRoleId" :class="selectClass">
+                                        <option :value="null" disabled>Sélectionnez un rôle</option>
+                                        <option v-for="role in props.roles" :key="role.id" :value="role.id">
+                                            {{ role.nom }}
+                                        </option>
+                                    </select>
+                                    <InputError :message="form.errors.roles" />
+                                    <p
+                                        v-if="suggestedRoleSlug && !isRoleOverridden"
+                                        class="mt-2 text-xs text-gray-500"
+                                    >
+                                        Suggestion selon le département :
+                                        {{ roleLabels[suggestedRoleSlug] ?? suggestedRoleSlug }}.
+                                    </p>
+                                    <p v-else-if="isRoleOverridden" class="mt-2 text-xs text-amber-700">
+                                        Rôle personnalisé (différent de la suggestion département).
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end lg:hidden">
+                            <Button type="button" variant="outline" class="h-11 rounded-xl" @click="router.visit('/users')">
+                                Annuler
+                            </Button>
+                            <Button
+                                type="submit"
+                                :disabled="form.processing || !isReadyToSubmit"
+                                class="h-11 rounded-xl bg-primary px-8 shadow-md shadow-primary/20 hover:bg-primary/90"
+                            >
+                                {{ form.processing ? 'Mise à jour…' : 'Mettre à jour' }}
+                            </Button>
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-2">
+                        <div class="sticky top-6 space-y-4">
+                            <div class="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm">
+                                <div class="bg-gradient-to-br from-gray-900 to-gray-800 px-5 py-5 text-white sm:px-6">
+                                    <div class="flex items-center gap-2 text-sm text-white/70">
+                                        <Sparkles class="h-4 w-4" />
+                                        <span>Récapitulatif</span>
+                                    </div>
+                                    <div class="mt-4 flex items-center gap-4">
+                                        <Avatar class="h-14 w-14 border-2 border-white/20 shadow-lg">
+                                            <AvatarFallback
+                                                class="bg-gradient-to-br from-red-400 to-red-600 text-lg font-semibold text-white"
+                                            >
+                                                {{ profilInitials }}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <div class="min-w-0">
+                                            <p class="truncate text-lg font-semibold">
+                                                {{
+                                                    selectedProfil
+                                                        ? `${selectedProfil.prenom} ${selectedProfil.nom}`
+                                                        : form.name
+                                                }}
+                                            </p>
+                                            <p class="text-sm text-white/60">
+                                                {{ selectedProfil?.matricule || 'Sans profil associé' }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-4 p-5 sm:p-6">
+                                    <div v-if="selectedProfil?.departement" class="flex items-start gap-3">
+                                        <Building2 class="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
+                                        <div>
+                                            <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">
+                                                Département
+                                            </p>
+                                            <p class="text-sm font-medium text-gray-900">
+                                                {{ selectedProfil.departement }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div v-if="selectedFilialeNom" class="flex items-start gap-3">
+                                        <Building2 class="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
+                                        <div>
+                                            <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">
+                                                Filiale
+                                            </p>
+                                            <p class="text-sm font-medium text-gray-900">{{ selectedFilialeNom }}</p>
+                                        </div>
+                                    </div>
+                                    <div v-if="form.email" class="flex items-start gap-3">
+                                        <Mail class="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
+                                        <div class="min-w-0">
+                                            <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">
+                                                E-mail de connexion
+                                            </p>
+                                            <p class="truncate text-sm font-medium text-gray-900">{{ form.email }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="border-t border-gray-100 pt-4">
+                                        <div class="flex items-center gap-2">
+                                            <Shield class="h-4 w-4 text-gray-400" />
+                                            <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">
+                                                Rôle attribué
+                                            </p>
+                                        </div>
+                                        <div v-if="assignedRoleLabel" class="mt-2">
+                                            <span
+                                                class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ring-1 ring-inset"
+                                                :class="roleBadgeClass"
+                                            >
+                                                <BadgeCheck class="h-3.5 w-3.5" />
+                                                {{ assignedRoleLabel }}
+                                            </span>
+                                            <p class="mt-2 text-xs text-gray-500">
+                                                {{
+                                                    isRoleOverridden
+                                                        ? 'Rôle personnalisé (différent du département).'
+                                                        : selectedProfil?.departement
+                                                          ? 'Attribué selon le département, modifiable ci-dessus.'
+                                                          : 'Rôle actuel du compte.'
+                                                }}
+                                            </p>
+                                        </div>
+                                        <p v-else class="mt-2 text-sm text-amber-700">
+                                            Aucun rôle n'est associé à ce compte.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="hidden flex-col gap-3 lg:flex">
+                                <Button
+                                    type="submit"
+                                    :disabled="form.processing || !isReadyToSubmit"
+                                    class="h-12 w-full rounded-xl bg-primary text-base shadow-lg shadow-primary/25 hover:bg-primary/90"
+                                >
+                                    {{ form.processing ? 'Mise à jour…' : 'Mettre à jour' }}
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    class="h-11 w-full rounded-xl border-gray-200"
+                                    @click="router.visit('/users')"
+                                >
+                                    Annuler
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
         </div>
     </AppLayout>
 </template>
-

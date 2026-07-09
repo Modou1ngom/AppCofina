@@ -8,6 +8,11 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // SQLite stocke déjà le texte sans limite utile ; MODIFY est réservé à MySQL/MariaDB.
+        if (Schema::getConnection()->getDriverName() === 'sqlite') {
+            return;
+        }
+
         if (Schema::hasColumn('mission_logs', 'signature_image')) {
             DB::statement('ALTER TABLE mission_logs MODIFY signature_image LONGTEXT NULL');
         }
@@ -19,6 +24,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (Schema::getConnection()->getDriverName() === 'sqlite') {
+            return;
+        }
+
         if (Schema::hasColumn('mission_logs', 'signature_image')) {
             DB::statement('ALTER TABLE mission_logs MODIFY signature_image TEXT NULL');
         }

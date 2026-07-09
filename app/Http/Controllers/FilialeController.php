@@ -5,22 +5,29 @@ namespace App\Http\Controllers;
 use App\Models\Filiale;
 use App\Models\Profil;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
 class FilialeController extends Controller
 {
+    private function ensureSuperAdmin(): void
+    {
+        abort_unless(Auth::user()?->isSuperAdmin(), 403, 'Seul le super administrateur peut gérer les filiales.');
+    }
+
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
+        $this->ensureSuperAdmin();
+
         $filiales = Filiale::orderBy('nom')->get();
-        
-        // Compter le nombre de profils par filiale
+
         $filiales->each(function ($filiale) {
             $filiale->profils_count = Profil::where('site', $filiale->nom)->count();
         });
-        
+
         return Inertia::render('filiales/Index', [
             'filiales' => $filiales,
         ]);
@@ -31,6 +38,8 @@ class FilialeController extends Controller
      */
     public function create()
     {
+        $this->ensureSuperAdmin();
+
         return Inertia::render('filiales/Create');
     }
 
@@ -39,6 +48,8 @@ class FilialeController extends Controller
      */
     public function store(Request $request)
     {
+        $this->ensureSuperAdmin();
+
         $validated = $request->validate([
             'nom' => 'required|string|max:255|unique:filiales,nom',
             'description' => 'nullable|string',
@@ -60,8 +71,10 @@ class FilialeController extends Controller
      */
     public function show(Filiale $filiale)
     {
+        $this->ensureSuperAdmin();
+
         $profils = Profil::where('site', $filiale->nom)->get();
-        
+
         return Inertia::render('filiales/Show', [
             'filiale' => $filiale,
             'profils' => $profils,
@@ -73,6 +86,8 @@ class FilialeController extends Controller
      */
     public function edit(Filiale $filiale)
     {
+        $this->ensureSuperAdmin();
+
         return Inertia::render('filiales/Edit', [
             'filiale' => $filiale,
         ]);
@@ -83,8 +98,10 @@ class FilialeController extends Controller
      */
     public function update(Request $request, Filiale $filiale)
     {
+        $this->ensureSuperAdmin();
+
         $validated = $request->validate([
-            'nom' => 'required|string|max:255|unique:filiales,nom,' . $filiale->id,
+            'nom' => 'required|string|max:255|unique:filiales,nom,'.$filiale->id,
             'description' => 'nullable|string',
             'actif' => 'required|in:actif,inactif',
         ]);
@@ -104,8 +121,10 @@ class FilialeController extends Controller
      */
     public function destroy(Filiale $filiale)
     {
+        $this->ensureSuperAdmin();
+
         $filiale->delete();
-        
+
         return redirect()->route('filiales.index')
             ->with('success', 'Filiale supprimée avec succès !');
     }

@@ -21,39 +21,10 @@ class AgenceController extends Controller
 
         $query = Agence::query();
 
-        // Filtrer selon l'environnement de l'utilisateur
-        $isSuperAdmin = $user && $user->isSuperAdmin();
-        $isAdmin = $user && $user->isAdmin();
-        $isRh = $user && $user->isRh();
-
-        // Super admin voit toutes les agences
-        if (! $isSuperAdmin) {
-            // Admin normal et RH voient uniquement les agences de leurs filiales assignées
-            if (($isAdmin || $isRh) && $user) {
-                $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-                if (! empty($userFilialesIds)) {
-                    $query->whereIn('filiale_id', $userFilialesIds);
-                } else {
-                    $query->where('id', 0);
-                }
-            }
-            // Les autres utilisateurs voient les agences de leurs filiales assignées ou de leur profil
-            elseif ($user) {
-                $userFilialesIds = $user->filiales()->get()->pluck('id')->toArray();
-                $userProfil = $user->profil;
-
-                if ($userProfil && $userProfil->filiale_id) {
-                    if (! in_array($userProfil->filiale_id, $userFilialesIds)) {
-                        $userFilialesIds[] = $userProfil->filiale_id;
-                    }
-                }
-
-                if (! empty($userFilialesIds)) {
-                    $query->whereIn('filiale_id', $userFilialesIds);
-                } else {
-                    $query->where('id', 0);
-                }
-            }
+        if ($user) {
+            $user->applyFilialeScopeToQuery($query);
+        } else {
+            $query->whereRaw('0 = 1');
         }
 
         $agences = $query->orderBy('nom')->paginate($perPage);
@@ -73,8 +44,13 @@ class AgenceController extends Controller
      */
     public function create()
     {
-        $profils = Profil::orderBy('nom')->get(['id', 'nom', 'prenom', 'matricule']);
-        $filiales = Filiale::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
+        $user = Auth::user();
+        $profilsQuery = Profil::query();
+        $user?->applyProfilVisibilityScope($profilsQuery);
+        $profils = $profilsQuery->orderBy('nom')->get(['id', 'nom', 'prenom', 'matricule']);
+        $filiales = $user
+            ? $user->visibleFilialesQuery()->get(['id', 'nom'])
+            : collect();
 
         return Inertia::render('agences/Create', [
             'profils' => $profils,
@@ -87,6 +63,7 @@ class AgenceController extends Controller
      */
     public function store(Request $request)
     {
+        $user = Auth::user();
         $request->merge($this->normalizedGpsInput($request));
 
         $validated = $request->validate([
@@ -99,6 +76,14 @@ class AgenceController extends Controller
             'chef_agence_id' => 'nullable|exists:profiles,id',
             'filiale_id' => 'nullable|exists:filiales,id',
         ]);
+
+        if ($user && ! $user->isSuperAdmin()) {
+            $filialeId = isset($validated['filiale_id']) ? (int) $validated['filiale_id'] : $user->primaryFilialeId();
+            if (! $filialeId || ! $user->canAccessFiliale($filialeId)) {
+                abort(403, 'Accès non autorisé à cette filiale.');
+            }
+            $validated['filiale_id'] = $filialeId;
+        }
 
         Agence::create([
             'nom' => $validated['nom'],
@@ -120,8 +105,15 @@ class AgenceController extends Controller
      */
     public function show(Agence $agence)
     {
+        $user = Auth::user();
+        if ($user && ! $user->isSuperAdmin() && ! $user->canAccessFiliale($agence->filiale_id ? (int) $agence->filiale_id : null)) {
+            abort(403, 'Accès non autorisé à cette agence.');
+        }
+
         $agence->load('chefAgence');
-        $profils = Profil::where('site', $agence->nom)->get();
+        $profilsQuery = Profil::where('site', $agence->nom);
+        $user?->applyProfilVisibilityScope($profilsQuery);
+        $profils = $profilsQuery->get();
 
         return Inertia::render('agences/Show', [
             'agence' => $agence,
@@ -134,8 +126,17 @@ class AgenceController extends Controller
      */
     public function edit(Agence $agence)
     {
-        $profils = Profil::orderBy('nom')->get(['id', 'nom', 'prenom', 'matricule']);
-        $filiales = Filiale::where('actif', true)->orderBy('nom')->get(['id', 'nom']);
+        $user = Auth::user();
+        if ($user && ! $user->isSuperAdmin() && ! $user->canAccessFiliale($agence->filiale_id ? (int) $agence->filiale_id : null)) {
+            abort(403, 'Accès non autorisé à cette agence.');
+        }
+
+        $profilsQuery = Profil::query();
+        $user?->applyProfilVisibilityScope($profilsQuery);
+        $profils = $profilsQuery->orderBy('nom')->get(['id', 'nom', 'prenom', 'matricule']);
+        $filiales = $user
+            ? $user->visibleFilialesQuery()->get(['id', 'nom'])
+            : collect();
 
         return Inertia::render('agences/Edit', [
             'agence' => $agence,
@@ -149,6 +150,11 @@ class AgenceController extends Controller
      */
     public function update(Request $request, Agence $agence)
     {
+        $user = Auth::user();
+        if ($user && ! $user->isSuperAdmin() && ! $user->canAccessFiliale($agence->filiale_id ? (int) $agence->filiale_id : null)) {
+            abort(403, 'Accès non autorisé à cette agence.');
+        }
+
         $request->merge($this->normalizedGpsInput($request));
 
         $validated = $request->validate([
@@ -161,6 +167,14 @@ class AgenceController extends Controller
             'chef_agence_id' => 'nullable|exists:profiles,id',
             'filiale_id' => 'nullable|exists:filiales,id',
         ]);
+
+        if ($user && ! $user->isSuperAdmin()) {
+            $filialeId = isset($validated['filiale_id']) ? (int) $validated['filiale_id'] : $user->primaryFilialeId();
+            if (! $filialeId || ! $user->canAccessFiliale($filialeId)) {
+                abort(403, 'Accès non autorisé à cette filiale.');
+            }
+            $validated['filiale_id'] = $filialeId;
+        }
 
         $agence->update([
             'nom' => $validated['nom'],

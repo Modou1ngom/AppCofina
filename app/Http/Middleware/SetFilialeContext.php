@@ -16,21 +16,24 @@ class SetFilialeContext
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // Si l'utilisateur est authentifié
         if (Auth::check()) {
             $user = Auth::user();
-            
-            // Si la filiale n'est pas déjà définie dans la session
-            if (!session()->has('current_filiale_id')) {
-                // Récupérer la filiale du profil de l'utilisateur
+            $user->profilCollaborateurAssocie();
+
+            if (! $user->isSuperAdmin()) {
+                $filialeId = $user->primaryFilialeId();
+                if ($filialeId) {
+                    session(['current_filiale_id' => $filialeId]);
+                }
+            } elseif (! session()->has('current_filiale_id')) {
                 $profil = $user->profil;
-                
+
                 if ($profil && $profil->filiale_id) {
                     session(['current_filiale_id' => $profil->filiale_id]);
                 }
             }
         }
-        
+
         return $next($request);
     }
 }
