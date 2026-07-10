@@ -205,7 +205,7 @@ const mainNavItems = computed<NavItem[]>(() => {
             });
         }
     }
-    // Conformité : accès au suivi signature (sans les menus admin)
+    // Conformité : suivi signature + habilitations
     else if (auth.value?.isConformite) {
         items.push({
             title: 'Suivi signature',
@@ -222,6 +222,32 @@ const mainNavItems = computed<NavItem[]>(() => {
                 {
                     title: 'Rapport encours / fonds propres',
                     href: '/suivi-signature/conformite/rapport-encours',
+                },
+            ],
+        });
+        items.push({
+            title: 'Habilitations',
+            icon: FileCheck,
+            items: [
+                {
+                    title: 'Créer une nouvelle habilitation',
+                    href: '/habilitations/create',
+                },
+                {
+                    title: 'Toutes les habilitations',
+                    href: '/habilitations',
+                },
+                {
+                    title: 'En cours',
+                    href: '/habilitations?filter=encours',
+                },
+                {
+                    title: 'Terminé',
+                    href: '/habilitations?filter=termine',
+                },
+                {
+                    title: 'Rejeté',
+                    href: '/habilitations?filter=rejete',
                 },
             ],
         });
@@ -357,7 +383,7 @@ const mainNavItems = computed<NavItem[]>(() => {
             ],
         });
     }
-    // Exécuteur IT
+    // Exécuteur IT (file Espace IT — en pratique porté par l'admin)
     else if (auth.value?.isExecuteurIt) {
         items.push({
             title: 'Espace IT',

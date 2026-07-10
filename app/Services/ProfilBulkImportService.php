@@ -162,7 +162,6 @@ class ProfilBulkImportService
                 'site' => $site,
                 'numero_compte' => $this->optionalCell($row, $mappedColumns, 'numero_compte'),
                 'code_agence' => $this->optionalCell($row, $mappedColumns, 'code_agence'),
-                'type_contrat' => $typeContrat,
                 'statut' => $statut,
                 'statut_rh' => $this->optionalCell($row, $mappedColumns, 'statut_rh'),
                 'type_office' => $typeOffice,
@@ -170,6 +169,19 @@ class ProfilBulkImportService
                 'n_plus_2_id' => $nPlus2Id,
                 'filiale_id' => $filialeSenegal->id,
             ];
+
+            // Type de contrat : uniquement si renseigné et reconnu (sinon laissé vide)
+            if ($typeContrat !== null) {
+                $attributes['type_contrat'] = $typeContrat;
+            } elseif ($existingProfil === null) {
+                $attributes['type_contrat'] = null;
+            } elseif (isset($mappedColumns['type_contrat'])) {
+                // Cellule vide à l'import → vider le type existant
+                $raw = $row[$mappedColumns['type_contrat']] ?? null;
+                if (ProfilExcelImport::cellToString($raw) === '') {
+                    $attributes['type_contrat'] = null;
+                }
+            }
 
             if ($email !== null) {
                 $attributes['email'] = $email;
@@ -282,19 +294,27 @@ class ProfilBulkImportService
      * @param  list<mixed>  $row
      * @param  array<string, int>  $mappedColumns
      * @param  list<string>  $errors
+     * @return 'CDI'|'CDD'|'Stagiaire'|'Autre'|null
      */
-    private function resolveTypeContrat(array $row, array $mappedColumns, int $line, array &$errors): string
+    private function resolveTypeContrat(array $row, array $mappedColumns, int $line, array &$errors): ?string
     {
-        $hasColumn = isset($mappedColumns['type_contrat']);
-        $raw = $hasColumn ? ($row[$mappedColumns['type_contrat']] ?? null) : null;
-        $type = ProfilExcelImport::normalizeTypeContrat($raw);
-
-        if ($type === null && $hasColumn && ProfilExcelImport::cellToString($raw) !== '') {
-            $errors[] = "Ligne {$line}: Type de contrat non reconnu, CDI appliqué.";
-            $type = 'CDI';
+        if (! isset($mappedColumns['type_contrat'])) {
+            return null;
         }
 
-        return $type ?? 'CDI';
+        $raw = $row[$mappedColumns['type_contrat']] ?? null;
+        $type = ProfilExcelImport::normalizeTypeContrat($raw);
+
+        if ($type !== null) {
+            return $type;
+        }
+
+        $rawStr = ProfilExcelImport::cellToString($raw);
+        if ($rawStr !== '') {
+            $errors[] = "Ligne {$line}: Type de contrat non reconnu (« {$rawStr} »), valeur ignorée.";
+        }
+
+        return null;
     }
 
     /**

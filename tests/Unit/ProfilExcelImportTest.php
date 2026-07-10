@@ -66,8 +66,12 @@ class ProfilExcelImportTest extends TestCase
     {
         $this->assertSame('CDI', ProfilExcelImport::normalizeTypeContrat('cdi'));
         $this->assertSame('CDD', ProfilExcelImport::normalizeTypeContrat('CDD'));
+        $this->assertSame('CDD', ProfilExcelImport::normalizeTypeContrat('C.D.D.'));
+        $this->assertSame('CDI', ProfilExcelImport::normalizeTypeContrat('C.D.I.'));
+        $this->assertSame('CDD', ProfilExcelImport::normalizeTypeContrat('C D D'));
         $this->assertSame('CDD', ProfilExcelImport::normalizeTypeContrat('Contrat à durée déterminée'));
         $this->assertSame('CDI', ProfilExcelImport::normalizeTypeContrat('Contrat à durée indéterminée'));
         $this->assertSame('Stagiaire', ProfilExcelImport::normalizeTypeContrat('stagiaire'));
+        $this->assertSame('Autre', ProfilExcelImport::normalizeTypeContrat('Vacataire'));
     }
 }

@@ -1098,23 +1098,13 @@ class HabilitationController extends Controller
             'executorIt'
         ]);
 
-        // Hors admin : uniquement la file d'attente ou les dossiers assignés à cet exécuteur
-        if (!$user->isAdmin()) {
-            $query->where(function($q) use ($user) {
-                $q->whereNull('executor_it_id')
-                  ->orWhere('executor_it_id', $user->id);
-            });
-        }
-
-        // Filtrer selon le statut
+        // Tous les IT / admin voient toutes les demandes à ce niveau (pas seulement celles qu'ils ont traitées)
         if ($filter === 'approuvees') {
             $query->where('status', 'approved');
         } elseif ($filter === 'en_cours') {
-            $query->where('status', 'in_progress')
-                  ->where('executor_it_id', $user->id);
+            $query->where('status', 'in_progress');
         } elseif ($filter === 'terminees') {
-            $query->where('status', 'completed')
-                  ->where('executor_it_id', $user->id);
+            $query->where('status', 'completed');
         }
 
         // Filtre par recherche
@@ -1135,22 +1125,10 @@ class HabilitationController extends Controller
         $habilitations = $query->orderBy('created_at', 'desc')
             ->paginate($request->get('per_page', 10));
 
-        // Statistiques (cohérentes avec le périmètre ci-dessus pour les exécuteurs)
-        $statsApprouvees = Habilitation::where('status', 'approved');
-        if (!$user->isAdmin()) {
-            $statsApprouvees->where(function($q) use ($user) {
-                $q->whereNull('executor_it_id')
-                  ->orWhere('executor_it_id', $user->id);
-            });
-        }
         $stats = [
-            'approuvees' => $statsApprouvees->count(),
-            'en_cours' => Habilitation::where('status', 'in_progress')
-                ->where('executor_it_id', $user->id)
-                ->count(),
-            'terminees' => Habilitation::where('status', 'completed')
-                ->where('executor_it_id', $user->id)
-                ->count(),
+            'approuvees' => Habilitation::where('status', 'approved')->count(),
+            'en_cours' => Habilitation::where('status', 'in_progress')->count(),
+            'terminees' => Habilitation::where('status', 'completed')->count(),
         ];
 
         return Inertia::render('habilitations/EspaceIt', [

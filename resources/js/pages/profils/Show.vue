@@ -132,7 +132,7 @@ const breadcrumbs: BreadcrumbItem[] = [
                         </div>
                         <div>
                             <dt class="text-muted-foreground text-sm font-medium">Type de contrat</dt>
-                            <dd class="mt-1 text-sm">{{ profil.type_contrat }}</dd>
+                            <dd class="mt-1 text-sm">{{ profil.type_contrat || '—' }}</dd>
                         </div>
                         <div>
                             <dt class="text-muted-foreground text-sm font-medium">Statut</dt>

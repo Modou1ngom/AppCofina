@@ -73,7 +73,7 @@ const form = useForm({
     telephone: '',
     site: '',
     filiale_id: null as number | null,
-    type_contrat: 'CDI' as 'CDI' | 'CDD' | 'Stagiaire' | 'Autre',
+    type_contrat: '' as '' | 'CDI' | 'CDD' | 'Stagiaire' | 'Autre',
     statut: 'actif' as 'actif' | 'inactif',
     type_office: '' as '' | 'Back Office' | 'Front Office',
     n_plus_1_id: null as string | number | null,
@@ -371,6 +371,7 @@ const submit = () => {
                                 v-model="form.type_contrat"
                                 class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-all outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
                             >
+                                <option value="">— Non renseigné —</option>
                                 <option value="CDI">CDI</option>
                                 <option value="CDD">CDD</option>
                                 <option value="Stagiaire">Stagiaire</option>

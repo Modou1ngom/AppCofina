@@ -88,7 +88,7 @@ const form = useForm({
     email: props.profil.email || '',
     telephone: props.profil.telephone || '',
     site: props.profil.site || '',
-    type_contrat: props.profil.type_contrat as 'CDI' | 'CDD' | 'Stagiaire' | 'Autre',
+    type_contrat: (props.profil.type_contrat || '') as '' | 'CDI' | 'CDD' | 'Stagiaire' | 'Autre',
     statut: props.profil.statut as 'actif' | 'inactif',
     type_office: (props.profil.type_office || '') as '' | 'Back Office' | 'Front Office',
     n_plus_1_id: props.profil.n_plus_1_id || null,
@@ -319,6 +319,7 @@ const submit = () => {
                             v-model="form.type_contrat"
                             class="mt-1.5 flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
                         >
+                            <option value="">— Non renseigné —</option>
                             <option value="CDI">CDI</option>
                             <option value="CDD">CDD</option>
                             <option value="Stagiaire">Stagiaire</option>

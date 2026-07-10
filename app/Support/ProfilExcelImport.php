@@ -63,9 +63,16 @@ class ProfilExcelImport
             'type de contrat',
             'type du contrat',
             'contract_type',
+            'contract type',
             'contrat',
             'nature contrat',
             'nature du contrat',
+            'nature de contrat',
+            'categorie contrat',
+            'catégorie contrat',
+            'categorie de contrat',
+            'cdi/cdd',
+            'cdi cdd',
         ],
         'statut' => ['status', 'etat', 'état', 'statut actif', 'statut collaborateur'],
         'statut_rh' => ['statut rh', 'statut_rh', 'classification statut', 'statut rh'],
@@ -124,7 +131,7 @@ class ProfilExcelImport
         $partialRules = [
             'email' => ['email', 'e-mail', 'e mail', 'courriel', 'adresse mail', 'messagerie', 'electronique', 'upn', 'principal name'],
             'login' => ['login', 'identifiant', 'compte ad', 'samaccount', 'utilisateur'],
-            'type_contrat' => ['type contrat', 'type de contrat', 'nature contrat'],
+            'type_contrat' => ['type contrat', 'type de contrat', 'nature contrat', 'categorie contrat', 'contract type', 'cdi/cdd'],
             'telephone' => ['telephone', 'téléphone', 'tel', 'mobile'],
         ];
 
@@ -598,25 +605,59 @@ class ProfilExcelImport
             }
         }
 
-        $upper = strtoupper(self::normalizeHeaderKey($raw));
-
-        if (preg_match('/\bCDD\b/u', $upper)) {
+        // Normalise "C.D.D.", "C D I", espaces / ponctuation pour détecter CDI/CDD
+        $compact = strtoupper(preg_replace('/[\s.\-_\/\\\\]+/u', '', self::normalizeHeaderKey($raw)) ?? '');
+        if ($compact === 'CDD') {
             return 'CDD';
         }
-
-        if (str_contains($upper, 'DETERMINE') && ! str_contains($upper, 'INDETERMINE')) {
-            return 'CDD';
-        }
-
-        if (preg_match('/\bSTAGIAIRE\b/u', $upper) || preg_match('/\bSTAGE\b/u', $upper) || str_contains($upper, 'INTERN')) {
-            return 'Stagiaire';
-        }
-
-        if (preg_match('/\bCDI\b/u', $upper) || str_contains($upper, 'INDETERMINE')) {
+        if ($compact === 'CDI') {
             return 'CDI';
         }
 
-        if (str_contains($upper, 'AUTRE') || str_contains($upper, 'OTHER')) {
+        $upper = strtoupper(self::normalizeHeaderKey($raw));
+
+        if (preg_match('/\bCDD\b/u', $upper) || str_contains($compact, 'CDD')) {
+            return 'CDD';
+        }
+
+        // "durée déterminée" / "determinee" sans "indeterminee"
+        if (
+            (str_contains($upper, 'DETERMINE') || str_contains($upper, 'DETERMINEE'))
+            && ! str_contains($upper, 'INDETERMINE')
+            && ! str_contains($upper, 'INDETERMINEE')
+        ) {
+            return 'CDD';
+        }
+
+        if (
+            preg_match('/\bSTAGIAIRE\b/u', $upper)
+            || preg_match('/\bSTAGE\b/u', $upper)
+            || str_contains($upper, 'INTERN')
+            || $compact === 'STAGE'
+            || $compact === 'STAGIAIRE'
+        ) {
+            return 'Stagiaire';
+        }
+
+        if (
+            preg_match('/\bCDI\b/u', $upper)
+            || str_contains($compact, 'CDI')
+            || str_contains($upper, 'INDETERMINE')
+            || str_contains($upper, 'INDETERMINEE')
+            || str_contains($upper, 'TITULAIRE')
+            || str_contains($upper, 'PERMANENT')
+        ) {
+            return 'CDI';
+        }
+
+        if (
+            str_contains($upper, 'AUTRE')
+            || str_contains($upper, 'OTHER')
+            || str_contains($upper, 'VACATAIRE')
+            || str_contains($upper, 'PRESTATAIRE')
+            || str_contains($upper, 'TEMPORAIRE')
+            || str_contains($upper, 'INTERIM')
+        ) {
             return 'Autre';
         }
 

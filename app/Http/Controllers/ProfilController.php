@@ -272,7 +272,7 @@ class ProfilController extends Controller
             'numero_compte' => $validated['numero_compte'] ?? null,
             'code_agence' => $validated['code_agence'] ?? null,
             'filiale_id' => $filialeId,
-            'type_contrat' => $validated['type_contrat'] ?? 'CDI',
+            'type_contrat' => $validated['type_contrat'] ?? null,
             'statut' => $validated['statut'] ?? 'actif',
             'statut_rh' => $validated['statut_rh'] ?? null,
             'type_office' => $validated['type_office'] ?? null,
