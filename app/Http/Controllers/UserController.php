@@ -208,8 +208,8 @@ class UserController extends Controller
         }
 
         $roleIds = [];
-        if (! empty($validated['roles']) && is_array($validated['roles'])) {
-            $roleIds = array_map('intval', $validated['roles']);
+        if ($request->has('roles') && is_array($validated['roles'] ?? null)) {
+            $roleIds = array_values(array_unique(array_map('intval', $validated['roles'])));
         } elseif ($profil !== null) {
             $roleIds = $this->roleIdsFromProfilDepartement($profil);
         }
@@ -373,11 +373,18 @@ class UserController extends Controller
             }
         }
 
-        $roleIds = [];
-        if (! empty($validated['roles']) && is_array($validated['roles'])) {
-            $roleIds = array_map('intval', $validated['roles']);
-        } elseif ($profil !== null) {
-            $roleIds = $this->roleIdsFromProfilDepartement($profil);
+        // Si le formulaire envoie roles, on respecte la sélection (multi-rôles).
+        // Sinon on conserve les rôles existants (pas d'écrasement silencieux par le département).
+        if ($request->has('roles')) {
+            $roleIds = array_values(array_unique(array_map(
+                'intval',
+                is_array($validated['roles'] ?? null) ? $validated['roles'] : [],
+            )));
+        } else {
+            $roleIds = $user->roles()->pluck('roles.id')->map(fn ($id) => (int) $id)->all();
+            if ($roleIds === [] && $profil !== null) {
+                $roleIds = $this->roleIdsFromProfilDepartement($profil);
+            }
         }
 
         $user->roles()->sync($roleIds);

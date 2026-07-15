@@ -147,43 +147,39 @@ const suggestedRoleSlug = computed(() => {
     );
 });
 
-const selectedRoleId = computed({
-    get: () => form.roles[0] ?? null,
-    set: (roleId: number | null) => {
-        form.roles = roleId ? [roleId] : [];
-    },
-});
+const selectedRoleIds = computed(() => form.roles.map((id) => Number(id)));
 
-const selectedRole = computed(() =>
-    props.roles.find((role) => role.id === selectedRoleId.value) ?? null,
+const selectedRoles = computed(() =>
+    props.roles.filter((role) => selectedRoleIds.value.includes(Number(role.id))),
 );
 
-const assignedRoleSlug = computed(() => selectedRole.value?.slug ?? suggestedRoleSlug.value);
+const suggestedRoleId = computed(() => roleIdFromSlug(suggestedRoleSlug.value));
 
-const assignedRoleLabel = computed(() => {
-    if (selectedRole.value) {
-        return selectedRole.value.nom;
+const isRoleOverridden = computed(() => {
+    if (!suggestedRoleId.value || selectedRoleIds.value.length === 0) {
+        return false;
     }
 
-    if (!assignedRoleSlug.value) {
-        return null;
-    }
-
-    return roleLabels[assignedRoleSlug.value] ?? assignedRoleSlug.value;
+    return !selectedRoleIds.value.includes(suggestedRoleId.value) || selectedRoleIds.value.length > 1;
 });
 
-const isRoleOverridden = computed(
-    () =>
-        !!suggestedRoleSlug.value &&
-        !!selectedRole.value &&
-        selectedRole.value.slug !== suggestedRoleSlug.value,
-);
+function isRoleSelected(roleId: number): boolean {
+    return selectedRoleIds.value.includes(Number(roleId));
+}
 
-const roleBadgeClass = computed(() => {
-    const slug = assignedRoleSlug.value ?? 'metier';
+function toggleRole(roleId: number) {
+    const id = Number(roleId);
+    if (selectedRoleIds.value.includes(id)) {
+        form.roles = selectedRoleIds.value.filter((current) => current !== id);
+        return;
+    }
 
+    form.roles = [...selectedRoleIds.value, id];
+}
+
+function roleBadgeClassFor(slug: string): string {
     return roleBadgeStyles[slug] ?? roleBadgeStyles.metier;
-});
+}
 
 const profilInitials = computed(() =>
     getInitials(selectedProfil.value ? `${selectedProfil.value.prenom} ${selectedProfil.value.nom}` : ''),
@@ -224,14 +220,22 @@ watch(
                 props.defaultDepartementRole,
             ),
         );
-        if (suggestedId) {
-            form.roles = [suggestedId];
+        // Pré-sélection du rôle département ; d'autres rôles peuvent être ajoutés ensuite
+        if (suggestedId && !selectedRoleIds.value.includes(suggestedId)) {
+            form.roles = selectedRoleIds.value.length
+                ? [...selectedRoleIds.value, suggestedId]
+                : [suggestedId];
         }
     },
 );
 
 const submit = () => {
-    form.post('/users', { preserveScroll: true });
+    form
+        .transform((data) => ({
+            ...data,
+            roles: (data.roles ?? []).map((id: number | string) => Number(id)),
+        }))
+        .post('/users', { preserveScroll: true });
 };
 </script>
 
@@ -447,30 +451,58 @@ const submit = () => {
                                 >3</span>
                                 <div class="flex items-center gap-2">
                                     <Shield class="h-5 w-5 text-gray-400" />
-                                    <h2 class="font-semibold text-gray-900">Rôle applicatif</h2>
+                                    <h2 class="font-semibold text-gray-900">Rôles applicatifs</h2>
                                 </div>
                             </div>
-                            <div class="space-y-5 p-5 sm:p-6">
+                            <div class="space-y-4 p-5 sm:p-6">
                                 <div>
-                                    <Label for="role_id" class="mb-2 block text-sm font-medium text-gray-700">
-                                        Rôle <span class="text-primary">*</span>
+                                    <Label class="mb-1 block text-sm font-medium text-gray-700">
+                                        Rôles <span class="text-primary">*</span>
                                     </Label>
-                                    <select id="role_id" v-model="selectedRoleId" :class="selectClass">
-                                        <option :value="null" disabled>Sélectionnez un rôle</option>
-                                        <option v-for="role in props.roles" :key="role.id" :value="role.id">
-                                            {{ role.nom }}
-                                        </option>
-                                    </select>
+                                    <p class="mb-3 text-xs text-gray-500">
+                                        Un utilisateur peut cumuler plusieurs rôles.
+                                    </p>
+                                    <div class="grid gap-2 sm:grid-cols-2">
+                                        <button
+                                            v-for="role in props.roles"
+                                            :key="role.id"
+                                            type="button"
+                                            class="flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors"
+                                            :class="
+                                                isRoleSelected(role.id)
+                                                    ? 'border-primary/40 bg-primary/5 ring-1 ring-primary/20'
+                                                    : 'border-gray-100 bg-gray-50/50 hover:bg-gray-50'
+                                            "
+                                            @click="toggleRole(role.id)"
+                                        >
+                                            <Checkbox
+                                                class="mt-0.5 pointer-events-none"
+                                                :checked="isRoleSelected(role.id)"
+                                                tabindex="-1"
+                                            />
+                                            <div class="min-w-0">
+                                                <span class="block text-sm font-medium text-gray-900">
+                                                    {{ role.nom }}
+                                                </span>
+                                                <span
+                                                    v-if="role.slug === suggestedRoleSlug"
+                                                    class="mt-0.5 block text-xs text-primary"
+                                                >
+                                                    Suggestion département
+                                                </span>
+                                            </div>
+                                        </button>
+                                    </div>
                                     <InputError :message="form.errors.roles" />
                                     <p
                                         v-if="suggestedRoleSlug && !isRoleOverridden"
-                                        class="mt-2 text-xs text-gray-500"
+                                        class="mt-3 text-xs text-gray-500"
                                     >
                                         Suggestion selon le département :
                                         {{ roleLabels[suggestedRoleSlug] ?? suggestedRoleSlug }}.
                                     </p>
-                                    <p v-else-if="isRoleOverridden" class="mt-2 text-xs text-amber-700">
-                                        Rôle personnalisé (différent de la suggestion département).
+                                    <p v-else-if="isRoleOverridden" class="mt-3 text-xs text-amber-700">
+                                        Sélection personnalisée (plusieurs rôles et/ou différente du département).
                                     </p>
                                 </div>
                             </div>
@@ -560,27 +592,29 @@ const submit = () => {
                                         <div class="flex items-center gap-2">
                                             <Shield class="h-4 w-4 text-gray-400" />
                                             <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">
-                                                Rôle attribué
+                                                Rôles attribués
                                             </p>
                                         </div>
-                                        <div v-if="assignedRoleLabel" class="mt-2">
+                                        <div v-if="selectedRoles.length" class="mt-2 flex flex-wrap gap-2">
                                             <span
+                                                v-for="role in selectedRoles"
+                                                :key="role.id"
                                                 class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ring-1 ring-inset"
-                                                :class="roleBadgeClass"
+                                                :class="roleBadgeClassFor(role.slug)"
                                             >
                                                 <BadgeCheck class="h-3.5 w-3.5" />
-                                                {{ assignedRoleLabel }}
+                                                {{ role.nom }}
                                             </span>
-                                            <p class="mt-2 text-xs text-gray-500">
+                                            <p class="w-full text-xs text-gray-500">
                                                 {{
                                                     isRoleOverridden
-                                                        ? 'Rôle personnalisé (différent du département).'
-                                                        : 'Attribué selon le département, modifiable ci-dessus.'
+                                                        ? 'Sélection personnalisée (plusieurs rôles possibles).'
+                                                        : 'Suggestion département + rôles complémentaires.'
                                                 }}
                                             </p>
                                         </div>
                                         <p v-else class="mt-2 text-sm text-amber-700">
-                                            Département manquant — aucun rôle ne sera attribué.
+                                            Sélectionnez au moins un rôle.
                                         </p>
                                     </div>
                                 </div>

@@ -29,7 +29,7 @@ class ProfilController extends Controller
     {
         if ($user) {
             $user->applyProfilVisibilityScope($query);
-        } else {
+            } else {
             $query->whereRaw('0 = 1');
         }
 
@@ -45,7 +45,7 @@ class ProfilController extends Controller
 
         if ($user) {
             $user->applyFilialeScopeToQuery($query);
-        } else {
+            } else {
             $query->whereRaw('0 = 1');
         }
 
@@ -73,7 +73,7 @@ class ProfilController extends Controller
 
         if ($user) {
             $user->applyProfilVisibilityScope($query);
-        } else {
+            } else {
             $query->whereRaw('0 = 1');
         }
 
@@ -554,7 +554,7 @@ class ProfilController extends Controller
             $importWarnings = [];
             if (! isset($mappedColumns['email'])) {
                 $importWarnings[] = 'Aucune colonne « Email » détectée dans les en-têtes (recherche sur chaque ligne).';
-            } else {
+                    } else {
                 $headerLabel = ProfilExcelImport::cellToString($header[$mappedColumns['email']] ?? '');
                 if ($headerLabel !== '') {
                     $importWarnings[] = "Colonne e-mail utilisée : « {$headerLabel} ».";
