@@ -21,6 +21,8 @@ class MissionParticipant extends Model
         'prix_transport',
         'prix_logement',
         'autres_frais',
+        'jours',
+        'nuits',
         'logistique_sites',
         'besoin_chauffeur',
         'chauffeur_id',
@@ -35,6 +37,8 @@ class MissionParticipant extends Model
             'prix_transport' => 'decimal:2',
             'prix_logement' => 'decimal:2',
             'autres_frais' => 'decimal:2',
+            'jours' => 'integer',
+            'nuits' => 'integer',
             'logistique_sites' => 'array',
             'besoin_chauffeur' => 'boolean',
         ];

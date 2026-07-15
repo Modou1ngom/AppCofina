@@ -25,6 +25,8 @@ class Mission extends Model
 
     public const STEP_VALIDEE = 'VALIDEE';
 
+    public const STEP_ATTENTE_FINANCE = 'ATTENTE_FINANCE';
+
     public const STEP_ATTENTE_RAPPORT = 'ATTENTE_RAPPORT';
 
     public const STEP_ATTENTE_VALIDATION_RAPPORT = 'ATTENTE_VALIDATION_RAPPORT';
@@ -71,6 +73,7 @@ class Mission extends Model
         'total_logistique',
         'finance_logistique_validee_at',
         'finance_logistique_validee_par',
+        'facilities_retour_finance',
         'commentaire_facilities',
         'rapport_contenu',
         'rapport_reponses',
@@ -118,6 +121,7 @@ class Mission extends Model
             'last_reminder_at' => 'datetime',
             'md_signe_at' => 'datetime',
             'dga_contournee' => 'boolean',
+            'facilities_retour_finance' => 'boolean',
             'sites_mission' => 'array',
             'descriptions_sites' => 'array',
             'sites_prolongation' => 'array',

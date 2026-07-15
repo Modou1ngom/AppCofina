@@ -199,9 +199,8 @@ class MissionController extends Controller
 
         $profilId = $this->trouverProfilPourUser($user)?->id;
         $idsValidees = $inclureMissionsValidees ? $this->idsMissionsValideesParUtilisateur($user) : [];
-        $etapesAvantFinance = $this->etapesAvantValidationFinanceLogistique();
 
-        $query->where(function ($inner) use ($user, $profilId, $idsValidees, $etapesAvantFinance) {
+        $query->where(function ($inner) use ($user, $profilId, $idsValidees) {
             $inner->where('demandeur_id', $user->id)
                 ->orWhere(function ($q) use ($user) {
                     $q->where('status', '!=', 'brouillon')
@@ -261,14 +260,11 @@ class MissionController extends Controller
                 });
             }
             if ($user->isFinance()) {
-                $inner->orWhere(function ($q) use ($etapesAvantFinance, $user) {
-                    $q->whereNotNull('total_logistique')
-                        ->where('total_logistique', '>', 0)
-                        ->whereNotIn('current_step', $etapesAvantFinance)
-                        ->where(function ($finance) use ($user) {
-                            $finance->whereNull('finance_logistique_validee_at')
-                                ->orWhere('finance_logistique_validee_par', $user->id);
-                        });
+                $inner->orWhere(function ($q) use ($user) {
+                    $q->where(function ($finance) use ($user) {
+                        $finance->where('current_step', Mission::STEP_ATTENTE_FINANCE)
+                            ->orWhere('finance_logistique_validee_par', $user->id);
+                    });
                 });
             }
             if ($idsValidees !== []) {
@@ -389,6 +385,7 @@ class MissionController extends Controller
             Mission::STEP_ATTENTE_RH, 'ATTENTE_RH_LOGISTIQUE' => $this->peutValiderRh($user),
             Mission::STEP_ATTENTE_FACILITIES => $user->isLogistique(),
             Mission::STEP_ATTENTE_SIGNATURE_RRH => $user->isResponsableRh(),
+            Mission::STEP_ATTENTE_FINANCE => $user->isFinance(),
             Mission::STEP_ATTENTE_RAPPORT => $this->estMissionnaire($user, $mission),
             Mission::STEP_ATTENTE_VALIDATION_RAPPORT => $this->estDemandeur($user, $mission),
             default => false,
@@ -626,6 +623,7 @@ class MissionController extends Controller
             Mission::STEP_ATTENTE_RH, 'ATTENTE_RH_LOGISTIQUE' => 'En attente de validation RH',
             Mission::STEP_ATTENTE_SIGNATURE_RRH => 'En attente de signature Responsable RH',
             Mission::STEP_VALIDEE => 'Validée — ordres de mission signés',
+            Mission::STEP_ATTENTE_FINANCE => 'En attente de validation Finance (dépenses logistiques)',
             Mission::STEP_ATTENTE_RAPPORT => 'En attente du rapport de mission signé',
             Mission::STEP_ATTENTE_VALIDATION_RAPPORT => 'En attente de validation du rapport par le demandeur',
             Mission::STEP_CLOTUREE => 'Mission clôturée officiellement',
@@ -640,6 +638,7 @@ class MissionController extends Controller
             'ATTENTE_RH_LOGISTIQUE',
             Mission::STEP_ATTENTE_SIGNATURE_RRH,
             Mission::STEP_VALIDEE,
+            Mission::STEP_ATTENTE_FINANCE,
             Mission::STEP_ATTENTE_RAPPORT,
             Mission::STEP_ATTENTE_VALIDATION_RAPPORT,
             Mission::STEP_CLOTUREE,
@@ -678,6 +677,8 @@ class MissionController extends Controller
             'prix_transport' => 0,
             'prix_logement' => 0,
             'autres_frais' => 0,
+            'jours' => null,
+            'nuits' => null,
             'besoin_chauffeur' => false,
             'chauffeur_id' => null,
             'chauffeur_profil_id' => null,
@@ -1183,6 +1184,8 @@ class MissionController extends Controller
             return array_merge($logistique, [
                 'vehicule' => $afficheFrais ? $participant->vehicule : null,
                 'logement' => $afficheFrais ? $participant->logement : null,
+                'jours' => $afficheFrais ? $participant->jours : null,
+                'nuits' => $afficheFrais ? $participant->nuits : null,
                 'per_diem' => $afficheFrais ? (float) ($participant->per_diem ?? 0) : 0,
                 'prix_carburant' => $afficheFrais ? (float) ($participant->prix_carburant ?? 0) : 0,
                 'prix_transport' => $afficheFrais ? (float) ($participant->prix_transport ?? 0) : 0,
@@ -1477,6 +1480,8 @@ class MissionController extends Controller
                         'participant_ids' => [],
                         'vehicule' => $participant->vehicule ?? '',
                         'logement' => $participant->logement ?? '',
+                        'jours' => (int) ($participant->jours ?? 0),
+                        'nuits' => (int) ($participant->nuits ?? 0),
                         'per_diem' => (float) ($participant->per_diem ?? 0),
                         'prix_carburant' => (float) ($participant->prix_carburant ?? 0),
                         'prix_logement' => (float) ($participant->prix_logement ?? 0),
@@ -1486,13 +1491,19 @@ class MissionController extends Controller
 
                 $groupes[$cle]['participant_ids'][] = $participant->id;
 
-                if ((float) ($participant->prix_carburant ?? 0) > 0) {
+                if ((float) ($participant->prix_carburant ?? 0) > 0 || $participant->jours !== null || $participant->nuits !== null) {
                     $groupes[$cle]['vehicule'] = $participant->vehicule ?? $groupes[$cle]['vehicule'];
                     $groupes[$cle]['prix_carburant'] = (float) ($participant->prix_carburant ?? 0);
                     $groupes[$cle]['per_diem'] = (float) ($participant->per_diem ?? 0);
                     $groupes[$cle]['prix_logement'] = (float) ($participant->prix_logement ?? 0);
                     $groupes[$cle]['autres_frais'] = (float) ($participant->autres_frais ?? 0);
                     $groupes[$cle]['logement'] = $participant->logement ?? $groupes[$cle]['logement'];
+                    if ($participant->jours !== null) {
+                        $groupes[$cle]['jours'] = (int) $participant->jours;
+                    }
+                    if ($participant->nuits !== null) {
+                        $groupes[$cle]['nuits'] = (int) $participant->nuits;
+                    }
                 }
             }
         }
@@ -1726,6 +1737,9 @@ class MissionController extends Controller
                 : 'missions.index',
             Mission::STEP_ATTENTE_SIGNATURE_RRH => ($user && $user->isResponsableRh())
                 ? 'missions.validation-signature-rrh'
+                : 'missions.index',
+            Mission::STEP_ATTENTE_FINANCE => ($user && $user->isFinance())
+                ? 'missions.validation-finance'
                 : 'missions.index',
             Mission::STEP_ATTENTE_RAPPORT, Mission::STEP_ATTENTE_VALIDATION_RAPPORT => 'missions.rapports',
             default => 'missions.index',
@@ -2153,6 +2167,7 @@ class MissionController extends Controller
 
         $etapesPdfDisponible = [
             Mission::STEP_VALIDEE,
+            Mission::STEP_ATTENTE_FINANCE,
             Mission::STEP_ATTENTE_RAPPORT,
             Mission::STEP_ATTENTE_VALIDATION_RAPPORT,
             Mission::STEP_CLOTUREE,
@@ -2164,7 +2179,8 @@ class MissionController extends Controller
                 || $this->estDemandeur($user, $mission)
                 || $estParticipant
                 || $this->peutValiderRh($user)
-                || $user->isResponsableRh();
+                || $user->isResponsableRh()
+                || $user->isFinance();
         }
 
         if ($mission->current_step === Mission::STEP_ATTENTE_SIGNATURE_RRH) {
@@ -2251,13 +2267,19 @@ class MissionController extends Controller
     {
         $user = $request->user();
         $periode = $request->query('periode', 'mois');
+        if (! in_array($periode, ['semaine', 'mois', 'annee'], true)) {
+            $periode = 'mois';
+        }
+
+        [$dateDebut, $dateFin] = $this->resoudrePlageDatesRecapLogistique($request);
 
         return Inertia::render('Missions/RecapMissionsTraitees', [
-            'recap' => $this->construireRecapMissionsTraitees($user, $periode),
-            'periode' => in_array($periode, ['semaine', 'mois', 'annee'], true) ? $periode : 'mois',
+            'recap' => $this->construireRecapMissionsTraitees($user, $periode, $dateDebut, $dateFin),
+            'periode' => $periode,
+            'dateDebut' => $dateDebut->toDateString(),
+            'dateFin' => $dateFin->toDateString(),
             'activeTab' => 'recap',
             'filtreNumero' => $this->filtreNumeroMissionPourVue($request),
-            'peutVoirMontantsRecap' => $user->peutVoirRecapLogistique(),
         ]);
     }
 
@@ -2495,6 +2517,9 @@ class MissionController extends Controller
             'signataireNomDefaut' => $this->nomSignatairePourUser($user),
             'rapportSections' => MissionRapport::sections(),
             'rapportSectionsSoumises' => MissionRapport::sectionsAffichables($mission->rapport_reponses),
+            'rapportContenuLibre' => is_array($mission->rapport_reponses)
+                ? (trim((string) ($mission->rapport_reponses['compte_rendu'] ?? '')) ?: null)
+                : null,
         ]);
     }
 
@@ -2739,6 +2764,8 @@ class MissionController extends Controller
                 'chauffeurs_logistique.*.participant_ids.*' => ['integer', Rule::in($participantIds)],
                 'chauffeurs_logistique.*.vehicule' => ['nullable', 'string', 'max:255'],
                 'chauffeurs_logistique.*.logement' => ['nullable', 'string', 'max:255'],
+                'chauffeurs_logistique.*.jours' => ['nullable', 'integer', 'min:0'],
+                'chauffeurs_logistique.*.nuits' => ['nullable', 'integer', 'min:0'],
                 'chauffeurs_logistique.*.per_diem' => ['nullable', 'numeric', 'min:0'],
                 'chauffeurs_logistique.*.prix_carburant' => ['nullable', 'numeric', 'min:0'],
                 'chauffeurs_logistique.*.prix_logement' => ['nullable', 'numeric', 'min:0'],
@@ -2805,6 +2832,8 @@ class MissionController extends Controller
                     'prix_transport' => 0,
                     'prix_logement' => $sitesTotaux['prix_logement'],
                     'autres_frais' => $ligne['autres_frais'] ?? 0,
+                    'jours' => null,
+                    'nuits' => null,
                     'logistique_sites' => $sitesTotaux['lignes'],
                     'besoin_chauffeur' => false,
                     'chauffeur_id' => null,
@@ -2836,6 +2865,8 @@ class MissionController extends Controller
                         'prix_transport' => 0,
                         'prix_logement' => $sitesTotaux['prix_logement'] + ($premier ? (float) ($bloc['prix_logement'] ?? 0) : 0),
                         'autres_frais' => (float) ($frais['autres_frais'] ?? 0) + ($premier ? (float) ($bloc['autres_frais'] ?? 0) : 0),
+                        'jours' => $premier ? max(0, (int) ($bloc['jours'] ?? 0)) : null,
+                        'nuits' => $premier ? max(0, (int) ($bloc['nuits'] ?? 0)) : null,
                         'logistique_sites' => $sitesTotaux['lignes'],
                         'besoin_chauffeur' => true,
                         'chauffeur_id' => $chauffeurId,
@@ -2846,7 +2877,11 @@ class MissionController extends Controller
                 }
 
                 if ($chauffeurId) {
-                    $chauffeursAttribues[$chauffeurId] = ['role_dans_mission' => 'chauffeur'];
+                    $chauffeursAttribues[$chauffeurId] = [
+                        'role_dans_mission' => 'chauffeur',
+                        'jours' => max(0, (int) ($bloc['jours'] ?? 0)),
+                        'nuits' => max(0, (int) ($bloc['nuits'] ?? 0)),
+                    ];
                 } elseif ($chauffeurProfilId) {
                     MissionParticipant::query()->updateOrCreate(
                         [
@@ -2854,7 +2889,11 @@ class MissionController extends Controller
                             'profil_id' => $chauffeurProfilId,
                             'role_dans_mission' => 'chauffeur',
                         ],
-                        ['user_id' => null],
+                        [
+                            'user_id' => null,
+                            'jours' => max(0, (int) ($bloc['jours'] ?? 0)),
+                            'nuits' => max(0, (int) ($bloc['nuits'] ?? 0)),
+                        ],
                     );
                 }
             }
@@ -2868,14 +2907,23 @@ class MissionController extends Controller
                 ->filter()
                 ->first();
 
+            $retourDirectFinance = (bool) $mission->facilities_retour_finance
+                && ! $this->estProlongationEnAttenteSignature($mission);
+
+            $etapeSuivante = $retourDirectFinance
+                ? Mission::STEP_ATTENTE_FINANCE
+                : Mission::STEP_ATTENTE_RH;
+
             $mission->update([
                 'besoin_chauffeur' => $besoinChauffeurMission,
                 'chauffeur_id' => $premierChauffeurId,
                 'commentaire_facilities' => $validated['commentaire'] ?? null,
                 'total_logistique' => $totalMission,
-                'current_step' => Mission::STEP_ATTENTE_RH,
+                'current_step' => $etapeSuivante,
+                'status' => $retourDirectFinance ? 'valide' : 'en_cours',
                 'finance_logistique_validee_at' => null,
                 'finance_logistique_validee_par' => null,
+                'facilities_retour_finance' => false,
             ]);
 
             MissionLog::create([
@@ -2884,9 +2932,10 @@ class MissionController extends Controller
                 'action' => 'attribution_facilities',
                 'etape_concernee' => 'Niveau 3 — Facilities',
                 'commentaire' => sprintf(
-                    'Logistique renseignée pour %d missionnaire(s).%s%s',
+                    'Logistique renseignée pour %d missionnaire(s).%s%s%s',
                     $missionnaires->count(),
                     $besoinChauffeurMission ? ' Chauffeur(s) attribué(s) par Facilities.' : '',
+                    $retourDirectFinance ? ' Retour direct vers Finance pour validation.' : '',
                     $validated['commentaire'] ? ' ' . $validated['commentaire'] : ''
                 ),
             ]);
@@ -2898,7 +2947,9 @@ class MissionController extends Controller
             return $this->redirectApresActionEtape(
                 Mission::STEP_ATTENTE_FACILITIES,
                 'success',
-                'Logistique enregistrée. La RH a été notifiée pour validation et génération des ordres de mission.',
+                $retourDirectFinance
+                    ? 'Logistique corrigée. La mission a été renvoyée à Finance pour validation.'
+                    : 'Logistique enregistrée. La RH a été notifiée pour validation et génération des ordres de mission.',
                 $request->user(),
             );
         } catch (\Throwable $e) {
@@ -3072,10 +3123,11 @@ class MissionController extends Controller
                 );
 
                 $filename = $this->genererPdfOrdreProlongation($mission, $signature, $user);
-                $etapeReprise = $mission->etape_reprise_apres_prolongation ?? Mission::STEP_VALIDEE;
+                $etapeReprise = $mission->etape_reprise_apres_prolongation ?? Mission::STEP_ATTENTE_RAPPORT;
+                $etapeSuivante = $this->etapeApresSignatureRrh($mission, $etapeReprise);
 
                 $mission->update([
-                    'current_step' => $etapeReprise,
+                    'current_step' => $etapeSuivante,
                     'status' => 'valide',
                     'ordre_prolongation_pdf_path' => $filename,
                     'ordre_prolongation_signe_at' => now(),
@@ -3085,7 +3137,9 @@ class MissionController extends Controller
 
                 $this->notifierEtapeCourante(
                     $mission,
-                    'L\'ordre de prolongation a été signé. La mission reprend son cours normal.',
+                    $etapeSuivante === Mission::STEP_ATTENTE_FINANCE
+                        ? 'L\'ordre de prolongation a été signé. Validation Finance des nouveaux montants en cours.'
+                        : 'L\'ordre de prolongation a été signé. La mission reprend son cours normal.',
                 );
 
                 DB::commit();
@@ -3107,9 +3161,10 @@ class MissionController extends Controller
             );
 
             $filename = $this->genererPdfMission($mission, $signature, $user);
+            $etapeSuivante = $this->etapeApresSignatureRrh($mission);
 
             $mission->update([
-                'current_step' => Mission::STEP_ATTENTE_RAPPORT,
+                'current_step' => $etapeSuivante,
                 'status' => 'valide',
                 'pdf_path' => $filename,
             ]);
@@ -3118,7 +3173,9 @@ class MissionController extends Controller
             MissionNotificationService::notifyOrdresGeneres($mission);
             $this->notifierEtapeCourante(
                 $mission,
-                'Votre ordre de mission signé est disponible. Veuillez soumettre votre rapport de mission signé.',
+                $etapeSuivante === Mission::STEP_ATTENTE_FINANCE
+                    ? 'Votre ordre de mission signé est disponible. La validation Finance des dépenses logistiques est requise avant le rapport.'
+                    : 'Votre ordre de mission signé est disponible. Veuillez soumettre votre rapport de mission signé.',
             );
 
             DB::commit();
@@ -3524,18 +3581,43 @@ class MissionController extends Controller
         ];
     }
 
-    private function missionEligibleValidationFinanceLogistique(Mission $mission): bool
+    private function missionNecessiteValidationFinanceBloquante(Mission $mission): bool
     {
         return $mission->total_logistique !== null
             && (float) $mission->total_logistique > 0
-            && ! in_array($mission->current_step, $this->etapesAvantValidationFinanceLogistique(), true);
+            && $mission->finance_logistique_validee_at === null;
+    }
+
+    /**
+     * Après signature RRH : Finance si des dépenses logistiques restent à valider, sinon rapport (ou reprise).
+     */
+    private function etapeApresSignatureRrh(Mission $mission, ?string $etapeReprise = null): string
+    {
+        if ($this->missionNecessiteValidationFinanceBloquante($mission)) {
+            return Mission::STEP_ATTENTE_FINANCE;
+        }
+
+        $cible = $etapeReprise ?? Mission::STEP_ATTENTE_RAPPORT;
+
+        if (in_array($cible, [Mission::STEP_VALIDEE, Mission::STEP_ATTENTE_FINANCE], true)) {
+            return Mission::STEP_ATTENTE_RAPPORT;
+        }
+
+        return $cible;
+    }
+
+    private function missionEligibleValidationFinanceLogistique(Mission $mission): bool
+    {
+        return $mission->current_step === Mission::STEP_ATTENTE_FINANCE
+            && $mission->total_logistique !== null
+            && (float) $mission->total_logistique > 0
+            && $mission->finance_logistique_validee_at === null;
     }
 
     private function peutValiderLogistiqueFinance(User $user, Mission $mission): bool
     {
         return $user->isFinance()
-            && $this->missionEligibleValidationFinanceLogistique($mission)
-            && $mission->finance_logistique_validee_at === null;
+            && $this->missionEligibleValidationFinanceLogistique($mission);
     }
 
     /**
@@ -3543,24 +3625,15 @@ class MissionController extends Controller
      */
     private function executerRenvoiFinanceLogistique(Mission $mission, User $user, array $validated): RedirectResponse
     {
-        $destination = $validated['destination_renvoi'] ?? 'facilities';
-
         DB::beginTransaction();
         try {
-            if ($destination === 'demandeur') {
-                $mission->update($this->renvoyerAuDemandeur($mission));
-                $libelleDestination = 'demandeur';
-                $message = 'La demande a été renvoyée au demandeur pour correction.';
-            } else {
-                $mission->update([
-                    'current_step' => Mission::STEP_ATTENTE_FACILITIES,
-                    'status' => 'en_cours',
-                ]);
-                $libelleDestination = 'Facilities';
-                $message = 'La mission a été renvoyée à Facilities pour correction logistique.';
-            }
-
-            $this->reinitialiserValidationFinanceLogistique($mission);
+            $mission->update([
+                'current_step' => Mission::STEP_ATTENTE_FACILITIES,
+                'status' => 'en_cours',
+                'facilities_retour_finance' => true,
+                'finance_logistique_validee_at' => null,
+                'finance_logistique_validee_par' => null,
+            ]);
 
             MissionLog::create([
                 'mission_id' => $mission->id,
@@ -3568,21 +3641,20 @@ class MissionController extends Controller
                 'action' => 'renvoi',
                 'etape_concernee' => 'Validation Finance — Logistique',
                 'commentaire' => sprintf(
-                    'Renvoyé vers %s — %s',
-                    $libelleDestination,
+                    'Renvoyé vers Facilities pour correction logistique — %s',
                     $validated['commentaire'],
                 ),
             ]);
 
             $mission->load(['participants', 'demandeur']);
-            $this->notifierParticipants($mission, 'La demande a été renvoyée pour correction : '.$validated['commentaire']);
+            $this->notifierParticipants($mission, 'La demande a été renvoyée à Facilities pour correction : '.$validated['commentaire']);
             $this->notifierEtapeCourante($mission);
 
             DB::commit();
 
             return redirect()
                 ->route('missions.validation-finance')
-                ->with('success', $message);
+                ->with('success', 'Mission renvoyée à Facilities. Après correction, elle reviendra directement à Finance.');
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('Échec renvoi Finance logistique', [
@@ -3617,10 +3689,10 @@ class MissionController extends Controller
         }
 
         $missionsQuery = Mission::with(['demandeur', 'beneficiaire', 'financeLogistiqueValidateur'])
+            ->where('current_step', Mission::STEP_ATTENTE_FINANCE)
             ->whereNotNull('total_logistique')
             ->where('total_logistique', '>', 0)
-            ->whereNull('finance_logistique_validee_at')
-            ->whereNotIn('current_step', $this->etapesAvantValidationFinanceLogistique());
+            ->whereNull('finance_logistique_validee_at');
 
         $this->appliquerFiltreNumeroMission($missionsQuery, $request);
 
@@ -3716,6 +3788,8 @@ class MissionController extends Controller
             $mission->update([
                 'finance_logistique_validee_at' => now(),
                 'finance_logistique_validee_par' => $user->id,
+                'current_step' => Mission::STEP_ATTENTE_RAPPORT,
+                'status' => 'valide',
             ]);
 
             $libelleAction = $apresModificationDuree
@@ -3738,13 +3812,22 @@ class MissionController extends Controller
                 'commentaire' => $messageLog,
             ]);
 
+            $mission->load(['participants', 'demandeur']);
+            $this->notifierEtapeCourante(
+                $mission,
+                'La validation Finance est terminée. Veuillez soumettre votre rapport de mission signé.',
+            );
+
             DB::commit();
 
-            return redirect()
-                ->route('missions.validation-finance')
-                ->with('success', $apresModificationDuree
-                    ? 'Logistique retraitée. Le récapitulatif Finance a été mis à jour avec les nouveaux montants.'
-                    : 'Logistique traitée. La mission est intégrée au récapitulatif des dépenses.');
+            return $this->redirectApresActionEtape(
+                Mission::STEP_ATTENTE_FINANCE,
+                'success',
+                $apresModificationDuree
+                    ? 'Logistique retraitée. Les missionnaires peuvent désormais déposer le rapport.'
+                    : 'Logistique validée. La mission passe en attente du rapport de mission.',
+                $user,
+            );
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('Échec validation Finance logistique', [
@@ -3763,54 +3846,78 @@ class MissionController extends Controller
         return $user->peutVoirRecapLogistique();
     }
 
-    private function totalPerDiemMission(Mission $mission): float
+    /**
+     * Per diem du seul missionnaire connecté sur une mission (pas le total de tous les participants).
+     */
+    private function totalPerDiemMissionnaireConnecte(Mission $mission, User $user): float
     {
         if (! $mission->relationLoaded('missionParticipants')) {
             $mission->load(['missionParticipants' => fn ($q) => $q->where('role_dans_mission', 'missionnaire')]);
         }
 
+        $profilId = $this->trouverProfilPourUser($user)?->id;
+
         return (float) $mission->missionParticipants
-            ->where('role_dans_mission', 'missionnaire')
-            ->sum(fn ($participant) => (float) ($participant->per_diem ?? 0));
+            ->filter(function (MissionParticipant $participant) use ($user, $profilId) {
+                if (($participant->role_dans_mission ?? 'missionnaire') !== 'missionnaire') {
+                    return false;
+                }
+
+                if ((int) $participant->user_id === (int) $user->id) {
+                    return true;
+                }
+
+                return $profilId !== null && (int) $participant->profil_id === (int) $profilId;
+            })
+            ->sum(fn (MissionParticipant $participant) => (float) ($participant->per_diem ?? 0));
     }
 
     /**
+     * Missions clôturées où l'utilisateur est missionnaire (récap personnel).
+     *
      * @return \Illuminate\Database\Eloquent\Builder<\App\Models\Mission>
      */
-    private function queryMissionsTraiteesPourUtilisateur(User $user)
+    private function queryMissionsRecapMissionnaire(User $user, Carbon $dateDebut, Carbon $dateFin)
     {
-        $idsHistoriqueValidees = $this->idsMissionsHistoriqueValideesParUtilisateur($user);
+        $profilId = $this->trouverProfilPourUser($user)?->id;
 
-        $query = Mission::query();
-        $this->appliquerFiltreMissionsVisiblesUtilisateur($query, $user);
-
-        return $query->where(function ($q) use ($user, $idsHistoriqueValidees) {
-            $q->where('current_step', Mission::STEP_CLOTUREE)
-                ->orWhere('status', 'rejete');
-
-            if ($idsHistoriqueValidees !== []) {
-                $q->orWhereIn('id', $idsHistoriqueValidees);
-            }
-
-            if ($user->isFinance()) {
-                $q->orWhere('finance_logistique_validee_par', $user->id);
-            }
-        });
+        return Mission::query()
+            ->where('current_step', Mission::STEP_CLOTUREE)
+            ->whereDate('date_debut', '>=', $dateDebut->toDateString())
+            ->whereDate('date_debut', '<=', $dateFin->toDateString())
+            ->whereHas('missionParticipants', function ($q) use ($user, $profilId) {
+                $q->where('role_dans_mission', 'missionnaire')
+                    ->where(function ($inner) use ($user, $profilId) {
+                        $inner->where('user_id', $user->id);
+                        if ($profilId !== null) {
+                            $inner->orWhere('profil_id', $profilId);
+                        }
+                    });
+            })
+            ->with([
+                'missionParticipants' => fn ($q) => $q->where('role_dans_mission', 'missionnaire'),
+            ]);
     }
 
     /**
      * @return array{
      *     global: array<string, mixed>,
      *     periodes: array<int, array<string, mixed>>,
-     *     sites_populaires: array<int, array{site: string, count: int}>
+     *     sites_populaires: array<int, array{site: string, count: int}>,
+     *     plage: array{debut: string, fin: string, libelle: string}
      * }
      */
-    private function construireRecapMissionsTraitees(User $user, string $periode): array
-    {
+    private function construireRecapMissionsTraitees(
+        User $user,
+        string $periode,
+        ?Carbon $dateDebut = null,
+        ?Carbon $dateFin = null,
+    ): array {
         $periode = in_array($periode, ['semaine', 'mois', 'annee'], true) ? $periode : 'mois';
+        $dateDebut = ($dateDebut ?? now()->startOfMonth())->copy()->startOfDay();
+        $dateFin = ($dateFin ?? now())->copy()->endOfDay();
 
-        $missions = $this->queryMissionsTraiteesPourUtilisateur($user)
-            ->with(['missionParticipants' => fn ($q) => $q->where('role_dans_mission', 'missionnaire')])
+        $missions = $this->queryMissionsRecapMissionnaire($user, $dateDebut, $dateFin)
             ->orderBy('date_debut')
             ->get();
 
@@ -3829,7 +3936,7 @@ class MissionController extends Controller
                 $totalVisitesSites++;
             }
 
-            $montant = $this->totalPerDiemMission($mission);
+            $montant = $this->totalPerDiemMissionnaireConnecte($mission, $user);
             $date = Carbon::parse($mission->date_debut)->locale('fr');
             $clePeriode = match ($periode) {
                 'semaine' => $date->isoFormat('GGGG-[S]WW'),
@@ -3881,7 +3988,9 @@ class MissionController extends Controller
         }, array_values($buckets));
 
         $globalNb = $missions->count();
-        $globalMontant = (float) $missions->sum(fn (Mission $m) => $this->totalPerDiemMission($m));
+        $globalMontant = (float) $missions->sum(
+            fn (Mission $m) => $this->totalPerDiemMissionnaireConnecte($m, $user),
+        );
         $nbPeriodes = max(1, count($buckets));
         $sitesUniquesGlobal = count($compteurSitesGlobal);
 
@@ -3891,6 +4000,9 @@ class MissionController extends Controller
             ->map(fn (int $count, string $site) => ['site' => $site, 'count' => $count])
             ->values()
             ->all();
+
+        $libellePlage = 'Du '.$dateDebut->locale('fr')->isoFormat('D MMMM YYYY')
+            .' au '.$dateFin->locale('fr')->isoFormat('D MMMM YYYY');
 
         return [
             'global' => [
@@ -3907,6 +4019,11 @@ class MissionController extends Controller
             ],
             'periodes' => $periodes,
             'sites_populaires' => $sitesPopulaires,
+            'plage' => [
+                'debut' => $dateDebut->toDateString(),
+                'fin' => $dateFin->toDateString(),
+                'libelle' => $libellePlage,
+            ],
         ];
     }
 
@@ -4072,6 +4189,8 @@ class MissionController extends Controller
             'mission' => $missionData,
             'chauffeurs' => $this->listeChauffeurs(),
             'logistique_initiale' => $this->reconstituerFormulaireFacilities($missionnaires, $mission),
+            'retourDirectFinance' => (bool) $mission->facilities_retour_finance
+                && ! $this->estProlongationEnAttenteSignature($mission),
         ]);
     }
 
@@ -4277,15 +4396,45 @@ class MissionController extends Controller
             ],
         ));
 
+        $contenuLibre = trim((string) ($validated['contenu'] ?? ''));
+        $utiliserQuestions = filter_var($validated['questions_supplementaires'] ?? false, FILTER_VALIDATE_BOOLEAN);
         $reponses = collect($validated['reponses'] ?? [])
             ->map(fn ($v) => trim((string) $v))
+            ->filter(fn ($v) => $v !== '')
             ->all();
-        $contenuCompile = MissionRapport::compilerContenu($reponses);
+
+        if (! $utiliserQuestions) {
+            $reponses = [];
+        }
 
         $fichiers = $request->file('pieces_jointes', []);
         if (! is_array($fichiers)) {
             $fichiers = [];
         }
+        $fichiers = array_values(array_filter($fichiers));
+
+        $aContenu = $contenuLibre !== '';
+        $aQuestions = MissionRapport::aAuMoinsUneReponse($reponses);
+        $aFichiers = $fichiers !== [];
+
+        if (! $aContenu && ! $aQuestions && ! $aFichiers) {
+            throw ValidationException::withMessages([
+                'rapport' => 'Le rapport ne peut pas être vide : rédigez un compte-rendu, répondez à au moins une question, ou joignez un fichier.',
+            ]);
+        }
+
+        $contenuCompile = MissionRapport::compilerContenu($contenuLibre, $reponses);
+        if ($contenuCompile === '' && $aFichiers) {
+            $contenuCompile = 'Rapport de mission transmis avec pièce(s) jointe(s).';
+        }
+
+        $reponsesStockees = array_filter(
+            array_merge(
+                ['compte_rendu' => $contenuLibre],
+                $reponses,
+            ),
+            fn ($v) => trim((string) $v) !== '',
+        );
 
         DB::beginTransaction();
         $piecesEnregistrees = [];
@@ -4294,7 +4443,7 @@ class MissionController extends Controller
             $signature = $this->optimiserSignatureImage($validated['signature']);
 
             $mission->update([
-                'rapport_reponses' => $reponses,
+                'rapport_reponses' => $reponsesStockees,
                 'rapport_contenu' => $contenuCompile,
                 'rapport_signature_image' => $signature,
                 'rapport_signataire_nom' => $signataireNom,
@@ -4465,6 +4614,7 @@ class MissionController extends Controller
                 'duree_modifiee_at' => now(),
                 'finance_logistique_validee_at' => null,
                 'finance_logistique_validee_par' => null,
+                'facilities_retour_finance' => false,
                 'etape_reprise_apres_prolongation' => $etapeReprise,
                 'ordre_prolongation_pdf_path' => null,
                 'ordre_prolongation_signe_at' => null,
@@ -4579,6 +4729,9 @@ class MissionController extends Controller
             'mission' => $mission,
             'signataireNom' => $mission->rapport_signataire_nom ?? '—',
             'logoDataUri' => $this->logoDataUriOrdreMission(),
+            'contenuLibre' => is_array($mission->rapport_reponses)
+                ? (trim((string) ($mission->rapport_reponses['compte_rendu'] ?? '')) ?: null)
+                : null,
             'sectionsRapport' => MissionRapport::sectionsAffichables($mission->rapport_reponses),
         ])->render();
 

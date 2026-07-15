@@ -124,7 +124,8 @@ Le module est accessible depuis le menu latéral **Gestion des missions**. Les e
 | `ATTENTE_FACILITIES` | En attente de traitement Facilities |
 | `ATTENTE_RH` | En attente de validation RH |
 | `ATTENTE_SIGNATURE_RRH` | En attente de signature Responsable RH |
-| `VALIDEE` | Validée — ordres de mission signés |
+| `ATTENTE_FINANCE` | En attente de validation Finance (dépenses logistiques) |
+| `VALIDEE` | Validée — ordres de mission signés (historique) |
 | `ATTENTE_RAPPORT` | En attente du rapport de mission signé |
 | `ATTENTE_VALIDATION_RAPPORT` | En attente de validation du rapport par le demandeur |
 | `CLOTUREE` | Mission clôturée officiellement |
@@ -171,7 +172,7 @@ BROUILLON ──(soumission)──► ATTENTE_N1
                     ATTENTE_SIGNATURE_RRH
                                 │
                                 ▼
-                            VALIDEE
+                      ATTENTE_FINANCE
                                 │
                                 ▼
                        ATTENTE_RAPPORT
@@ -183,7 +184,7 @@ BROUILLON ──(soumission)──► ATTENTE_N1
                            CLOTUREE
 ```
 
-**Parallèle Finance :** après traitement Facilities, la mission peut être soumise à la **validation Finance** des dépenses logistiques (étape transverse, avant ou en lien avec la génération RH selon le contexte).
+**Finance :** après la signature du Responsable RH, la validation Finance des dépenses logistiques est **obligatoire** (dès qu'un montant logistique a été saisi). Sans cette validation, les missionnaires ne peuvent pas déposer le rapport. Si aucune dépense logistique n'a été saisie, la mission passe directement en attente de rapport.
 
 ### 3.2 Acteurs par étape
 
@@ -284,15 +285,18 @@ La RH :
 - Génère l'ordre et le transmet au Responsable RH pour signature
 
 ### 5.6 Signature RRH
-Le Responsable RH signe électroniquement l'ordre de mission. La mission passe au statut **VALIDEE**.
+Le Responsable RH signe électroniquement l'ordre de mission. La mission passe ensuite en **attente de validation Finance** (si des dépenses logistiques ont été saisies), sinon directement en attente de rapport.
 
-### 5.7 Phase opérationnelle
-Les missionnaires peuvent consulter l'ordre signé. La mission attend le **rapport de mission** avec pièces jointes éventuelles.
+### 5.7 Validation Finance
+Le profil Finance valide les dépenses logistiques. Cette étape **bloque** le dépôt du rapport tant qu'elle n'est pas effectuée. Après validation, la mission passe en `ATTENTE_RAPPORT`.
 
-### 5.8 Rapport de mission
-Le **missionnaire** (hors chauffeur) dépose un rapport structuré en **10 rubriques** : contexte, activités, détail par site, personnes rencontrées, résultats, écarts éventuels, difficultés, risques, recommandations et conclusion. Il signe électroniquement le document et peut joindre des pièces (PDF, images, vidéos…). Le demandeur doit ensuite **valider** le rapport pour clôturer la mission.
+### 5.8 Phase opérationnelle / rapport
+Les missionnaires peuvent consulter l'ordre signé. Une fois Finance validée, ils déposent le **rapport de mission** avec pièces jointes éventuelles.
 
-### 5.9 Clôture
+### 5.9 Rapport de mission
+Le **missionnaire** (hors chauffeur) fournit au moins **un** élément parmi : un compte-rendu libre, des réponses aux questions supplémentaires, ou une pièce jointe. Les pièces jointes se saisissent **avant** la signature. Une case **« Questions supplémentaires »** déplie, en option, 10 rubriques guidées (toutes facultatives). Le demandeur valide ensuite le rapport pour clôturer la mission.
+
+### 5.10 Clôture
 Après validation du rapport, la mission est **clôturée officiellement** (`CLOTUREE`).
 
 ---
@@ -393,7 +397,7 @@ La prolongation relance notamment :
 - Facilities (saisie complémentaire, période initiale en lecture seule)
 - RH (génération ordre de prolongation)
 - Signature RRH
-- Validation Finance si nécessaire
+- **Validation Finance** (bloquante avant le rapport)
 
 ### 7.3 Calcul jours / nuits en prolongation
 Pour la phase prolongation, les jours et nuitées sont calculés sur la période **du lendemain de l'ancienne date de fin** jusqu'à la **nouvelle date de fin**.
@@ -423,7 +427,10 @@ Par missionnaire et par site :
 Une automatisation des tarifs par classe (cadres, non-cadres, EMC) est prévue. Les montants pourront être modifiés lors du traitement logistique.
 
 ### 8.5 Validation Finance
-La Finance valide les dépenses logistiques. En cas de prolongation ou modification de durée, une **revalidation** peut être requise.
+Après la signature RRH, la Finance **doit** valider les dépenses logistiques avant que le rapport puisse être déposé.
+- **Valider** : débloque l'étape rapport.
+- **Renvoyer à Facilities** : correction des montants ; après modification, Facilities renvoie **directement à Finance** (sans repasser par RH / RRH).
+En cas de prolongation ou modification de durée, le circuit Facilities → RH → RRH → Finance reprend normalement.
 
 ---
 
@@ -510,22 +517,13 @@ Lorsque la mission est en attente de validation du rapport, un bandeau apparaît
 - Télécharger l'ordre de mission signé (une fois disponible)
 - Déposer le **rapport de mission** structuré et pièces jointes (étape `ATTENTE_RAPPORT`) — **réservé aux missionnaires** (les chauffeurs ne soumettent pas de rapport)
 
-### Rubriques du rapport à compléter
+### Rubriques du rapport
 
-| Rubrique | Obligatoire |
-|----------|-------------|
-| Rappel du contexte et des objectifs | Oui |
-| Activités réalisées | Oui |
-| Détail par site visité | Oui |
-| Personnes et structures rencontrées | Oui |
-| Résultats obtenus et livrables | Oui |
-| Écarts par rapport au planning initial | Non |
-| Difficultés rencontrées | Oui |
-| Risques ou incidents signalés | Non |
-| Recommandations et suites à donner | Oui |
-| Conclusion générale | Oui |
+1. **Compte-rendu de mission** (optionnel) — texte libre.
+2. Case **Questions supplémentaires** (optionnelle) : déplie 10 rubriques **facultatives**.
+3. **Pièces jointes** (optionnelles), avant la signature.
 
-Chaque rubrique comporte une question guide. Après soumission, le rapport est consultable par rubrique sur la fiche mission et dans le PDF imprimable.
+Au moins **un** de ces trois éléments doit être fourni (le rapport ne peut pas être entièrement vide). Signature électronique obligatoire.
 
 ### Menu
 - **Rapport de mission** : `/missions/rapports`
@@ -663,7 +661,7 @@ Onglet **Récapitulatif** : choisir **date de début** et **date de fin**, puis 
 1. Consulter les ordres en attente de signature.
 2. **Signer électroniquement** l'ordre de mission.
 3. Signer l'**ordre de prolongation** le cas échéant.
-4. La mission passe ensuite à l'étape **VALIDEE** (ou reprend son étape après prolongation).
+4. La mission passe ensuite à l'étape **ATTENTE_FINANCE** (ou directement au rapport s'il n'y a pas de dépenses logistiques).
 
 ---
 
@@ -682,8 +680,8 @@ Onglet **Récapitulatif** : choisir **date de début** et **date de fin**, puis 
 *Figure I.2 — Récapitulatif des dépenses sur une plage de dates*
 
 ### Actions
-1. Valider les **dépenses logistiques** des missions en file d'attente.
-2. En cas de **prolongation** ou modification de durée : revalider les nouveaux montants.
+1. Valider les **dépenses logistiques** des missions en file d'attente (`ATTENTE_FINANCE`) — **étape bloquante** avant le rapport.
+2. En cas de **prolongation** ou modification de durée : revalider les nouveaux montants après le nouveau passage Facilities / RH / RRH.
 3. Consulter le **récapitulatif** par plage de dates (dépenses par catégorie, moyennes par mission).
 
 ---
@@ -754,7 +752,7 @@ Onglet **Récapitulatif** : choisir **date de début** et **date de fin**, puis 
 | 3 | Facilities | Dotations Logistique |
 | 4 | RH | Validation RH |
 | 5 | Signature RRH | Signature RRH |
-| 6 | Validée | Fiche mission, PDF |
+| 6 | Finance | Validation Finance |
 | 7 | Rapport | Rapport de mission |
 | 8 | Validation rapport | Fiche mission (demandeur) |
 | 9 | Clôturée | Traitées/Cloturées |

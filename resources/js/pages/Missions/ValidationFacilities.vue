@@ -31,6 +31,8 @@ interface ChauffeurBloc {
     participant_ids: number[];
     vehicule: string;
     logement: string;
+    jours: number;
+    nuits: number;
     per_diem: number;
     prix_carburant: number;
     prix_logement: number;
@@ -65,6 +67,7 @@ interface LogistiqueInitiale {
 
 interface Mission {
     id: number;
+    numero_mission?: number | null;
     objet: string;
     perimetre?: string;
     date_debut: string;
@@ -77,9 +80,12 @@ interface Props {
     mission: Mission;
     chauffeurs: Chauffeur[];
     logistique_initiale: LogistiqueInitiale;
+    retourDirectFinance?: boolean;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+    retourDirectFinance: false,
+});
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Gestion des missions', href: '/missions' },
@@ -90,6 +96,8 @@ let nextBlocKey = 1;
 
 const blocsInitiaux: ChauffeurBloc[] = (props.logistique_initiale.chauffeurs_logistique ?? []).map((bloc) => ({
     ...bloc,
+    jours: Number(bloc.jours ?? 0) || 0,
+    nuits: Number(bloc.nuits ?? 0) || 0,
     participant_ids: [...bloc.participant_ids],
     _key: nextBlocKey++,
 }));
@@ -198,6 +206,8 @@ const ajouterBlocChauffeur = () => {
         participant_ids: [],
         vehicule: '',
         logement: '',
+        jours: 0,
+        nuits: 0,
         per_diem: 0,
         prix_carburant: 0,
         prix_logement: 0,
@@ -309,11 +319,23 @@ const submit = () => {
                 </p>
             </div>
 
+            <div
+                v-else-if="props.retourDirectFinance"
+                class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950"
+            >
+                <p>
+                    <strong>Correction demandée par Finance.</strong>
+                    Après enregistrement, la mission reviendra <strong>directement à Finance</strong> pour validation
+                    (sans repasser par la RH).
+                </p>
+            </div>
+
             <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
                 <p>
                     Ajoutez un ou plusieurs <strong>chauffeurs</strong>, sélectionnez les <strong>missionnaires</strong> qu’ils accompagnent,
                     puis renseignez les frais de chaque missionnaire ci-dessous.
-                    Les <strong>jours</strong> et <strong>nuitées</strong> sont préremplis selon les dates de mission (nuits = jours − 1) et restent modifiables.
+                    Pour le chauffeur, saisissez manuellement les <strong>jours</strong> et <strong>nuitées</strong> (aucun calcul automatique).
+                    Pour les missionnaires, les jours et nuitées sont préremplis selon les dates de mission (nuits = jours − 1) et restent modifiables.
                 </p>
             </div>
 
@@ -424,6 +446,16 @@ const submit = () => {
                                 <Input v-model="bloc.logement" type="text" placeholder="Ex: Hôtel Terrou-Bi" class="mt-1 bg-white" />
                             </div>
                             <div>
+                                <Label>Nombre de jours (chauffeur)</Label>
+                                <Input v-model.number="bloc.jours" type="number" min="0" step="1" class="mt-1 bg-white" />
+                                <p class="mt-1 text-xs text-muted-foreground">Saisie manuelle — aucun calcul automatique.</p>
+                            </div>
+                            <div>
+                                <Label>Nombre de nuitées (chauffeur)</Label>
+                                <Input v-model.number="bloc.nuits" type="number" min="0" step="1" class="mt-1 bg-white" />
+                                <p class="mt-1 text-xs text-muted-foreground">Saisie manuelle — aucun calcul automatique.</p>
+                            </div>
+                            <div>
                                 <Label>Per diem chauffeur (XOF)</Label>
                                 <Input v-model.number="bloc.per_diem" type="number" min="0" class="mt-1 bg-white" />
                             </div>
@@ -524,7 +556,13 @@ const submit = () => {
                     </Button>
                     <Button type="submit" class="bg-amber-600 hover:bg-amber-700 text-white" :disabled="form.processing">
                         <Send class="mr-2 h-4 w-4" />
-                        {{ form.processing ? 'Envoi…' : 'Transmettre à la RH' }}
+                        {{
+                            form.processing
+                                ? 'Envoi…'
+                                : props.retourDirectFinance
+                                  ? 'Transmettre à Finance'
+                                  : 'Transmettre à la RH'
+                        }}
                     </Button>
                 </div>
             </form>

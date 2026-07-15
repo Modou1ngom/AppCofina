@@ -31,70 +31,43 @@ class MissionRapport
     public static function reglesValidation(): array
     {
         $rules = [
-            'reponses' => ['required', 'array'],
+            'contenu' => ['nullable', 'string', 'max:20000'],
+            'questions_supplementaires' => ['sometimes', 'boolean'],
+            'reponses' => ['nullable', 'array'],
         ];
 
         foreach (self::sections() as $section) {
-            $cle = $section['cle'];
-            $field = "reponses.{$cle}";
-            $fieldRules = ['nullable', 'string', 'max:5000'];
-
-            if ($section['obligatoire'] ?? false) {
-                $min = max(1, (int) ($section['min_length'] ?? 1));
-                $fieldRules = ['required', 'string', 'min:'.$min, 'max:5000'];
-            } elseif (($section['min_length'] ?? 0) > 0) {
-                $fieldRules[] = 'min:'.(int) $section['min_length'];
-            }
-
-            $rules[$field] = $fieldRules;
+            $rules['reponses.'.$section['cle']] = ['nullable', 'string', 'max:5000'];
         }
 
         return $rules;
     }
 
     /**
-     * @param  array<string, mixed>  $payload
-     * @return array<string, string>
+     * @param  array<string, mixed>  $reponses
      */
-    public static function validerReponses(array $payload): array
+    public static function aAuMoinsUneReponse(array $reponses): bool
     {
-        $validator = Validator::make($payload, self::reglesValidation(), self::messagesValidation());
-
-        if ($validator->fails()) {
-            throw new ValidationException($validator);
-        }
-
-        /** @var array<string, string> $reponses */
-        $reponses = $validator->validated()['reponses'] ?? [];
-
-        return collect($reponses)
-            ->map(fn ($v) => trim((string) $v))
-            ->all();
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private static function messagesValidation(): array
-    {
-        $messages = [];
-
         foreach (self::sections() as $section) {
-            $field = "reponses.{$section['cle']}";
-            $libelle = $section['libelle'];
-            $messages["{$field}.required"] = "La rubrique « {$libelle} » est obligatoire.";
-            $messages["{$field}.min"] = "La rubrique « {$libelle} » est trop courte.";
+            if (trim((string) ($reponses[$section['cle']] ?? '')) !== '') {
+                return true;
+            }
         }
 
-        return $messages;
+        return false;
     }
 
     /**
      * @param  array<string, string>  $reponses
      */
-    public static function compilerContenu(array $reponses): string
+    public static function compilerContenu(string $contenuLibre, array $reponses = []): string
     {
         $blocs = [];
+        $contenuLibre = trim($contenuLibre);
+
+        if ($contenuLibre !== '') {
+            $blocs[] = "Compte-rendu de mission\n".$contenuLibre;
+        }
 
         foreach (self::sections() as $section) {
             $texte = trim($reponses[$section['cle']] ?? '');

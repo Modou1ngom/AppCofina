@@ -6,8 +6,12 @@ import { type BreadcrumbItem } from '@/types';
 import { formatMontant, cn } from '@/lib/utils';
 import MissionPageShell from '@/components/missions/MissionPageShell.vue';
 import MissionCard from '@/components/missions/MissionCard.vue';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { missionCard, statCardSky, statCardAmber, statCardEmerald } from '@/lib/missionPastel';
-import { BarChart3, CalendarDays, MapPin, Briefcase, TrendingUp } from 'lucide-vue-next';
+import { BarChart3, CalendarDays, Briefcase, TrendingUp, Wallet } from 'lucide-vue-next';
+import { ref } from 'vue';
 
 interface PeriodeRecap {
     cle: string;
@@ -33,19 +37,24 @@ interface RecapData {
     };
     periodes: PeriodeRecap[];
     sites_populaires: Array<{ site: string; count: number }>;
+    plage?: {
+        debut: string;
+        fin: string;
+        libelle: string;
+    };
 }
 
 interface Props {
     recap: RecapData;
     periode: 'semaine' | 'mois' | 'annee';
+    dateDebut: string;
+    dateFin: string;
     activeTab: 'recap';
     filtreNumero?: string;
-    peutVoirMontantsRecap?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
     filtreNumero: '',
-    peutVoirMontantsRecap: false,
 });
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -54,18 +63,34 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Récapitulation missionnaires', href: '#' },
 ];
 
+const dateDebutLocale = ref(props.dateDebut);
+const dateFinLocale = ref(props.dateFin);
+
 const periodesOptions = [
     { cle: 'semaine', libelle: 'Par semaine' },
     { cle: 'mois', libelle: 'Par mois' },
     { cle: 'annee', libelle: 'Par année' },
 ] as const;
 
-const changerPeriode = (cle: string) => {
+const naviguerRecap = (params: Record<string, string>) => {
     router.get(
         '/missions/traitees/recap',
-        { periode: cle },
+        {
+            periode: props.periode,
+            date_debut: dateDebutLocale.value,
+            date_fin: dateFinLocale.value,
+            ...params,
+        },
         { preserveState: true, replace: true },
     );
+};
+
+const changerPeriode = (cle: string) => {
+    naviguerRecap({ periode: cle });
+};
+
+const appliquerPlage = () => {
+    naviguerRecap({});
 };
 
 const periodeBtnClass = (cle: string) =>
@@ -94,12 +119,51 @@ const libellePeriode = () =>
                         <div>
                             <h1 class="text-xl font-semibold sm:text-2xl">Récapitulation missionnaires</h1>
                             <p class="mt-1 text-sm text-muted-foreground">
-                                Synthèse des missions traitées ou clôturées : volumes, per diems et sites visités.
+                                Votre synthèse personnelle : missions où vous êtes missionnaire, per diems et sites visités.
                             </p>
                         </div>
                     </div>
-                    <MissionTraiteesTabs :active-tab="activeTab" :periode="periode" />
+                    <MissionTraiteesTabs
+                        :active-tab="activeTab"
+                        :periode="periode"
+                        :date-debut="dateDebut"
+                        :date-fin="dateFin"
+                    />
                 </div>
+
+                <form
+                    class="flex flex-col gap-3 rounded-xl border border-sky-200 bg-sky-50/60 p-4 sm:flex-row sm:items-end"
+                    @submit.prevent="appliquerPlage"
+                >
+                    <div class="grid flex-1 gap-3 sm:grid-cols-2">
+                        <div class="space-y-1">
+                            <Label for="date-debut-recap-missionnaire" class="text-xs">Date de début</Label>
+                            <Input
+                                id="date-debut-recap-missionnaire"
+                                v-model="dateDebutLocale"
+                                type="date"
+                                required
+                            />
+                        </div>
+                        <div class="space-y-1">
+                            <Label for="date-fin-recap-missionnaire" class="text-xs">Date de fin</Label>
+                            <Input
+                                id="date-fin-recap-missionnaire"
+                                v-model="dateFinLocale"
+                                type="date"
+                                required
+                            />
+                        </div>
+                    </div>
+                    <Button type="submit" variant="outline" class="shrink-0 border-sky-300">
+                        Appliquer
+                    </Button>
+                </form>
+
+                <p v-if="recap.plage?.libelle" class="text-sm text-muted-foreground">
+                    Période affichée :
+                    <span class="font-medium text-slate-800">{{ recap.plage.libelle }}</span>
+                </p>
 
                 <div class="flex flex-wrap items-center gap-2">
                     <CalendarDays class="h-4 w-4 text-slate-500" />
@@ -115,7 +179,7 @@ const libellePeriode = () =>
                     </button>
                 </div>
 
-                <div class="grid gap-4 sm:grid-cols-2" :class="peutVoirMontantsRecap ? 'xl:grid-cols-3' : ''">
+                <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     <div :class="[statCardSky, '!bg-gradient-to-br from-slate-800 to-slate-900 !border-slate-700 text-white']">
                         <div class="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-300">
                             <Briefcase class="h-3.5 w-3.5" />
@@ -126,29 +190,28 @@ const libellePeriode = () =>
                             Moy. {{ recap.global.moyenne_missions_par_periode }} / {{ libellePeriode() }}
                         </p>
                     </div>
-                    <div v-if="peutVoirMontantsRecap" :class="statCardAmber">
+                    <div :class="statCardAmber">
                         <div class="flex items-center gap-2 text-xs uppercase tracking-wide text-amber-800">
                             <TrendingUp class="h-3.5 w-3.5" />
-                            Per diems totaux
+                            Per diem total
                         </div>
                         <p class="mt-1 text-2xl font-bold text-amber-950 tabular-nums">
                             {{ formatMontant(recap.global.montant_total) }}
                         </p>
                         <p class="mt-1 text-xs text-amber-900/80">
-                            Moy. / mission : {{ formatMontant(recap.global.montant_moyen_par_mission) }}
+                            Vos per diems sur la période sélectionnée
                         </p>
                     </div>
                     <div :class="statCardEmerald">
                         <div class="flex items-center gap-2 text-xs uppercase tracking-wide text-emerald-800">
-                            <MapPin class="h-3.5 w-3.5" />
-                            Sites visités
+                            <Wallet class="h-3.5 w-3.5" />
+                            Per diem moyen / mission
                         </div>
                         <p class="mt-1 text-2xl font-bold text-emerald-950 tabular-nums">
-                            {{ recap.global.sites_visites_total }}
+                            {{ formatMontant(recap.global.montant_moyen_par_mission) }}
                         </p>
                         <p class="mt-1 text-xs text-emerald-900/80">
-                            Moy. / mission : {{ recap.global.sites_moyen_par_mission }}
-                            · {{ recap.global.nb_sites_uniques }} site{{ recap.global.nb_sites_uniques > 1 ? 's' : '' }} distinct{{ recap.global.nb_sites_uniques > 1 ? 's' : '' }}
+                            Moyenne de vos per diems par mission
                         </p>
                     </div>
                 </div>
@@ -160,7 +223,7 @@ const libellePeriode = () =>
                             {{ recap.global.visites_par_site_moyenne }}
                         </p>
                         <p class="text-sm text-muted-foreground">
-                            Nombre moyen de visites par site distinct (toutes missions confondues).
+                            Nombre moyen de visites par site distinct (vos missions uniquement).
                         </p>
                     </div>
                     <div :class="[missionCard, '!p-5']">
@@ -190,7 +253,7 @@ const libellePeriode = () =>
                     <h2 class="font-semibold text-slate-900">Détail par {{ libellePeriode() }}</h2>
 
                     <p v-if="!recap.periodes.length" class="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
-                        Aucune mission traitée ou clôturée pour le moment.
+                        Aucune de vos missions clôturées sur cette période.
                     </p>
 
                     <div
@@ -205,26 +268,26 @@ const libellePeriode = () =>
                                     {{ periodeItem.nb_missions }} mission{{ periodeItem.nb_missions > 1 ? 's' : '' }}
                                 </p>
                             </div>
-                            <div v-if="peutVoirMontantsRecap" class="text-right">
+                            <div class="text-right">
                                 <p class="text-lg font-bold tabular-nums">{{ formatMontant(periodeItem.montant_total) }}</p>
                                 <p class="text-xs text-muted-foreground">
-                                    Per diems moy. / mission : {{ formatMontant(periodeItem.montant_moyen_par_mission) }}
+                                    Per diem moy. / mission : {{ formatMontant(periodeItem.montant_moyen_par_mission) }}
                                 </p>
                             </div>
                         </div>
 
                         <div class="grid gap-4 p-5 sm:grid-cols-3">
                             <div class="rounded-lg border px-4 py-3">
-                                <p class="text-xs font-medium text-slate-600">Sites visités (total)</p>
-                                <p class="mt-1 text-lg font-semibold tabular-nums">{{ periodeItem.sites_visites_total }}</p>
+                                <p class="text-xs font-medium text-slate-600">Per diem total</p>
+                                <p class="mt-1 text-lg font-semibold tabular-nums">{{ formatMontant(periodeItem.montant_total) }}</p>
+                            </div>
+                            <div class="rounded-lg border px-4 py-3">
+                                <p class="text-xs font-medium text-slate-600">Per diem moy. / mission</p>
+                                <p class="mt-1 text-lg font-semibold tabular-nums">{{ formatMontant(periodeItem.montant_moyen_par_mission) }}</p>
                             </div>
                             <div class="rounded-lg border px-4 py-3">
                                 <p class="text-xs font-medium text-slate-600">Sites / mission (moy.)</p>
                                 <p class="mt-1 text-lg font-semibold tabular-nums">{{ periodeItem.sites_moyen_par_mission }}</p>
-                            </div>
-                            <div class="rounded-lg border px-4 py-3">
-                                <p class="text-xs font-medium text-slate-600">Visites / site (moy.)</p>
-                                <p class="mt-1 text-lg font-semibold tabular-nums">{{ periodeItem.visites_par_site_moyenne }}</p>
                             </div>
                         </div>
                     </div>

@@ -1,17 +1,31 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
 import { cn } from '@/lib/utils';
+import { computed } from 'vue';
 
 interface Props {
     activeTab: 'liste' | 'recap';
     periode?: string;
+    dateDebut?: string;
+    dateFin?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
     periode: 'mois',
+    dateDebut: '',
+    dateFin: '',
 });
 
-const recapHref = `/missions/traitees/recap?periode=${props.periode}`;
+const recapHref = computed(() => {
+    const params = new URLSearchParams({ periode: props.periode });
+    if (props.dateDebut) {
+        params.set('date_debut', props.dateDebut);
+    }
+    if (props.dateFin) {
+        params.set('date_fin', props.dateFin);
+    }
+    return `/missions/traitees/recap?${params.toString()}`;
+});
 
 const tabClass = (tab: 'liste' | 'recap') =>
     cn(

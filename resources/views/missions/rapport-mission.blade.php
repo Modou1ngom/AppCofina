@@ -56,6 +56,12 @@
 
     <h2 style="font-size: 12pt;">Compte-rendu de mission</h2>
 
+    @if(!empty($contenuLibre))
+        <div class="contenu-global">{{ $contenuLibre }}</div>
+    @elseif(empty($sectionsRapport))
+        <div class="contenu-global">{{ $mission->rapport_contenu }}</div>
+    @endif
+
     @if(!empty($sectionsRapport))
         @foreach($sectionsRapport as $section)
             <div class="section">
@@ -63,8 +69,6 @@
                 <div class="contenu">{{ $section['contenu'] }}</div>
             </div>
         @endforeach
-    @else
-        <div class="contenu-global">{{ $mission->rapport_contenu }}</div>
     @endif
 
     <div class="signature">

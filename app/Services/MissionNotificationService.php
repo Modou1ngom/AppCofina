@@ -130,6 +130,7 @@ class MissionNotificationService
             Mission::STEP_ATTENTE_FACILITIES => self::utilisateursParRole('logistique')->merge(self::utilisateursParRole('facilities')),
             Mission::STEP_ATTENTE_RH, 'ATTENTE_RH_LOGISTIQUE' => self::utilisateursParRole('rh'),
             Mission::STEP_ATTENTE_SIGNATURE_RRH => self::utilisateursParRole('responsable_rh'),
+            Mission::STEP_ATTENTE_FINANCE => self::utilisateursParRole('finance'),
             Mission::STEP_ATTENTE_RAPPORT => self::missionnairesUsers($mission),
             Mission::STEP_ATTENTE_VALIDATION_RAPPORT => collect([$mission->demandeur])->filter(),
             default => collect(),
@@ -367,6 +368,7 @@ class MissionNotificationService
             Mission::STEP_ATTENTE_FACILITIES => route('missions.validation-facilities'),
             Mission::STEP_ATTENTE_RH, 'ATTENTE_RH_LOGISTIQUE' => route('missions.validation-rh-logistique'),
             Mission::STEP_ATTENTE_SIGNATURE_RRH => route('missions.validation-signature-rrh'),
+            Mission::STEP_ATTENTE_FINANCE => route('missions.validation-finance'),
             Mission::STEP_ATTENTE_RAPPORT, Mission::STEP_ATTENTE_VALIDATION_RAPPORT => route('missions.rapports'),
             default => route('missions.show', $mission),
         };
@@ -383,6 +385,7 @@ class MissionNotificationService
             Mission::STEP_ATTENTE_RH, 'ATTENTE_RH_LOGISTIQUE' => 'En attente de validation RH',
             Mission::STEP_ATTENTE_SIGNATURE_RRH => 'En attente de signature Responsable RH',
             Mission::STEP_VALIDEE => 'Validée — ordres de mission signés',
+            Mission::STEP_ATTENTE_FINANCE => 'En attente de validation Finance',
             Mission::STEP_ATTENTE_RAPPORT => 'En attente du rapport de mission',
             Mission::STEP_ATTENTE_VALIDATION_RAPPORT => 'En attente de validation du rapport',
             Mission::STEP_CLOTUREE => 'Mission clôturée',

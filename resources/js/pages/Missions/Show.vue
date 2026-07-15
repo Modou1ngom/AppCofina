@@ -27,6 +27,8 @@ interface LogistiqueLigne {
     besoin_chauffeur?: boolean;
     chauffeur_id?: number | null;
     chauffeur_nom?: string | null;
+    jours?: number | null;
+    nuits?: number | null;
     per_diem?: number | null;
     prix_carburant?: number | null;
     prix_transport?: number | null;
@@ -55,6 +57,7 @@ interface PieceJointeRapport {
 
 interface Mission {
     id: number;
+    numero_mission?: number | null;
     objet: string;
     description?: string | null;
     descriptions_sites?: Record<string, string>;
@@ -133,6 +136,7 @@ interface Props {
     signataireNomDefaut?: string;
     rapportSections?: RubriqueRapportMission[];
     rapportSectionsSoumises?: RubriqueRapportSoumise[];
+    rapportContenuLibre?: string | null;
 }
 
 const props = defineProps<Props>();
@@ -194,11 +198,15 @@ const reponsesRapportInitiales = (): Record<string, string> => {
 };
 
 const rapportForm = useForm<{
+    contenu: string;
+    questions_supplementaires: boolean;
     reponses: Record<string, string>;
     signataire_nom: string;
     signature: string;
     pieces_jointes: File[];
 }>({
+    contenu: '',
+    questions_supplementaires: false,
     reponses: reponsesRapportInitiales(),
     signataire_nom: props.signataireNomDefaut ?? '',
     signature: '',
@@ -434,12 +442,13 @@ const soumettreSignatureRrh = () => {
 };
 
 const soumettreRapport = () => {
-    for (const section of props.rapportSections ?? []) {
-        const valeur = (rapportForm.reponses[section.cle] ?? '').trim();
-        if (section.obligatoire && valeur.length < (section.min_length ?? 1)) {
-            alert(`La rubrique « ${section.libelle} » est incomplète (minimum ${section.min_length ?? 1} caractères).`);
-            return;
-        }
+    const hasContenu = (rapportForm.contenu ?? '').trim().length > 0;
+    const hasQuestions = Object.values(rapportForm.reponses ?? {}).some((v) => String(v ?? '').trim().length > 0);
+    const hasFichiers = fichiersSelectionnes.value.length > 0;
+
+    if (!hasContenu && !hasQuestions && !hasFichiers) {
+        alert('Le rapport ne peut pas être vide : rédigez un compte-rendu, répondez à au moins une question, ou joignez un fichier.');
+        return;
     }
     if (!rapportForm.signataire_nom.trim()) {
         alert('Le nom de l\'agent signataire est obligatoire.');
@@ -460,7 +469,7 @@ const soumettreValidationRapport = () => {
 };
 
 const soumettreValidationFinance = () => {
-    if (!confirm('Traiter les dépenses logistiques de cette mission ? Elles seront intégrées au récapitulatif Finance.')) return;
+    if (!confirm('Valider les dépenses logistiques de cette mission ? Les missionnaires pourront ensuite déposer le rapport.')) return;
     financeForm.post(`/missions/${props.mission.id}/valider-finance`);
 };
 
@@ -679,6 +688,8 @@ const soumettreDecision = () => {
                         <template v-if="props.afficherDetailsLogistique && p.logistique?.affiche_frais_detail !== false">
                             <p v-if="p.logistique?.vehicule">Véhicule : {{ p.logistique.vehicule }}</p>
                             <p v-if="p.logistique?.logement">Logement : {{ p.logistique.logement }}</p>
+                            <p v-if="p.logistique?.jours != null">Jours chauffeur : {{ p.logistique.jours }}</p>
+                            <p v-if="p.logistique?.nuits != null">Nuitées chauffeur : {{ p.logistique.nuits }}</p>
                             <p v-if="p.logistique?.per_diem">Per diem : {{ formatMontant(p.logistique.per_diem) }}</p>
                             <p v-if="p.logistique?.prix_carburant">Frais carburant : {{ formatMontant(p.logistique.prix_carburant) }}</p>
                             <p v-if="p.logistique?.prix_transport">Frais transport : {{ formatMontant(p.logistique.prix_transport) }}</p>
@@ -719,15 +730,15 @@ const soumettreDecision = () => {
                         </div>
 
                         <p v-if="props.canValiderFinance && props.mission.duree_modifiee_at" class="text-sm text-amber-800 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-                            La durée de cette mission a été modifiée puis resaisie par Facilities. Traitez les nouveaux montants pour mettre à jour le récapitulatif.
+                            La durée de cette mission a été modifiée puis resaisie par Facilities / RRH. Validez les nouveaux montants pour débloquer le dépôt du rapport.
                         </p>
 
                         <p v-else-if="props.canValiderFinance" class="text-sm text-slate-600">
-                            Vérifiez les montants logistiques saisis par Facilities avant intégration au récapitulatif des dépenses.
+                            Vérifiez les montants logistiques. Après validation, la mission passera en attente du rapport de mission.
                         </p>
 
                         <p v-else-if="props.mission.finance_logistique_validee_at" class="text-sm text-slate-600">
-                            Logistique traitée par Finance le
+                            Dépenses logistiques validées par Finance le
                             {{ new Date(props.mission.finance_logistique_validee_at).toLocaleString('fr-FR') }}.
                         </p>
 
@@ -744,30 +755,23 @@ const soumettreDecision = () => {
                                     :disabled="financeForm.processing"
                                     @click="soumettreValidationFinance"
                                 >
-                                    <CheckCircle2 class="h-4 w-4" /> Traiter la logistique
+                                    <CheckCircle2 class="h-4 w-4" /> Valider
                                 </Button>
                                 <Button
                                     variant="outline"
                                     class="border-amber-300 text-amber-700 gap-2"
                                     @click="preparerRenvoiFinance"
                                 >
-                                    <AlertTriangle class="h-4 w-4" /> Renvoyer
+                                    <AlertTriangle class="h-4 w-4" /> Renvoyer à Facilities
                                 </Button>
                             </div>
                         </template>
 
                         <div v-else-if="props.canValiderFinance && modeFinanceRenvoi" class="space-y-3 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
-                            <div class="space-y-2">
-                                <Label class="text-sm font-medium">Renvoyer vers</Label>
-                                <label class="flex items-center gap-2 text-sm">
-                                    <input v-model="actionForm.destination_renvoi" type="radio" value="facilities" />
-                                    Facilities (correction logistique)
-                                </label>
-                                <label class="flex items-center gap-2 text-sm">
-                                    <input v-model="actionForm.destination_renvoi" type="radio" value="demandeur" />
-                                    Demandeur (correction de la demande)
-                                </label>
-                            </div>
+                            <p class="text-sm text-amber-900">
+                                La mission sera renvoyée à Facilities pour correction. Après modification, elle reviendra
+                                <strong>directement à Finance</strong> (sans repasser par la RH).
+                            </p>
                             <textarea
                                 v-model="actionForm.commentaire"
                                 rows="3"
@@ -782,7 +786,7 @@ const soumettreDecision = () => {
                                     :disabled="actionForm.processing"
                                     @click="confirmerRenvoiFinance"
                                 >
-                                    Confirmer le renvoi
+                                    Confirmer le renvoi à Facilities
                                 </Button>
                             </div>
                         </div>
@@ -1154,7 +1158,20 @@ const soumettreDecision = () => {
                             — Soumis le {{ new Date(props.mission.rapport_soumis_at).toLocaleString('fr-FR') }}
                         </span>
                     </p>
-                    <div v-if="props.rapportSectionsSoumises?.length" class="space-y-4">
+                    <div class="space-y-4">
+                        <div
+                            v-if="props.rapportContenuLibre"
+                            class="rounded-lg border bg-slate-50 p-4"
+                        >
+                            <p class="text-sm font-semibold text-slate-800">Compte-rendu de mission</p>
+                            <p class="mt-2 text-sm whitespace-pre-wrap text-slate-700">{{ props.rapportContenuLibre }}</p>
+                        </div>
+                        <div
+                            v-else-if="!props.rapportSectionsSoumises?.length"
+                            class="rounded-lg border bg-slate-50 p-4 text-sm whitespace-pre-wrap"
+                        >
+                            {{ props.mission.rapport_contenu }}
+                        </div>
                         <div
                             v-for="section in props.rapportSectionsSoumises"
                             :key="section.cle"
@@ -1164,7 +1181,6 @@ const soumettreDecision = () => {
                             <p class="mt-2 text-sm whitespace-pre-wrap text-slate-700">{{ section.contenu }}</p>
                         </div>
                     </div>
-                    <div v-else class="rounded-lg border bg-slate-50 p-4 text-sm whitespace-pre-wrap">{{ props.mission.rapport_contenu }}</div>
                     <div v-if="props.mission.rapport_pieces_jointes?.length" class="space-y-2">
                         <p class="text-sm font-medium flex items-center gap-2">
                             <Paperclip class="h-4 w-4" /> Pièces jointes
@@ -1199,7 +1215,8 @@ const soumettreDecision = () => {
                     <div>
                         <h3 class="font-semibold text-indigo-900">Rapport de mission signé</h3>
                         <p class="text-sm text-muted-foreground mt-1">
-                            Complétez chaque rubrique ci-dessous, signez électroniquement et transmettez au demandeur.
+                            Fournissez au moins un élément (compte-rendu, réponse à une question ou pièce jointe),
+                            puis signez et transmettez au demandeur.
                             Réservé aux <strong>missionnaires</strong> (les chauffeurs ne soumettent pas de rapport).
                         </p>
                     </div>
@@ -1216,17 +1233,15 @@ const soumettreDecision = () => {
                     <MissionRapportForm
                         v-if="props.rapportSections?.length"
                         v-model="rapportForm.reponses"
+                        v-model:contenu="rapportForm.contenu"
                         :sections="props.rapportSections"
                         :errors="rapportForm.errors"
+                        @update:questions-supplementaires="rapportForm.questions_supplementaires = $event"
                     />
                     <div class="space-y-2">
-                        <Label>Signature électronique *</Label>
-                        <SignaturePad v-model="rapportForm.signature" :width="420" :height="160" />
-                    </div>
-                    <div class="space-y-2">
-                        <Label>Pièces jointes (optionnel)</Label>
+                        <Label>Pièces jointes</Label>
                         <p class="text-xs text-muted-foreground">
-                            Documents, PDF, images ou vidéos — jusqu'à {{ NB_MAX_FICHIERS_RAPPORT }} fichiers, 10 Mo chacun, 50 Mo au total.
+                            Optionnel si un compte-rendu ou des réponses sont fournis — jusqu'à {{ NB_MAX_FICHIERS_RAPPORT }} fichiers, 10 Mo chacun, 50 Mo au total.
                         </p>
                         <div
                             class="rounded-xl border-2 border-dashed p-5 transition-colors"
@@ -1269,6 +1284,10 @@ const soumettreDecision = () => {
                         <p v-if="fichiersSelectionnes.length" class="text-xs text-muted-foreground">
                             Total sélectionné : {{ formatTailleFichier(tailleTotaleFichiersSelectionnes) }}
                         </p>
+                    </div>
+                    <div class="space-y-2">
+                        <Label>Signature électronique *</Label>
+                        <SignaturePad v-model="rapportForm.signature" :width="420" :height="160" />
                     </div>
                     <Button
                         class="bg-indigo-700 text-white hover:bg-indigo-800 gap-2"
