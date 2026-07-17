@@ -69,6 +69,15 @@ const submit = (action: 'approuver' | 'rejeter') => {
         signatureSelectorRef.value?.saveFromPad();
     }
 
+    const hasSignature = form.use_registered_signature
+        ? !!props.validatorSignature
+        : !!form.signature_n1;
+
+    if (!hasSignature) {
+        form.setError('signature_n1', 'La signature est obligatoire pour cette validation.');
+        return;
+    }
+
     // Réinitialiser les erreurs précédentes
     form.clearErrors();
     
@@ -178,7 +187,9 @@ const submit = (action: 'approuver' | 'rejeter') => {
 
                     <!-- Signature -->
                     <div class="space-y-4">
-                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Signature</h2>
+                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">
+                            Signature <span class="text-sm font-normal opacity-90">(obligatoire)</span>
+                        </h2>
                         <ProfilSignatureSelector
                             ref="signatureSelectorRef"
                             v-model="form.signature_n1"

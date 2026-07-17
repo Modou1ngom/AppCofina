@@ -799,7 +799,7 @@ class HabilitationController extends Controller
             'use_registered_signature' => 'nullable|boolean',
         ]);
 
-        $signatureN1 = $this->resolveHabilitationSignature($request, $profil, 'signature_n1');
+        $signatureN1 = $this->requireHabilitationSignature($request, $profil, 'signature_n1');
 
         if ($validated['action'] === 'approuver') {
             $habilitation->update([
@@ -888,7 +888,7 @@ class HabilitationController extends Controller
             'use_registered_signature' => 'nullable|boolean',
         ]);
 
-        $signatureN2 = $this->resolveHabilitationSignature($request, $profil, 'signature_n2');
+        $signatureN2 = $this->requireHabilitationSignature($request, $profil, 'signature_n2');
 
         if ($validated['action'] === 'approuver') {
             $habilitation->update([
@@ -904,7 +904,7 @@ class HabilitationController extends Controller
             if ($roleControle) {
                 $emailsControle = array_merge(
                     $roleControle->users()->pluck('email')->filter()->toArray(),
-                    Profil::whereIn('id', $roleControle->profils()->pluck('id'))->pluck('email')->filter()->toArray()
+                    $roleControle->profils()->pluck('profiles.email')->filter()->toArray()
                 );
             }
             HabilitationNotificationService::notifyAttenteControle($habilitation, $emailsControle);
@@ -1016,7 +1016,7 @@ class HabilitationController extends Controller
             'use_registered_signature' => 'nullable|boolean',
         ]);
 
-        $signatureControl = $this->resolveHabilitationSignature($request, $profil, 'signature_control');
+        $signatureControl = $this->requireHabilitationSignature($request, $profil, 'signature_control');
 
         if ($validated['action'] === 'approuver') {
             $habilitation->update([

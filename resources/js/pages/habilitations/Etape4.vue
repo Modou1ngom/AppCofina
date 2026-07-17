@@ -74,8 +74,22 @@ const submit = () => {
         return;
     }
 
+    if (actionSelected.value === 'rejeter' && !form.comment_n2) {
+        form.setError('comment_n2', 'Un commentaire est obligatoire pour rejeter la demande.');
+        return;
+    }
+
     if (!form.use_registered_signature) {
         signatureSelectorRef.value?.saveFromPad();
+    }
+
+    const hasSignature = form.use_registered_signature
+        ? !!props.validatorSignature
+        : !!form.signature_n2;
+
+    if (!hasSignature) {
+        form.setError('signature_n2', 'La signature est obligatoire pour cette validation.');
+        return;
     }
 
     form.action = actionSelected.value;
@@ -246,7 +260,9 @@ const submit = () => {
 
                     <!-- Signature -->
                     <div class="space-y-4">
-                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">Signature</h2>
+                        <h2 class="text-lg font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md">
+                            Signature <span class="text-sm font-normal opacity-90">(obligatoire)</span>
+                        </h2>
                         <ProfilSignatureSelector
                             ref="signatureSelectorRef"
                             v-model="form.signature_n2"
