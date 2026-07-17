@@ -199,6 +199,19 @@ const totalMission = computed(() => {
     return totalChauffeurs + totalMissionnaires;
 });
 
+/** Si un seul missionnaire reste disponible pour un bloc, l’associer automatiquement au chauffeur. */
+const autoAssignerMissionnaireUnique = (blocIndex: number) => {
+    const bloc = form.chauffeurs_logistique[blocIndex];
+    if (!bloc || bloc.participant_ids.length > 0) {
+        return;
+    }
+
+    const disponibles = missionnairesDisponiblesPourBloc(blocIndex);
+    if (disponibles.length === 1) {
+        bloc.participant_ids = [disponibles[0].id];
+    }
+};
+
 const ajouterBlocChauffeur = () => {
     form.chauffeurs_logistique.push({
         _key: nextBlocKey++,
@@ -213,7 +226,11 @@ const ajouterBlocChauffeur = () => {
         prix_logement: 0,
         autres_frais: 0,
     });
+    autoAssignerMissionnaireUnique(form.chauffeurs_logistique.length - 1);
 };
+
+// Au chargement : si un seul missionnaire, le cocher d’office sur chaque bloc chauffeur encore vide.
+form.chauffeurs_logistique.forEach((_, index) => autoAssignerMissionnaireUnique(index));
 
 const supprimerBlocChauffeur = (index: number) => {
     form.chauffeurs_logistique.splice(index, 1);
@@ -244,6 +261,9 @@ const mettreAJourLogistiqueSites = (participantId: number, lignes: LigneLogistiq
 };
 
 const submit = () => {
+    // Sécurité : un seul missionnaire non encore lié → l’associer avant validation.
+    form.chauffeurs_logistique.forEach((_, index) => autoAssignerMissionnaireUnique(index));
+
     for (const bloc of form.chauffeurs_logistique) {
         if (!bloc.chauffeur_selection) {
             alert('Veuillez sélectionner un chauffeur pour chaque bloc.');
@@ -332,7 +352,8 @@ const submit = () => {
 
             <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
                 <p>
-                    Ajoutez un ou plusieurs <strong>chauffeurs</strong>, sélectionnez les <strong>missionnaires</strong> qu’ils accompagnent,
+                    Ajoutez un ou plusieurs <strong>chauffeurs</strong> et indiquez les <strong>missionnaires</strong> qu’ils accompagnent
+                    (si la mission n’a qu’un seul missionnaire, il est sélectionné automatiquement),
                     puis renseignez les frais de chaque missionnaire ci-dessous.
                     Pour le chauffeur, saisissez manuellement les <strong>jours</strong> et <strong>nuitées</strong> (aucun calcul automatique).
                     Pour les missionnaires, les jours et nuitées sont préremplis selon les dates de mission (nuits = jours − 1) et restent modifiables.
