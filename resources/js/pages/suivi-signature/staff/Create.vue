@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import InputError from '@/components/InputError.vue';
 import { Code, Search } from 'lucide-vue-next';
-import { computed, watch } from 'vue';
+import { computed, watch, withDefaults } from 'vue';
 
 interface SiData {
     matricule: string;
@@ -76,6 +76,7 @@ const submitLookup = () => {
 const storeForm = useForm({
     si_confirmed: true,
     reference: '',
+    numero_client_si: '',
     profile_id: '' as number | '',
     prenom: '',
     nom: '',
@@ -92,6 +93,7 @@ const storeForm = useForm({
 
 function applySiData(d: SiData) {
     storeForm.reference = d.matricule;
+    storeForm.numero_client_si = d.matricule;
     storeForm.profile_id = d.profile_id ?? '';
     if (d.type_client === 'personnel') {
         storeForm.prenom = d.prenom ?? '';
@@ -138,7 +140,7 @@ const submitStore = () => {
 };
 
 const nouvelleRecherche = () => {
-    router.get('/suivi-signature/staff/create');
+    router.get('/suivi-signature/staff/create', { reset: 1 });
 };
 </script>
 

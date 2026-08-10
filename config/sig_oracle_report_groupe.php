@@ -26,5 +26,7 @@ return [
         'token' => env('SIG_ORACLE_HTTP_TOKEN', ''),
         'lookup_personnel_path' => env('SIG_ORACLE_HTTP_LOOKUP_PERSONNEL_PATH', '/api/sig/lookup-personnel'),
         'staff_liees_path' => env('SIG_ORACLE_HTTP_STAFF_LIEES_PATH', '/api/sig/staff/{matricule}/personnes-liees'),
+        'detection_staff_clients_path' => env('SIG_ORACLE_HTTP_DETECTION_STAFF_CLIENTS_PATH', '/api/sig/detection-staff-clients'),
+        'alertes_doublons_clients_path' => env('SIG_ORACLE_HTTP_ALERTES_DOUBLONS_CLIENTS_PATH', '/api/sig/alertes-doublons-clients'),
     ],
 ];

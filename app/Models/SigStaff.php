@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Cache;
 
 class SigStaff extends Model
@@ -228,5 +229,108 @@ class SigStaff extends Model
             'depasse_seuil_encours' => $this->depasseSeuilEncours(),
             'liaison_bloquee_encours' => $this->liaisonPersonnesLieesBloquee(),
         ];
+    }
+
+    /**
+     * Garantit une fiche staff locale pour le n° client SI : création depuis le SI si absente.
+     *
+     * @param  array<string, mixed>  $siData  Résultat de {@see \App\Services\SigSiLookupService::lookup()} (+ fallbacks détection)
+     */
+    public static function ensureFromSiData(array $siData): self
+    {
+        $numero = trim((string) ($siData['matricule'] ?? ''));
+        if ($numero === '') {
+            throw new \InvalidArgumentException('Données SI invalides : numéro client staff vide.');
+        }
+
+        $existant = static::query()
+            ->where(function ($q) use ($numero) {
+                $q->where('numero_client_si', $numero)
+                    ->orWhere('reference', $numero);
+            })
+            ->first();
+
+        if ($existant !== null) {
+            $dirty = false;
+            if (trim((string) ($existant->numero_client_si ?? '')) === '') {
+                $existant->numero_client_si = $numero;
+                $dirty = true;
+            }
+            $enc = SigPersonneLiee::encoursFromSiPayload($siData);
+            if ($enc !== null && round((float) $existant->encours_staff_si, 2) !== round($enc, 2)) {
+                $existant->encours_staff_si = $enc;
+                $dirty = true;
+            }
+            if ($dirty) {
+                $existant->save();
+                $existant->synchroniserEncoursTotaux();
+            }
+
+            return $existant;
+        }
+
+        $prenom = trim((string) ($siData['prenom'] ?? ''));
+        $nom = trim((string) ($siData['nom'] ?? ''));
+        $full = trim((string) ($siData['prenom_nom'] ?? $siData['full_name'] ?? ''));
+        if ($prenom === '' && $nom === '' && $full !== '') {
+            $parts = preg_split('/\s+/', $full) ?: [];
+            $nom = (string) ($parts[0] ?? $full);
+            $prenom = trim(implode(' ', array_slice($parts, 1)));
+        }
+        if ($prenom === '') {
+            $prenom = '—';
+        }
+        if ($nom === '') {
+            $nom = $full !== '' ? $full : $numero;
+        }
+
+        $pieceType = (string) ($siData['piece_type'] ?? 'CNI');
+        $pieceNum = $siData['piece_numero'] ?? null;
+        $kycPiece = ($pieceNum !== null && trim((string) $pieceNum) !== '')
+            ? $pieceType.' — '.$pieceNum
+            : $pieceType;
+
+        $enc = SigPersonneLiee::encoursFromSiPayload($siData) ?? 0.0;
+        $profileId = $siData['profile_id'] ?? null;
+        if ($profileId === '' || $profileId === null) {
+            $profil = Profil::query()->where('matricule', $numero)->first();
+            $profileId = $profil?->id;
+        }
+
+        try {
+            $staff = static::query()->create([
+                'reference' => $numero,
+                'numero_client_si' => $numero,
+                'profile_id' => $profileId,
+                'prenom' => $prenom,
+                'nom' => $nom,
+                'fonction' => $siData['fonction'] ?? null,
+                'departement' => $siData['departement'] ?? null,
+                'type_personne' => 'staff',
+                'statut' => 'actif',
+                'kyc_piece_identite' => $kycPiece,
+                'kyc_adresse' => $siData['adresse'] ?? null,
+                'kyc_telephone' => $siData['telephone'] ?? null,
+                'encours_staff_si' => $enc,
+                'encours_credit_individuel' => 0,
+                'score_risque' => null,
+            ]);
+        } catch (QueryException $e) {
+            $msg = strtolower($e->getMessage());
+            if (str_contains($msg, 'duplicate') || str_contains($msg, 'unique')) {
+                return static::query()
+                    ->where(function ($q) use ($numero) {
+                        $q->where('numero_client_si', $numero)
+                            ->orWhere('reference', $numero);
+                    })
+                    ->firstOrFail();
+            }
+
+            throw $e;
+        }
+
+        $staff->synchroniserEncoursTotaux();
+
+        return $staff;
     }
 }

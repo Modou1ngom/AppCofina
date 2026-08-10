@@ -286,11 +286,19 @@ class SigStaffController extends Controller
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
+        if ($request->boolean('reset')) {
+            $request->session()->forget(['sig_lookup_si_data', 'sig_lookup_personnes_liees_si', 'sig_lookup_context']);
+        }
+
+        $siData = $request->session()->get('sig_lookup_si_data');
+        $personnesLieesSi = $request->session()->get('sig_lookup_personnes_liees_si', []);
+
         return Inertia::render('suivi-signature/staff/Create', [
-            'siData' => null,
-            'lookupDone' => false,
+            'siData' => $siData,
+            'lookupDone' => $siData !== null,
+            'personnesLieesSi' => is_array($personnesLieesSi) ? $personnesLieesSi : [],
         ]);
     }
 
@@ -343,6 +351,7 @@ class SigStaffController extends Controller
         $validated = $request->validate([
             'si_confirmed' => 'required|accepted',
             'reference' => 'required|string|max:100|unique:sig_staffs,reference',
+            'numero_client_si' => 'nullable|string|max:100',
             'profile_id' => 'nullable|exists:profiles,id',
             'prenom' => 'required|string|max:255',
             'nom' => 'required|string|max:255',
@@ -362,9 +371,18 @@ class SigStaffController extends Controller
         $validated['encours_staff_si'] = $validated['encours_staff_si'] ?? $validated['encours_credit_individuel'] ?? 0;
         unset($validated['encours_credit_individuel'], $validated['si_confirmed']);
         $validated['encours_credit_individuel'] = 0;
+        // N° client SI = CUSTOMER_NO (pas le n° de pièce)
+        $validated['numero_client_si'] = trim((string) ($validated['numero_client_si'] ?? $validated['reference'] ?? '')) ?: null;
 
         $staff = SigStaff::create($validated);
         $staff->synchroniserEncoursTotaux();
+
+        $request->session()->forget([
+            'sig_lookup_si_data',
+            'sig_lookup_personnes_liees_si',
+            'sig_lookup_context',
+            'sig_attach_staff_id',
+        ]);
 
         return redirect()->route('suivi-signature.staff.index')
             ->with('success', 'Fiche staff enregistrée.');
@@ -467,6 +485,254 @@ class SigStaffController extends Controller
 
         return redirect()->route('suivi-signature.staff.show', $staff)
             ->with('success', 'Fiche staff mise à jour.');
+    }
+
+    /**
+     * Gérer les liaisons personnes ↔ ce staff signataire uniquement.
+     */
+    public function lierPersonnes(Request $request, SigStaff $staff, SigSiLookupService $siLookup): Response
+    {
+        $this->authorizeStaffAccess($request, $staff);
+
+        $staff = $this->assurerNumeroClientSi($staff, $siLookup);
+
+        $staff->load(['personnesLiees']);
+        $staff->synchroniserEncoursTotaux();
+        $staff->refresh();
+
+        $idsLies = $staff->personnesLiees->pluck('id');
+        $numerosLies = $staff->personnesLiees
+            ->pluck('numero_client')
+            ->filter()
+            ->map(fn ($n) => trim((string) $n))
+            ->all();
+
+        $personnesDisponibles = SigPersonneLiee::query()
+            ->whereNotIn('id', $idsLies)
+            ->orderBy('nom')
+            ->orderBy('prenom')
+            ->get(['id', 'prenom', 'nom', 'raison_sociale', 'est_personne_morale', 'numero_client', 'encours_credit']);
+
+        $user = $request->user();
+        $peutCreer = $user && ($user->isAdmin() || $user->isConformite());
+
+        $suggestionsSi = $this->suggestionsClientsLiesSi($staff, $siLookup, $numerosLies);
+
+        return Inertia::render('suivi-signature/staff/LierPersonnes', [
+            'staff' => $staff,
+            'sigMetriquesEncours' => $staff->metriquesEncoursPourVue(),
+            'personnesDisponibles' => $personnesDisponibles,
+            'peutCreerFichePersonneLiee' => $peutCreer,
+            'peutResoudreSi' => $peutCreer || ($user && $user->peutDeclarerPersonnesLieesSig()),
+            'suggestionsSi' => $suggestionsSi,
+            'cleDetectionSi' => $this->cleSiPourDetectionClients($staff),
+        ]);
+    }
+
+    /**
+     * Détection auto (caution + cotitulaires) puis association des clients trouvés à ce staff.
+     */
+    public function detecterEtLierClientsSi(Request $request, SigStaff $staff, SigSiLookupService $siLookup): RedirectResponse
+    {
+        $this->authorizeStaffAccess($request, $staff);
+
+        $staff = $this->assurerNumeroClientSi($staff, $siLookup);
+
+        $cle = $this->cleSiPourDetectionClients($staff);
+        if ($cle === null) {
+            return back()->with('error', 'Impossible de détecter : renseignez le n° client SI du staff (CUSTOMER_NO), pas le n° de pièce d’identité.');
+        }
+
+        if ($staff->liaisonPersonnesLieesBloquee()) {
+            return back()->with('error', 'Seuil d’encours dépassé : nouvelles liaisons bloquées pour ce signataire.');
+        }
+
+        $rows = $siLookup->personnesLieesSiPourMatricule($cle);
+        if ($rows === []) {
+            return back()->with('error', 'Aucun client lié détecté dans le SI pour ce staff (caution / cotitulaire).');
+        }
+
+        $staff->load('personnesLiees');
+        $numerosLies = $staff->personnesLiees
+            ->pluck('numero_client')
+            ->filter()
+            ->map(fn ($n) => trim((string) $n))
+            ->all();
+
+        $lies = 0;
+        $ignores = 0;
+        $erreurs = 0;
+
+        foreach ($rows as $row) {
+            $numero = trim((string) ($row['numero_client'] ?? $row['matricule'] ?? ''));
+            if ($numero === '' || in_array($numero, $numerosLies, true)) {
+                $ignores++;
+
+                continue;
+            }
+
+            $typeRelation = trim((string) ($row['type_relation'] ?? 'Lié SI'));
+            if ($typeRelation === '') {
+                $typeRelation = 'Lié SI';
+            }
+            $classe = max(1, min(4, (int) ($row['classe'] ?? 2)));
+
+            try {
+                $siData = $siLookup->lookup($numero, ! empty($row['est_personne_morale']) ? 'entreprise' : 'personnel');
+                if ($siData === null) {
+                    // Fallback minimal depuis la ligne de détection
+                    $siData = [
+                        'matricule' => $numero,
+                        'type_client' => ! empty($row['est_personne_morale']) ? 'entreprise' : 'personnel',
+                        'prenom' => $row['prenom'] ?? null,
+                        'nom' => $row['nom'] ?? null,
+                        'raison_sociale' => $row['raison_sociale'] ?? null,
+                        'prenom_nom' => $row['prenom_nom'] ?? $numero,
+                        'adresse' => null,
+                        'telephone' => $row['telephone'] ?? null,
+                        'email' => null,
+                        'piece_type' => $row['piece_type'] ?? 'CNI',
+                        'piece_numero' => $row['piece_numero'] ?? null,
+                    ];
+                }
+
+                $personne = SigPersonneLiee::ensureFromSiData($siData);
+
+                if ($staff->personnesLiees()->whereKey($personne->id)->exists()) {
+                    $ignores++;
+                    $numerosLies[] = $numero;
+
+                    continue;
+                }
+
+                // Contrôle seuil projeté
+                $staff->refresh();
+                $sumLiees = (float) $staff->personnesLiees()->sum('encours_credit');
+                $totalProjete = (float) $staff->encours_staff_si + $sumLiees + (float) $personne->encours_credit;
+                $fp = (float) ($staff->fonds_propres ?? 0);
+                $seuil = (float) config('sig.encours_taux_seuil_pct', 10);
+                if ($fp > 0 && ($totalProjete / $fp) * 100 > $seuil) {
+                    $erreurs++;
+
+                    continue;
+                }
+
+                $staff->personnesLiees()->attach($personne->id, [
+                    'type_relation' => $typeRelation,
+                    'classe' => $classe,
+                ]);
+                $numerosLies[] = $numero;
+                $lies++;
+            } catch (\Throwable) {
+                $erreurs++;
+            }
+        }
+
+        $staff->synchroniserEncoursTotaux();
+
+        if ($lies === 0 && $erreurs === 0) {
+            return back()->with('success', 'Détection terminée : aucun nouveau client à lier (déjà associés ou liste vide).');
+        }
+
+        $msg = sprintf('Détection automatique : %d client(s) lié(s) à ce signataire.', $lies);
+        if ($ignores > 0) {
+            $msg .= sprintf(' %d ignoré(s).', $ignores);
+        }
+        if ($erreurs > 0) {
+            $msg .= sprintf(' %d en échec (seuil ou SI).', $erreurs);
+        }
+
+        return back()->with($erreurs > 0 && $lies === 0 ? 'error' : 'success', $msg);
+    }
+
+    /**
+     * @param  list<string>  $numerosLies
+     * @return list<array<string, mixed>>
+     */
+    private function suggestionsClientsLiesSi(SigStaff $staff, SigSiLookupService $siLookup, array $numerosLies): array
+    {
+        $cle = $this->cleSiPourDetectionClients($staff);
+        if ($cle === null) {
+            return [];
+        }
+
+        $rows = $siLookup->personnesLieesSiPourMatricule($cle);
+        $out = [];
+        foreach ($rows as $row) {
+            $numero = trim((string) ($row['numero_client'] ?? $row['matricule'] ?? ''));
+            if ($numero === '' || in_array($numero, $numerosLies, true)) {
+                continue;
+            }
+            $out[] = [
+                'numero_client' => $numero,
+                'prenom_nom' => $row['prenom_nom'] ?? $numero,
+                'prenom' => $row['prenom'] ?? null,
+                'nom' => $row['nom'] ?? null,
+                'raison_sociale' => $row['raison_sociale'] ?? null,
+                'est_personne_morale' => (bool) ($row['est_personne_morale'] ?? false),
+                'type_relation' => $row['type_relation'] ?? 'Lié SI',
+                'classe' => (int) ($row['classe'] ?? 2),
+                'detail_relation' => $row['detail_relation'] ?? null,
+                'kyc_staff' => $row['kyc_staff'] ?? null,
+                'kyc_staff_piece' => $row['kyc_staff_piece'] ?? null,
+                'piece_type' => $row['piece_type'] ?? null,
+                'piece_numero' => $row['piece_numero'] ?? null,
+            ];
+        }
+
+        return array_values($out);
+    }
+
+    private function cleSiPourDetectionClients(SigStaff $staff): ?string
+    {
+        // Priorité : n° client SI (CUSTOMER_NO), jamais le n° de pièce d'identité
+        $client = trim((string) ($staff->numero_client_si ?? ''));
+        if ($client !== '') {
+            return $client;
+        }
+
+        // La référence réglementaire est souvent le CUSTOMER_NO FCUBS
+        $ref = trim((string) ($staff->reference ?? ''));
+
+        return $ref !== '' ? $ref : null;
+    }
+
+    /**
+     * Garantit numero_client_si (CUSTOMER_NO) pour la détection — pas le n° de pièce KYC.
+     */
+    private function assurerNumeroClientSi(SigStaff $staff, SigSiLookupService $siLookup): SigStaff
+    {
+        if (trim((string) ($staff->numero_client_si ?? '')) !== '') {
+            return $staff;
+        }
+
+        $candidats = array_values(array_filter([
+            trim((string) ($staff->reference ?? '')),
+        ]));
+
+        $piece = trim((string) ($staff->kyc_piece_identite ?? ''));
+        if ($piece !== '' && preg_match('/(\d{6,})/', $piece, $m)) {
+            $candidats[] = $m[1];
+        }
+
+        foreach (array_unique($candidats) as $cle) {
+            if ($cle === '') {
+                continue;
+            }
+            $si = $siLookup->lookup($cle, 'personnel');
+            if ($si === null) {
+                continue;
+            }
+            $customerNo = trim((string) ($si['matricule'] ?? ''));
+            if ($customerNo === '') {
+                continue;
+            }
+            $staff->forceFill(['numero_client_si' => $customerNo])->saveQuietly();
+
+            return $staff->refresh();
+        }
+
+        return $staff;
     }
 
     public function destroy(SigStaff $staff): RedirectResponse

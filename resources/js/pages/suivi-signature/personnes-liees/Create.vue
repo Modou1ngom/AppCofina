@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import InputError from '@/components/InputError.vue';
 import { Code, Search } from 'lucide-vue-next';
-import { computed, watch } from 'vue';
+import { computed, watch, withDefaults } from 'vue';
 
 interface SiData {
     matricule: string;
@@ -33,19 +33,38 @@ interface SiData {
 interface Props {
     siData: SiData | null;
     lookupDone: boolean;
+    attachStaff?: {
+        id: number;
+        reference: string;
+        prenom: string;
+        nom: string;
+    } | null;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+    attachStaff: null,
+});
 
 const page = usePage();
 const pageErrors = computed(() => (page.props.errors || {}) as Record<string, string>);
 
-const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Personnes liées', href: '/suivi-signature/personnes-liees' },
-    { title: 'Recherche SI', href: '#' },
-];
+const breadcrumbs: BreadcrumbItem[] = props.attachStaff
+    ? [
+          { title: 'Staff — suivi signature', href: '/suivi-signature/staff' },
+          {
+              title: props.attachStaff.reference,
+              href: `/suivi-signature/staff/${props.attachStaff.id}`,
+          },
+          { title: 'Lier une personne', href: '#' },
+      ]
+    : [
+          { title: 'Personnes liées', href: '/suivi-signature/personnes-liees' },
+          { title: 'Recherche SI', href: '#' },
+      ];
 
-const cancelListHref = '/suivi-signature/personnes-liees';
+const cancelListHref = props.attachStaff
+    ? `/suivi-signature/staff/${props.attachStaff.id}/lier-personnes`
+    : '/suivi-signature/personnes-liees';
 
 const lookupForm = useForm({
     context: 'personne_liee' as const,
@@ -59,6 +78,9 @@ const submitLookup = () => {
 
 const storeForm = useForm({
     si_confirmed: true,
+    attach_staff_id: props.attachStaff?.id ?? ('' as number | ''),
+    type_relation: 'Lié',
+    classe: 1 as number,
     numero_client: '',
     est_personne_morale: false,
     prenom: '',
@@ -74,8 +96,21 @@ function applySiData(d: SiData) {
     storeForm.numero_client = d.matricule;
     storeForm.est_personne_morale = d.type_client === 'entreprise';
     if (d.type_client === 'personnel') {
-        storeForm.prenom = d.prenom ?? '';
-        storeForm.nom = d.nom ?? '';
+        let prenom = (d.prenom ?? '').trim();
+        let nom = (d.nom ?? '').trim();
+        if ((!prenom || !nom) && d.prenom_nom) {
+            const parts = d.prenom_nom.trim().split(/\s+/);
+            if (!prenom && !nom && parts.length >= 2) {
+                nom = parts[0] ?? '';
+                prenom = parts.slice(1).join(' ');
+            } else if (!prenom && parts.length) {
+                prenom = parts[0] ?? '';
+            } else if (!nom && parts.length > 1) {
+                nom = parts.slice(1).join(' ');
+            }
+        }
+        storeForm.prenom = prenom || d.prenom_nom || d.matricule;
+        storeForm.nom = nom || prenom || d.prenom_nom || d.matricule;
         storeForm.raison_sociale = '';
     } else {
         storeForm.prenom = '';
@@ -110,13 +145,15 @@ const submitStore = () => {
         .transform((data) => ({
             ...data,
             si_confirmed: true,
+            attach_staff_id: props.attachStaff?.id ?? (data.attach_staff_id || null),
             encours_credit: data.encours_credit === '' ? null : data.encours_credit,
         }))
         .post('/suivi-signature/personnes-liees', { preserveScroll: true });
 };
 
 const nouvelleRecherche = () => {
-    router.get('/suivi-signature/personnes-liees/create');
+    const q = props.attachStaff ? { reset: 1, staff_id: props.attachStaff.id } : { reset: 1 };
+    router.get('/suivi-signature/personnes-liees/create', q);
 };
 </script>
 
@@ -133,6 +170,15 @@ const nouvelleRecherche = () => {
                 Même principe que le back office : le numéro client permet de récupérer la fiche dans le SI avant
                 enregistrement dans le module personnes liées.
             </p>
+
+            <div
+                v-if="attachStaff"
+                class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"
+            >
+                Cette fiche sera liée uniquement au signataire
+                <strong>{{ attachStaff.prenom }} {{ attachStaff.nom }}</strong>
+                (réf. {{ attachStaff.reference }}).
+            </div>
 
             <Card v-if="!lookupDone" class="border-red-100 shadow-sm">
                 <CardHeader class="border-b border-red-50 bg-gradient-to-r from-red-600/90 to-red-500/80 text-white">
@@ -209,6 +255,47 @@ const nouvelleRecherche = () => {
                 </Card>
 
                 <form class="space-y-6" @submit.prevent="submitStore">
+                    <div
+                        v-if="Object.keys(storeForm.errors).length"
+                        class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900"
+                    >
+                        <p class="font-semibold">Impossible d’enregistrer — corrigez les points suivants :</p>
+                        <ul class="mt-2 list-inside list-disc">
+                            <li v-for="(msg, key) in storeForm.errors" :key="key">{{ msg }}</li>
+                        </ul>
+                    </div>
+
+                    <Card v-if="attachStaff">
+                        <CardHeader>
+                            <CardTitle class="text-base">Relation avec le signataire</CardTitle>
+                        </CardHeader>
+                        <CardContent class="grid gap-4 md:grid-cols-2">
+                            <div>
+                                <Label for="type_relation">Type de relation *</Label>
+                                <Input
+                                    id="type_relation"
+                                    v-model="storeForm.type_relation"
+                                    required
+                                    class="mt-1.5"
+                                    placeholder="ex. Conjoint"
+                                />
+                            </div>
+                            <div>
+                                <Label for="classe">Classe (1–4) *</Label>
+                                <select
+                                    id="classe"
+                                    v-model.number="storeForm.classe"
+                                    class="border-input bg-background mt-1.5 flex h-9 w-full rounded-md border px-3 py-1 text-sm shadow-sm"
+                                >
+                                    <option :value="1">1</option>
+                                    <option :value="2">2</option>
+                                    <option :value="3">3</option>
+                                    <option :value="4">4</option>
+                                </select>
+                            </div>
+                        </CardContent>
+                    </Card>
+
                     <Card>
                         <CardHeader>
                             <CardTitle class="text-base">Compléments — encours</CardTitle>
@@ -231,7 +318,13 @@ const nouvelleRecherche = () => {
                     </Card>
 
                     <div class="flex gap-2">
-                        <Button type="submit" :disabled="storeForm.processing">Enregistrer dans le suivi signature</Button>
+                        <Button type="submit" :disabled="storeForm.processing">
+                            {{
+                                attachStaff
+                                    ? 'Enregistrer et lier à ce signataire'
+                                    : 'Enregistrer dans le suivi signature'
+                            }}
+                        </Button>
                         <Button type="button" variant="outline" @click="router.visit(cancelListHref)">Annuler</Button>
                     </div>
                 </form>

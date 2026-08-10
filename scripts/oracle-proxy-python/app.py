@@ -134,8 +134,43 @@ def _load_staff_liees_sql() -> str:
             return v
     rel = os.getenv("ORACLE_STAFF_LIEES_SQL_FILE", "").strip()
     if rel:
-        return _read_sql_file(rel)
-    return ""
+        t = _read_sql_file(rel)
+        if t:
+            return t
+    # Détection auto caution + cotitulaires (ACCOUNT_CLASS 25136)
+    return _read_sql_file("sql/staff_clients_liees.sql") or ""
+
+
+def _load_detection_staff_clients_sql() -> str:
+    for k in (
+        "ORACLE_DETECTION_STAFF_CLIENTS_SQL",
+        "ORACLE_REPORT_GROUPE_DETECTION_STAFF_CLIENTS_SQL",
+    ):
+        v = os.getenv(k, "").strip()
+        if v:
+            return v
+    rel = os.getenv("ORACLE_DETECTION_STAFF_CLIENTS_SQL_FILE", "").strip()
+    if rel:
+        t = _read_sql_file(rel)
+        if t:
+            return t
+    return _read_sql_file("sql/detection_staff_clients.sql") or ""
+
+
+def _load_alertes_doublons_clients_sql() -> str:
+    for k in (
+        "ORACLE_ALERTES_DOUBLONS_CLIENTS_SQL",
+        "ORACLE_REPORT_GROUPE_ALERTES_DOUBLONS_CLIENTS_SQL",
+    ):
+        v = os.getenv(k, "").strip()
+        if v:
+            return v
+    rel = os.getenv("ORACLE_ALERTES_DOUBLONS_CLIENTS_SQL_FILE", "").strip()
+    if rel:
+        t = _read_sql_file(rel)
+        if t:
+            return t
+    return _read_sql_file("sql/alertes_doublons_clients.sql") or ""
 
 
 def _set_current_schema_if_needed(cur) -> None:
@@ -183,12 +218,29 @@ def _to_float(x) -> float | None:
 def _merge_encours(data: dict, enc: dict) -> None:
     et = _to_float(enc.get("encours_total"))
     if et is None:
-        for k in ("encours", "total_encours", "encours_balance", "sum_encours"):
+        for k in (
+            "encours_total_m",
+            "encours",
+            "total_encours",
+            "encours_balance",
+            "sum_encours",
+        ):
             et = _to_float(enc.get(k))
             if et is not None:
                 break
     if et is not None:
         data["encours_total"] = et
+    for src, dst in (
+        ("encours_sain", "encours_sain"),
+        ("encours_sain_m", "encours_sain"),
+        ("encours_impaye", "encours_impaye"),
+        ("encours_impaye_m", "encours_impaye"),
+    ):
+        val = _to_float(enc.get(src))
+        if val is not None:
+            data[dst] = val
+    if enc.get("primary_applicant_name") is not None:
+        data["primary_applicant_name"] = str(enc.get("primary_applicant_name"))
     if enc.get("value_date"):
         data["value_date"] = enc.get("value_date")
     if enc.get("matricule_client") is not None:
@@ -279,5 +331,80 @@ def personnes_liees(matricule: str):
                 return {"ok": True, "data": []}
             cols = [d[0].lower() for d in cur.description]
             return {"ok": True, "data": [dict(zip(cols, r)) for r in rows]}
+    finally:
+        conn.close()
+
+
+@app.get("/api/sig/detection-staff-clients")
+def detection_staff_clients():
+    """Liste globale staff ↔ clients (caution + cotitulaires), sans filtre matricule."""
+    sql = _load_detection_staff_clients_sql()
+    if not sql:
+        return {
+            "ok": True,
+            "data": [],
+            "message": "Définissez ORACLE_DETECTION_STAFF_CLIENTS_SQL_FILE (sql/detection_staff_clients.sql).",
+        }
+
+    try:
+        conn = _connect()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+    try:
+        with conn.cursor() as cur:
+            _set_current_schema_if_needed(cur)
+            cur.execute(sql)
+            rows = cur.fetchall()
+            if not rows:
+                return {"ok": True, "data": []}
+            cols = [d[0].lower() for d in cur.description]
+            data = []
+            for r in rows:
+                row = dict(zip(cols, r))
+                for k in ("encours_staff", "encours_personne_liee"):
+                    if k in row:
+                        row[k] = _to_float(row.get(k))
+                data.append(row)
+            return {"ok": True, "data": data}
+    except Exception as e:
+        _logger.exception("Échec détection staff-clients: %s", e)
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    finally:
+        conn.close()
+
+
+@app.get("/api/sig/alertes-doublons-clients")
+def alertes_doublons_clients():
+    """Alertes doublons clients (pièce, NIF, adresse/tél/noms représentant légal)."""
+    sql = _load_alertes_doublons_clients_sql()
+    if not sql:
+        return {
+            "ok": True,
+            "data": [],
+            "message": "Définissez ORACLE_ALERTES_DOUBLONS_CLIENTS_SQL_FILE (sql/alertes_doublons_clients.sql).",
+        }
+
+    try:
+        conn = _connect()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+    try:
+        with conn.cursor() as cur:
+            _set_current_schema_if_needed(cur)
+            cur.execute(sql)
+            rows = cur.fetchall()
+            if not rows:
+                return {"ok": True, "data": []}
+            cols = [d[0].lower() for d in cur.description]
+            return {"ok": True, "data": [dict(zip(cols, r)) for r in rows]}
+    except Exception as e:
+        _logger.exception("Échec alertes doublons clients: %s", e)
+        raise HTTPException(status_code=502, detail=str(e)) from e
     finally:
         conn.close()

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, useForm, router, usePage } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -7,21 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import InputError from '@/components/InputError.vue';
-import { Code, Trash2 } from 'lucide-vue-next';
+import { Code, Link2 } from 'lucide-vue-next';
 import { computed, withDefaults } from 'vue';
-
-interface PersonnePivot {
-    id: number;
-    prenom: string | null;
-    nom: string | null;
-    raison_sociale: string | null;
-    est_personne_morale: boolean;
-    encours_credit: string;
-    pivot: {
-        type_relation: string;
-        classe: number;
-    };
-}
 
 interface Staff {
     id: number;
@@ -40,7 +27,7 @@ interface Staff {
     encours_credit_individuel: string;
     fonds_propres: string | null;
     score_risque: string | null;
-    personnes_liees: PersonnePivot[];
+    personnes_liees: { id: number }[];
 }
 
 interface SigMetriquesEncours {
@@ -52,14 +39,6 @@ interface SigMetriquesEncours {
     seuil_taux_pct: number;
     depasse_seuil_encours: boolean;
     liaison_bloquee_encours: boolean;
-}
-
-interface Dispo {
-    id: number;
-    prenom: string | null;
-    nom: string | null;
-    raison_sociale: string | null;
-    est_personne_morale: boolean;
 }
 
 interface ConformiteEncoursEventItem {
@@ -78,19 +57,19 @@ interface ConformiteEncoursEventItem {
 interface Props {
     staff: Staff;
     sigMetriquesEncours?: SigMetriquesEncours | null;
-    personnesDisponibles: Dispo[];
+    personnesDisponibles?: unknown[];
     requiresSynchronisationClientSi?: boolean;
     conformiteEncoursHistorique?: ConformiteEncoursEventItem[];
     peutCommenterConformiteEncours?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
+    personnesDisponibles: () => [],
     conformiteEncoursHistorique: () => [],
     peutCommenterConformiteEncours: false,
 });
 
 const metriques = computed(() => props.sigMetriquesEncours);
-const liaisonBloquee = computed(() => Boolean(metriques.value?.liaison_bloquee_encours));
 const requiresClientSi = computed(() => Boolean(props.requiresSynchronisationClientSi));
 
 const clientSiForm = useForm({
@@ -111,10 +90,6 @@ function formatMontantFr(n: number): string {
 }
 
 const page = usePage();
-const peutCreerFichePersonneLiee = computed(() => {
-    const a = page.props.auth as { isAdmin?: boolean; isConformite?: boolean };
-    return Boolean(a?.isAdmin || a?.isConformite);
-});
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Staff — suivi signature', href: '/suivi-signature/staff' },
@@ -123,38 +98,6 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 const typeLabel = (t: string) =>
     ({ staff: 'Staff', administrateur: 'Administrateur', apparente_ou_liee: 'Apparentée / liée' } as Record<string, string>)[t] || t;
-
-const libellePersonne = (p: Dispo | PersonnePivot) => {
-    if (p.est_personne_morale && p.raison_sociale) return p.raison_sociale;
-    return `${p.prenom ?? ''} ${p.nom ?? ''}`.trim() || `#${p.id}`;
-};
-
-const idsLies = computed(() => new Set(props.staff.personnes_liees.map((p) => p.id)));
-
-const optionsAttach = computed(() => props.personnesDisponibles.filter((p) => !idsLies.value.has(p.id)));
-
-const attachForm = useForm({
-    sig_personne_liee_id: '' as number | '',
-    type_relation: '',
-    classe: 1 as number,
-});
-
-const attach = () => {
-    attachForm.post(`/suivi-signature/staff/${props.staff.id}/personnes-liees`, {
-        preserveScroll: true,
-        onSuccess: () => {
-            attachForm.reset();
-            attachForm.classe = 1;
-        },
-    });
-};
-
-const detach = (personneLieeId: number) => {
-    if (!confirm('Retirer ce lien ?')) return;
-    router.delete(`/suivi-signature/staff/${props.staff.id}/personnes-liees/${personneLieeId}`, {
-        preserveScroll: true,
-    });
-};
 
 const afficheBlocConformiteEncours = computed(
     () => props.peutCommenterConformiteEncours || (props.conformiteEncoursHistorique?.length ?? 0) > 0,
@@ -198,6 +141,12 @@ function badgeClassConformite(type: string): string {
                     <Code class="h-5 w-5 text-gray-500" />
                 </div>
                 <div class="flex flex-wrap gap-2">
+                    <Link :href="`/suivi-signature/staff/${staff.id}/lier-personnes`">
+                        <Button type="button">
+                            <Link2 class="mr-1.5 h-4 w-4" />
+                            Lier
+                        </Button>
+                    </Link>
                     <Link :href="`/suivi-signature/staff/${staff.id}/edit`">
                         <Button variant="outline">Modifier</Button>
                     </Link>
@@ -426,110 +375,6 @@ function badgeClassConformite(type: string): string {
                     </form>
                 </CardContent>
             </Card>
-
-            <div class="rounded-lg border border-sidebar-border bg-card p-6">
-                <h2 class="mb-4 text-lg font-semibold">Personnes liées</h2>
-
-                <div v-if="staff.personnes_liees.length === 0" class="text-muted-foreground mb-6 text-sm">Aucune personne liée pour l’instant.</div>
-                <div v-else class="mb-6 overflow-x-auto">
-                    <table class="w-full text-left text-sm">
-                        <thead>
-                            <tr class="border-b">
-                                <th class="py-2 pr-4">Personne</th>
-                                <th class="py-2 pr-4">Relation</th>
-                                <th class="py-2 pr-4">Classe</th>
-                                <th class="py-2 pr-4">Encours</th>
-                                <th class="py-2"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="pl in staff.personnes_liees" :key="pl.id" class="border-b border-gray-100">
-                                <td class="py-2 pr-4">
-                                    <Link
-                                        :href="`/suivi-signature/personnes-liees/${pl.id}`"
-                                        class="text-primary font-medium hover:underline"
-                                    >
-                                        {{ libellePersonne(pl) }}
-                                    </Link>
-                                </td>
-                                <td class="py-2 pr-4">{{ pl.pivot.type_relation }}</td>
-                                <td class="py-2 pr-4">Classe {{ pl.pivot.classe }}</td>
-                                <td class="py-2 pr-4">
-                                    {{ Number(pl.encours_credit).toLocaleString('fr-FR', { minimumFractionDigits: 2 }) }}
-                                </td>
-                                <td class="py-2 text-right">
-                                    <button
-                                        type="button"
-                                        class="text-destructive inline-flex rounded-md p-2 hover:bg-red-50"
-                                        title="Retirer le lien"
-                                        @click="detach(pl.id)"
-                                    >
-                                        <Trash2 class="h-4 w-4" />
-                                    </button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <div v-if="requiresClientSi" class="border-t pt-6">
-                    <p class="text-muted-foreground text-sm">
-                        L’association de nouvelles personnes liées sera disponible après la synchronisation du numéro client SI (encadré
-                        ci-dessus).
-                    </p>
-                </div>
-                <div v-else-if="optionsAttach.length > 0" class="border-t pt-6">
-                    <h3 class="mb-3 text-base font-medium">Associer une personne liée</h3>
-                    <form class="grid gap-4 md:grid-cols-2 lg:grid-cols-4" @submit.prevent="attach">
-                        <div class="md:col-span-2">
-                            <Label for="sig_personne_liee_id">Personne *</Label>
-                            <select
-                                id="sig_personne_liee_id"
-                                v-model="attachForm.sig_personne_liee_id"
-                                required
-                                class="border-input bg-background mt-1.5 flex h-9 w-full rounded-md border px-3 py-1 text-sm shadow-sm"
-                            >
-                                <option value="">— Choisir —</option>
-                                <option v-for="p in optionsAttach" :key="p.id" :value="p.id">
-                                    {{ libellePersonne(p) }}
-                                </option>
-                            </select>
-                            <InputError :message="attachForm.errors.sig_personne_liee_id" />
-                        </div>
-                        <div>
-                            <Label for="type_relation">Type de relation *</Label>
-                            <Input id="type_relation" v-model="attachForm.type_relation" required class="mt-1.5" placeholder="ex. Conjoint" />
-                            <InputError :message="attachForm.errors.type_relation" />
-                        </div>
-                        <div>
-                            <Label for="classe">Classe (1–4) *</Label>
-                            <select
-                                id="classe"
-                                v-model.number="attachForm.classe"
-                                class="border-input bg-background mt-1.5 flex h-9 w-full rounded-md border px-3 py-1 text-sm shadow-sm"
-                            >
-                                <option :value="1">1</option>
-                                <option :value="2">2</option>
-                                <option :value="3">3</option>
-                                <option :value="4">4</option>
-                            </select>
-                        </div>
-                        <div class="flex items-end">
-                            <Button type="submit" :disabled="liaisonBloquee || attachForm.processing">Associer</Button>
-                        </div>
-                    </form>
-                </div>
-                <p v-else-if="!requiresClientSi" class="text-muted-foreground mt-4 text-sm">
-                    <template v-if="peutCreerFichePersonneLiee">
-                        Créez d’abord des fiches « personnes liées » ou elles sont déjà toutes associées à ce staff.
-                        <Link href="/suivi-signature/personnes-liees/create" class="text-primary ml-1 underline">Nouvelle personne liée</Link>
-                    </template>
-                    <template v-else>
-                        Aucune fiche « personne liée » disponible à associer : les nouvelles fiches sont créées par l’administration ou la
-                        conformité.
-                    </template>
-                </p>
-            </div>
         </div>
     </AppLayout>
 </template>

@@ -8,8 +8,6 @@ use App\Services\SigSiLookupService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class SigLookupController extends Controller
 {
@@ -17,7 +15,21 @@ class SigLookupController extends Controller
         private readonly SigSiLookupService $siLookup
     ) {}
 
-    public function lookup(Request $request): Response|RedirectResponse
+    /**
+     * Refresh / accès direct en GET : renvoie vers le formulaire de création (évite 405).
+     */
+    public function lookupFormRedirect(Request $request): RedirectResponse
+    {
+        $context = $request->session()->pull('sig_lookup_context', 'personne_liee');
+
+        return redirect()->route(
+            $context === 'staff'
+                ? 'suivi-signature.staff.create'
+                : 'suivi-signature.personnes-liees.create'
+        );
+    }
+
+    public function lookup(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             'context' => 'required|in:staff,personne_liee',
@@ -45,6 +57,8 @@ class SigLookupController extends Controller
             ? 'suivi-signature.staff.create'
             : 'suivi-signature.personnes-liees.create';
 
+        $request->session()->flash('sig_lookup_context', $validated['context']);
+
         if ($siData === null) {
             return redirect()
                 ->route($createRoute)
@@ -60,11 +74,10 @@ class SigLookupController extends Controller
 
             $personnesLieesSi = $this->siLookup->personnesLieesSiPourMatricule($matricule);
 
-            return Inertia::render('suivi-signature/staff/Create', [
-                'siData' => $siData,
-                'lookupDone' => true,
-                'personnesLieesSi' => $personnesLieesSi,
-            ]);
+            $request->session()->put('sig_lookup_si_data', $siData);
+            $request->session()->put('sig_lookup_personnes_liees_si', $personnesLieesSi);
+
+            return redirect()->route($createRoute);
         }
 
         if (SigPersonneLiee::query()->where('numero_client', $siData['matricule'])->exists()) {
@@ -73,10 +86,9 @@ class SigLookupController extends Controller
                 ->withErrors(['matricule' => 'Cette fiche est déjà enregistrée dans le suivi signature.']);
         }
 
-        return Inertia::render('suivi-signature/personnes-liees/Create', [
-            'siData' => $siData,
-            'lookupDone' => true,
-        ]);
+        $request->session()->put('sig_lookup_si_data', $siData);
+
+        return redirect()->route($createRoute);
     }
 
     /**

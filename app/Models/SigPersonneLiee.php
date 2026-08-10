@@ -66,7 +66,7 @@ class SigPersonneLiee extends Model
      */
     public static function encoursFromSiPayload(array $siData): ?float
     {
-        foreach (['encours_total', 'encours_balance', 'total_encours', 'encours', 'sum_encours'] as $k) {
+        foreach (['encours_total', 'encours_total_m', 'encours_balance', 'total_encours', 'encours', 'sum_encours'] as $k) {
             if (! array_key_exists($k, $siData) || $siData[$k] === null || $siData[$k] === '') {
                 continue;
             }

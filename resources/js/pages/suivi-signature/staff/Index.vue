@@ -112,7 +112,7 @@ const deleteStaff = (id: number) => {
                     <Code class="h-5 w-5 text-gray-500" />
                 </div>
                 <div class="flex flex-wrap gap-2">
-                    <Link href="/suivi-signature/staff/create">
+                    <Link href="/suivi-signature/staff/create?reset=1">
                         <Button>Nouvelle fiche (SI)</Button>
                     </Link>
                     <Link v-if="canSaisieMembreCa" href="/suivi-signature/staff/manuel/create">

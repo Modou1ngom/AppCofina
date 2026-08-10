@@ -120,6 +120,132 @@ class SigOracleReportGroupeHttpClient
         return $this->decodeLieesPayload($response->json());
     }
 
+    /**
+     * Détection globale staff ↔ clients (caution + cotitulaires).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function detectionStaffClients(): array
+    {
+        if (! $this->isConfigured()) {
+            return [];
+        }
+
+        $path = (string) config('sig_oracle_report_groupe.http.detection_staff_clients_path');
+        $url = $this->url($path);
+
+        try {
+            $request = Http::timeout(max(60, (int) config('sig_oracle_report_groupe.http.timeout', 30)))
+                ->acceptJson();
+
+            if (! config('sig_oracle_report_groupe.http.verify_ssl')) {
+                $request = $request->withoutVerifying();
+            }
+
+            $token = trim((string) config('sig_oracle_report_groupe.http.token'));
+            if ($token !== '') {
+                $request = $request->withToken($token);
+            }
+
+            $response = $request->get($url);
+        } catch (Throwable $e) {
+            Log::warning('SigOracle HTTP: échec détection staff-clients', [
+                'message' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+
+        if (! $response->successful()) {
+            Log::warning('SigOracle HTTP: réponse erreur détection staff-clients', [
+                'status' => $response->status(),
+            ]);
+
+            return [];
+        }
+
+        $json = $response->json();
+        if (! is_array($json)) {
+            return [];
+        }
+        $rows = $json['data'] ?? [];
+        if (! is_array($rows) || ($rows !== [] && ! array_is_list($rows))) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (is_array($row)) {
+                $out[] = $row;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Alertes doublons clients (STDCIF).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function alertesDoublonsClients(): array
+    {
+        if (! $this->isConfigured()) {
+            return [];
+        }
+
+        $path = (string) config('sig_oracle_report_groupe.http.alertes_doublons_clients_path');
+        $url = $this->url($path);
+
+        try {
+            $request = Http::timeout(max(180, (int) config('sig_oracle_report_groupe.http.timeout', 30)))
+                ->acceptJson();
+
+            if (! config('sig_oracle_report_groupe.http.verify_ssl')) {
+                $request = $request->withoutVerifying();
+            }
+
+            $token = trim((string) config('sig_oracle_report_groupe.http.token'));
+            if ($token !== '') {
+                $request = $request->withToken($token);
+            }
+
+            $response = $request->get($url);
+        } catch (Throwable $e) {
+            Log::warning('SigOracle HTTP: échec alertes doublons clients', [
+                'message' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+
+        if (! $response->successful()) {
+            Log::warning('SigOracle HTTP: réponse erreur alertes doublons clients', [
+                'status' => $response->status(),
+            ]);
+
+            return [];
+        }
+
+        $json = $response->json();
+        if (! is_array($json)) {
+            return [];
+        }
+        $rows = $json['data'] ?? [];
+        if (! is_array($rows) || ($rows !== [] && ! array_is_list($rows))) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (is_array($row)) {
+                $out[] = $row;
+            }
+        }
+
+        return $out;
+    }
+
     public function ping(): bool
     {
         if (! $this->isConfigured()) {
@@ -211,7 +337,18 @@ class SigOracleReportGroupeHttpClient
 
         $out = [];
         foreach ($rows as $row) {
-            if (is_array($row) && (isset($row['numero_client']) || isset($row['matricule']))) {
+            if (! is_array($row)) {
+                continue;
+            }
+            if (! isset($row['numero_client']) && ! isset($row['matricule'])) {
+                foreach (['cust_ac_no', 'customer_no', 'numero_client_si'] as $k) {
+                    if (! empty($row[$k])) {
+                        $row['numero_client'] = trim((string) $row[$k]);
+                        break;
+                    }
+                }
+            }
+            if (isset($row['numero_client']) || isset($row['matricule'])) {
                 $out[] = $row;
             }
         }

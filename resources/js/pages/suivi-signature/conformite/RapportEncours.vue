@@ -163,14 +163,7 @@ const messageListeVide = computed(() => {
                     <Shield class="h-7 w-7 text-amber-700" />
                     <div>
                         <h1 class="text-2xl font-bold text-gray-900">Rapport de conformité</h1>
-                        <p class="text-muted-foreground text-sm">
-                            Fonds propres vs encours consolidé (encours propre SI + personnes liées). Seuil de référence :
-                            {{ seuilTauxPct.toLocaleString('fr-FR') }} %.
-                        </p>
-                        <p class="text-muted-foreground mt-1 max-w-3xl text-xs">
-                            L’historique liste les anomalies au moment où le taux dépasse le seuil ou y retombe. Si une période est vide alors
-                            qu’une fiche a déjà des événements, élargissez les dates.
-                        </p>
+                       
                     </div>
                 </div>
                 <a :href="exportCsvUrl()">

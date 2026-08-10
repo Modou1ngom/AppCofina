@@ -11,6 +11,8 @@ use App\Http\Controllers\FilialeController;
 use App\Http\Controllers\HabilitationController;
 use App\Http\Controllers\ProfilController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\SigAlertesDoublonsController;
+use App\Http\Controllers\SigDetectionAutomatiqueController;
 use App\Http\Controllers\SigEncoursConformiteController;
 use App\Http\Controllers\SigLookupController;
 use App\Http\Controllers\SigPersonneLieeController;
@@ -119,6 +121,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::prefix('suivi-signature')->name('suivi-signature.')->group(function () {
+        Route::get('lookup-client', [SigLookupController::class, 'lookupFormRedirect'])->name('lookup-client.get');
         Route::post('lookup-client', [SigLookupController::class, 'lookup'])->name('lookup-client');
         Route::post('personne-liee/resolve-matricule', [SigLookupController::class, 'resolvePersonneLieeParMatricule'])
             ->name('personne-liee.resolve-matricule');
@@ -134,8 +137,20 @@ Route::middleware(['auth'])->group(function () {
             ->name('staff.ma-fiche.synchroniser-client-si');
         Route::get('conformite/rapport-encours', [SigEncoursConformiteController::class, 'rapport'])->name('conformite.rapport-encours');
         Route::get('conformite/rapport-encours/export', [SigEncoursConformiteController::class, 'exportCsv'])->name('conformite.rapport-encours.export');
+        Route::get('detection-automatique', [SigDetectionAutomatiqueController::class, 'index'])
+            ->middleware('role:admin,conformite')
+            ->name('detection-automatique');
+        Route::post('detection-automatique/lier', [SigDetectionAutomatiqueController::class, 'lier'])
+            ->middleware('role:admin,conformite')
+            ->name('detection-automatique.lier');
+        Route::get('alertes-doublons', [SigAlertesDoublonsController::class, 'index'])
+            ->middleware('role:admin,conformite')
+            ->name('alertes-doublons');
         Route::post('staff/{staff}/conformite-encours/commentaire', [SigEncoursConformiteController::class, 'storeCommentaire'])
             ->name('staff.conformite-encours.commentaire');
+        Route::get('staff/{staff}/lier-personnes', [SigStaffController::class, 'lierPersonnes'])->name('staff.lier-personnes');
+        Route::post('staff/{staff}/personnes-liees/detecter-auto', [SigStaffController::class, 'detecterEtLierClientsSi'])
+            ->name('staff.personnes-liees.detecter-auto');
         Route::post('staff/{staff}/personnes-liees', [SigStaffController::class, 'attachPersonne'])->name('staff.personnes-liees.attach');
         Route::delete('staff/{staff}/personnes-liees/{personneLiee}', [SigStaffController::class, 'detachPersonne'])->name('staff.personnes-liees.detach');
         Route::resource('staff', SigStaffController::class);

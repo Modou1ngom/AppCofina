@@ -109,6 +109,14 @@ const mainNavItems = computed<NavItem[]>(() => {
                         href: '/suivi-signature/personnes-liees',
                     },
                     {
+                        title: 'Détection automatique',
+                        href: '/suivi-signature/detection-automatique',
+                    },
+                    {
+                        title: 'Alertes doublons',
+                        href: '/suivi-signature/alertes-doublons',
+                    },
+                    {
                         title: 'Rapport encours / fonds propres',
                         href: '/suivi-signature/conformite/rapport-encours',
                     },
@@ -218,6 +226,14 @@ const mainNavItems = computed<NavItem[]>(() => {
                 {
                     title: 'Personnes liées',
                     href: '/suivi-signature/personnes-liees',
+                },
+                {
+                    title: 'Détection automatique',
+                    href: '/suivi-signature/detection-automatique',
+                },
+                {
+                    title: 'Alertes doublons',
+                    href: '/suivi-signature/alertes-doublons',
                 },
                 {
                     title: 'Rapport encours / fonds propres',

@@ -43,11 +43,37 @@ class SigPersonneLieeController extends Controller
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
+        if ($request->boolean('reset')) {
+            $request->session()->forget(['sig_lookup_si_data', 'sig_lookup_personnes_liees_si', 'sig_lookup_context']);
+        }
+
+        $siData = $request->session()->get('sig_lookup_si_data');
+
+        $attachStaffId = $request->integer('staff_id') ?: $request->session()->get('sig_attach_staff_id');
+        $attachStaff = null;
+        if ($attachStaffId) {
+            $attachStaff = SigStaff::query()->find($attachStaffId);
+            if ($attachStaff) {
+                $request->session()->put('sig_attach_staff_id', $attachStaff->id);
+            } else {
+                $request->session()->forget('sig_attach_staff_id');
+                $attachStaffId = null;
+            }
+        }
+
         return Inertia::render('suivi-signature/personnes-liees/Create', [
-            'siData' => null,
-            'lookupDone' => false,
+            'siData' => $siData,
+            'lookupDone' => $siData !== null,
+            'attachStaff' => $attachStaff
+                ? [
+                    'id' => $attachStaff->id,
+                    'reference' => $attachStaff->reference,
+                    'prenom' => $attachStaff->prenom,
+                    'nom' => $attachStaff->nom,
+                ]
+                : null,
         ]);
     }
 
@@ -57,7 +83,37 @@ class SigPersonneLieeController extends Controller
         $validated['encours_credit'] = $validated['encours_credit'] ?? 0;
         unset($validated['si_confirmed']);
 
-        SigPersonneLiee::create($validated);
+        $personne = SigPersonneLiee::create($validated);
+
+        $attachStaffId = $request->integer('attach_staff_id')
+            ?: (int) $request->session()->get('sig_attach_staff_id');
+
+        $request->session()->forget([
+            'sig_lookup_si_data',
+            'sig_lookup_personnes_liees_si',
+            'sig_lookup_context',
+            'sig_attach_staff_id',
+        ]);
+
+        if ($attachStaffId > 0) {
+            $staff = SigStaff::query()->find($attachStaffId);
+            if ($staff && ! $staff->personnesLiees()->whereKey($personne->id)->exists()) {
+                $typeRelation = trim((string) $request->input('type_relation', 'Lié'));
+                if ($typeRelation === '') {
+                    $typeRelation = 'Lié';
+                }
+                $classe = max(1, min(4, (int) $request->input('classe', 1)));
+                $staff->personnesLiees()->attach($personne->id, [
+                    'type_relation' => $typeRelation,
+                    'classe' => $classe,
+                ]);
+                $staff->synchroniserEncoursTotaux();
+
+                return redirect()
+                    ->route('suivi-signature.staff.lier-personnes', $staff)
+                    ->with('success', 'Personne enregistrée et liée à ce signataire.');
+            }
+        }
 
         return redirect()->route('suivi-signature.personnes-liees.index')
             ->with('success', 'Personne liée enregistrée.');
