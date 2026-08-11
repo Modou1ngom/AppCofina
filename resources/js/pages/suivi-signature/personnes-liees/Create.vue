@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import InputError from '@/components/InputError.vue';
 import { Code, Search } from 'lucide-vue-next';
 import { computed, watch, withDefaults } from 'vue';
+import { SIG_TYPES_RELATION, sigTypeRelationSelectClass } from '@/lib/sigTypeRelation';
 
 interface SiData {
     matricule: string;
@@ -79,7 +80,7 @@ const submitLookup = () => {
 const storeForm = useForm({
     si_confirmed: true,
     attach_staff_id: props.attachStaff?.id ?? ('' as number | ''),
-    type_relation: 'Lié',
+    type_relation: '',
     classe: 1 as number,
     numero_client: '',
     est_personne_morale: false,
@@ -272,13 +273,15 @@ const nouvelleRecherche = () => {
                         <CardContent class="grid gap-4 md:grid-cols-2">
                             <div>
                                 <Label for="type_relation">Type de relation *</Label>
-                                <Input
+                                <select
                                     id="type_relation"
                                     v-model="storeForm.type_relation"
                                     required
-                                    class="mt-1.5"
-                                    placeholder="ex. Conjoint"
-                                />
+                                    :class="sigTypeRelationSelectClass"
+                                >
+                                    <option value="">— Choisir —</option>
+                                    <option v-for="t in SIG_TYPES_RELATION" :key="t" :value="t">{{ t }}</option>
+                                </select>
                             </div>
                             <div>
                                 <Label for="classe">Classe (1–4) *</Label>

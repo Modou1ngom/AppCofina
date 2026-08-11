@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import InputError from '@/components/InputError.vue';
 import { Code, Link2, Search, Trash2 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
+import { SIG_TYPES_RELATION, sigTypeRelationSelectClass } from '@/lib/sigTypeRelation';
 
 interface PersonnePivot {
     id: number;
@@ -546,13 +547,15 @@ const detach = (personneLieeId: number) => {
                             <form class="grid gap-4 border-t pt-4 md:grid-cols-2 lg:grid-cols-4" @submit.prevent="attach">
                                 <div>
                                     <Label for="type_relation">Type de relation *</Label>
-                                    <Input
+                                    <select
                                         id="type_relation"
                                         v-model="attachForm.type_relation"
                                         required
-                                        class="mt-1.5"
-                                        placeholder="ex. Conjoint"
-                                    />
+                                        :class="sigTypeRelationSelectClass"
+                                    >
+                                        <option value="">— Choisir —</option>
+                                        <option v-for="t in SIG_TYPES_RELATION" :key="t" :value="t">{{ t }}</option>
+                                    </select>
                                     <InputError :message="attachForm.errors.type_relation" />
                                 </div>
                                 <div>

@@ -47,7 +47,7 @@ class SigEncoursConformiteController extends Controller
                 'type' => (string) $request->get('type', ''),
                 'staff_id' => $request->filled('staff_id') ? (int) $request->get('staff_id') : null,
             ],
-            'seuilTauxPct' => (float) config('sig.encours_taux_seuil_pct', 10),
+            'seuilTauxPct' => \App\Models\SigParametre::current()->seuilTauxPct(),
             'typeOptions' => [
                 ['value' => '', 'label' => 'Tous les types'],
                 ['value' => SigStaffEncoursConformiteEvent::TYPE_DEPASSEMENT, 'label' => SigStaffEncoursConformiteEvent::typeLabel(SigStaffEncoursConformiteEvent::TYPE_DEPASSEMENT)],
@@ -115,8 +115,8 @@ class SigEncoursConformiteController extends Controller
         $staff->synchroniserEncoursTotaux();
         $staff->refresh();
 
-        $seuil = (float) config('sig.encours_taux_seuil_pct', 10);
-        $fp = $staff->fonds_propres !== null ? (float) $staff->fonds_propres : null;
+        $seuil = \App\Models\SigParametre::current()->seuilTauxPct();
+        $fp = $staff->fondsPropresReference();
 
         SigStaffEncoursConformiteEvent::query()->create([
             'sig_staff_id' => $staff->id,

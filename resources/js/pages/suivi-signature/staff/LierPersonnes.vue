@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import InputError from '@/components/InputError.vue';
 import { Code, Link2, Plus, Search, Sparkles, Trash2 } from 'lucide-vue-next';
 import { computed, ref, withDefaults } from 'vue';
+import { SIG_TYPES_RELATION, sigTypeRelationSelectClass } from '@/lib/sigTypeRelation';
 
 interface PersonnePivot {
     id: number;
@@ -466,13 +467,15 @@ function formatMontant(n: number | string | null | undefined): string {
                             <form class="grid gap-4 md:grid-cols-3" @submit.prevent="attachResolu">
                                 <div>
                                     <Label for="type_relation_si">Type de relation *</Label>
-                                    <Input
+                                    <select
                                         id="type_relation_si"
                                         v-model="attachForm.type_relation"
                                         required
-                                        class="mt-1.5"
-                                        placeholder="ex. Conjoint"
-                                    />
+                                        :class="sigTypeRelationSelectClass"
+                                    >
+                                        <option value="">— Choisir —</option>
+                                        <option v-for="t in SIG_TYPES_RELATION" :key="t" :value="t">{{ t }}</option>
+                                    </select>
                                     <InputError :message="attachForm.errors.type_relation" />
                                 </div>
                                 <div>
@@ -522,13 +525,15 @@ function formatMontant(n: number | string | null | undefined): string {
                             </div>
                             <div>
                                 <Label for="type_relation">Type de relation *</Label>
-                                <Input
+                                <select
                                     id="type_relation"
                                     v-model="attachForm.type_relation"
                                     required
-                                    class="mt-1.5"
-                                    placeholder="ex. Conjoint"
-                                />
+                                    :class="sigTypeRelationSelectClass"
+                                >
+                                    <option value="">— Choisir —</option>
+                                    <option v-for="t in SIG_TYPES_RELATION" :key="t" :value="t">{{ t }}</option>
+                                </select>
                                 <InputError :message="attachForm.errors.type_relation" />
                             </div>
                             <div>

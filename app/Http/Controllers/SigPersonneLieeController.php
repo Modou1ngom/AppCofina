@@ -98,10 +98,11 @@ class SigPersonneLieeController extends Controller
         if ($attachStaffId > 0) {
             $staff = SigStaff::query()->find($attachStaffId);
             if ($staff && ! $staff->personnesLiees()->whereKey($personne->id)->exists()) {
-                $typeRelation = trim((string) $request->input('type_relation', 'Lié'));
-                if ($typeRelation === '') {
-                    $typeRelation = 'Lié';
-                }
+                $request->validate([
+                    'type_relation' => ['required', 'string', 'max:255', \App\Support\SigTypeRelation::rule()],
+                    'classe' => 'nullable|integer|min:1|max:4',
+                ]);
+                $typeRelation = trim((string) $request->input('type_relation'));
                 $classe = max(1, min(4, (int) $request->input('classe', 1)));
                 $staff->personnesLiees()->attach($personne->id, [
                     'type_relation' => $typeRelation,

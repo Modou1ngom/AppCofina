@@ -266,20 +266,108 @@ class SigStaffController extends Controller
     public function index(Request $request): Response
     {
         $perPage = (int) $request->get('per_page', 10);
-        $query = SigStaff::query()->orderByDesc('updated_at');
+        $params = \App\Models\SigParametre::current();
+        $seuil = $params->seuilTauxPct();
+        $fpGlobal = $params->fondsPropresReference();
+        $query = SigStaff::query()
+            ->withSum('personnesLiees as encours_personnes_liees_sum', 'encours_credit')
+            ->orderByDesc('updated_at');
 
         if ($search = $request->get('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('reference', 'like', "%{$search}%")
+                    ->orWhere('numero_client_si', 'like', "%{$search}%")
                     ->orWhere('nom', 'like', "%{$search}%")
-                    ->orWhere('prenom', 'like', "%{$search}%");
+                    ->orWhere('prenom', 'like', "%{$search}%")
+                    ->orWhere('fonction', 'like', "%{$search}%");
             });
         }
 
-        $staff = $query->paginate($perPage)->withQueryString();
+        $allForSynthese = (clone $query)->get(['id', 'encours_staff_si', 'fonds_propres']);
+        $encoursStaffTotal = 0.0;
+        $encoursLieesTotal = 0.0;
+        $nbConforme = 0;
+        $nbAlerte = 0;
+        $nbDepassement = 0;
+        $nbNonEvalue = 0;
+
+        foreach ($allForSynthese as $s) {
+            $encoursStaff = (float) $s->encours_staff_si;
+            $encoursLiees = (float) ($s->encours_personnes_liees_sum ?? 0);
+            $encoursStaffTotal += $encoursStaff;
+            $encoursLieesTotal += $encoursLiees;
+            $fp = $fpGlobal ?? $s->fondsPropresReference();
+            $encoursTotal = $encoursStaff + $encoursLiees;
+            $ratio = ($fp !== null && $fp > 0) ? round(($encoursTotal / $fp) * 100, 2) : null;
+            $statut = $params->statutConformitePourRatio($ratio);
+            match ($statut) {
+                'conforme' => $nbConforme++,
+                'alerte' => $nbAlerte++,
+                'depassement' => $nbDepassement++,
+                default => $nbNonEvalue++,
+            };
+        }
+
+        $encoursConsolide = round($encoursStaffTotal + $encoursLieesTotal, 2);
+        $fpRef = $fpGlobal;
+        $ratioGlobal = ($fpRef !== null && $fpRef > 0)
+            ? round(($encoursConsolide / $fpRef) * 100, 2)
+            : null;
+        $plafondGlobal = ($fpRef !== null && $fpRef > 0)
+            ? round($fpRef * ($seuil / 100), 2)
+            : null;
+        $ecartGlobal = $plafondGlobal !== null
+            ? round($plafondGlobal - $encoursConsolide, 2)
+            : null;
+
+        $synthese = [
+            'nb_fiches' => $allForSynthese->count(),
+            'fonds_propres_reference' => $fpRef,
+            'seuil_pct' => $seuil,
+            'plafond_reglementaire' => $plafondGlobal,
+            'encours_staff_ca' => round($encoursStaffTotal, 2),
+            'encours_personnes_liees' => round($encoursLieesTotal, 2),
+            'encours_total' => $encoursConsolide,
+            'ratio_pct' => $ratioGlobal,
+            'ecart' => $ecartGlobal,
+            'statut_conformite' => $params->statutConformitePourRatio($ratioGlobal),
+            'nb_conforme' => $nbConforme,
+            'nb_alerte' => $nbAlerte,
+            'nb_depassement' => $nbDepassement,
+            'nb_non_evalue' => $nbNonEvalue,
+        ];
+
+        $staff = $query->paginate($perPage)->withQueryString()->through(function (SigStaff $s) use ($params, $seuil, $fpGlobal) {
+            $fp = $fpGlobal ?? $s->fondsPropresReference();
+            $encoursStaff = (float) $s->encours_staff_si;
+            $encoursLiees = (float) ($s->encours_personnes_liees_sum ?? 0);
+            $encoursTotal = round($encoursStaff + $encoursLiees, 2);
+            $plafond = ($fp !== null && $fp > 0) ? round($fp * ($seuil / 100), 2) : null;
+            $ratio = ($fp !== null && $fp > 0) ? round(($encoursTotal / $fp) * 100, 2) : null;
+            $ecart = $plafond !== null ? round($plafond - $encoursTotal, 2) : null;
+
+            return [
+                'id' => $s->id,
+                'matricule' => trim((string) ($s->numero_client_si ?: $s->reference)),
+                'nom_complet' => $s->nom_complet,
+                'fonction' => $s->fonction,
+                'fonds_propres' => $fp,
+                'seuil_pct' => $seuil,
+                'plafond_reglementaire' => $plafond,
+                'encours_staff_ca' => $encoursStaff,
+                'encours_personnes_liees' => $encoursLiees,
+                'encours_total' => $encoursTotal,
+                'ratio_pct' => $ratio,
+                'ecart' => $ecart,
+                'statut_conformite' => $params->statutConformitePourRatio($ratio),
+                'type_personne' => $s->type_personne,
+                'statut' => $s->statut,
+            ];
+        });
 
         return Inertia::render('suivi-signature/staff/Index', [
             'staff' => $staff,
+            'synthese' => $synthese,
             'filters' => [
                 'search' => $request->get('search', ''),
             ],
@@ -609,8 +697,8 @@ class SigStaffController extends Controller
                 $staff->refresh();
                 $sumLiees = (float) $staff->personnesLiees()->sum('encours_credit');
                 $totalProjete = (float) $staff->encours_staff_si + $sumLiees + (float) $personne->encours_credit;
-                $fp = (float) ($staff->fonds_propres ?? 0);
-                $seuil = (float) config('sig.encours_taux_seuil_pct', 10);
+                $fp = (float) ($staff->fondsPropresReference() ?? 0);
+                $seuil = \App\Models\SigParametre::current()->seuilTauxPct();
                 if ($fp > 0 && ($totalProjete / $fp) * 100 > $seuil) {
                     $erreurs++;
 
@@ -751,7 +839,7 @@ class SigStaffController extends Controller
 
         $validated = $request->validate([
             'sig_personne_liee_id' => 'required|exists:sig_personnes_liees,id',
-            'type_relation' => 'required|string|max:255',
+            'type_relation' => ['required', 'string', 'max:255', \App\Support\SigTypeRelation::rule()],
             'classe' => 'required|integer|min:1|max:4',
         ]);
 
@@ -778,7 +866,7 @@ class SigStaffController extends Controller
                     'sig_personne_liee_id' => sprintf(
                         'Nouvelles liaisons interdites : le taux encours / fonds propres (%.2f %%) dépasse déjà le seuil de %s %%.',
                         $staff->tauxEncoursFondsPropres() ?? 0.0,
-                        config('sig.encours_taux_seuil_pct', 10)
+                        \App\Models\SigParametre::current()->seuilTauxPct()
                     ),
                 ])
                 ->with('error', 'Seuil d’encours dépassé. Corrigez la situation (fonds propres, encours ou liens) avant d’ajouter une personne liée.');
@@ -788,8 +876,8 @@ class SigStaffController extends Controller
         $staff->refresh();
         $sumLieesActuel = (float) $staff->personnesLiees()->sum('encours_credit');
         $totalProjete = (float) $staff->encours_staff_si + $sumLieesActuel + (float) $personne->encours_credit;
-        $fp = (float) ($staff->fonds_propres ?? 0);
-        $seuil = (float) config('sig.encours_taux_seuil_pct', 10);
+        $fp = (float) ($staff->fondsPropresReference() ?? 0);
+        $seuil = \App\Models\SigParametre::current()->seuilTauxPct();
         if ($fp > 0 && ($totalProjete / $fp) * 100 > $seuil) {
             return back()
                 ->withErrors([

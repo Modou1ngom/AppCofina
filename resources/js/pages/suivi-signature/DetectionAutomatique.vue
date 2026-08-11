@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import InputError from '@/components/InputError.vue';
 import { BadgeCheck, CheckCircle2, Link2, Radar, Search, UserPlus } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
+import { SIG_TYPES_RELATION, sigTypeRelationSelectClass } from '@/lib/sigTypeRelation';
 
 interface Ligne {
     nom_staff: string;
@@ -120,9 +121,11 @@ function ouvrirLier(ligne: Ligne) {
     ligneSelectionnee.value = ligne;
     lierForm.matricule_staff = ligne.matricule_staff;
     lierForm.matricule_personnel_lie = ligne.matricule_personnel_lie;
-    lierForm.type_relation = ligne.type_liaison || 'Lié SI';
+    const siType = (ligne.type_liaison || '').trim();
+    const match = SIG_TYPES_RELATION.find((t) => t.toLowerCase() === siType.toLowerCase());
+    lierForm.type_relation = match ?? '';
     lierForm.classe = 2;
-    lierForm.complement = '';
+    lierForm.complement = match || !siType || siType === '—' ? '' : siType;
     lierForm.nom_staff = ligne.nom_staff || '';
     lierForm.telephone_staff = ligne.telephone_staff || '';
     lierForm.type_piece_staff = ligne.type_piece_staff || '';
@@ -141,15 +144,13 @@ function fermerDialog() {
 
 function validerLiaison() {
     if (!ligneSelectionnee.value) return;
-    const typeBase = lierForm.type_relation.trim() || 'Lié SI';
-    const complement = lierForm.complement.trim();
-    const typeFinal = complement ? `${typeBase} — ${complement}` : typeBase;
 
     lierForm
         .transform((data) => ({
             matricule_staff: data.matricule_staff,
             matricule_personnel_lie: data.matricule_personnel_lie,
-            type_relation: typeFinal,
+            type_relation: data.type_relation,
+            complement: data.complement?.trim() || null,
             classe: data.classe,
             nom_staff: data.nom_staff,
             telephone_staff: data.telephone_staff,
@@ -493,13 +494,15 @@ function validerLiaison() {
                     <form class="grid gap-4 sm:grid-cols-2" @submit.prevent="validerLiaison">
                         <div class="sm:col-span-2">
                             <Label for="type_relation">Type de relation *</Label>
-                            <Input
+                            <select
                                 id="type_relation"
                                 v-model="lierForm.type_relation"
                                 required
-                                class="mt-1.5"
-                                placeholder="ex. Caution, Cotitulaire, Conjoint…"
-                            />
+                                :class="sigTypeRelationSelectClass"
+                            >
+                                <option value="">— Choisir —</option>
+                                <option v-for="t in SIG_TYPES_RELATION" :key="t" :value="t">{{ t }}</option>
+                            </select>
                             <InputError :message="lierForm.errors.type_relation" />
                         </div>
                         <div>

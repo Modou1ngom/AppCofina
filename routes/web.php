@@ -15,6 +15,7 @@ use App\Http\Controllers\SigAlertesDoublonsController;
 use App\Http\Controllers\SigDetectionAutomatiqueController;
 use App\Http\Controllers\SigEncoursConformiteController;
 use App\Http\Controllers\SigLookupController;
+use App\Http\Controllers\SigParametreController;
 use App\Http\Controllers\SigPersonneLieeController;
 use App\Http\Controllers\SigStaffController;
 use App\Http\Controllers\UserController;
@@ -121,6 +122,12 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::prefix('suivi-signature')->name('suivi-signature.')->group(function () {
+        Route::get('parametrage', [SigParametreController::class, 'edit'])
+            ->middleware('role:admin,conformite')
+            ->name('parametrage.edit');
+        Route::put('parametrage', [SigParametreController::class, 'update'])
+            ->middleware('role:admin,conformite')
+            ->name('parametrage.update');
         Route::get('lookup-client', [SigLookupController::class, 'lookupFormRedirect'])->name('lookup-client.get');
         Route::post('lookup-client', [SigLookupController::class, 'lookup'])->name('lookup-client');
         Route::post('personne-liee/resolve-matricule', [SigLookupController::class, 'resolvePersonneLieeParMatricule'])

@@ -28,7 +28,7 @@ class SuiviSignatureEncoursSeuilDepasseNotification extends Notification
     public function toArray(object $notifiable): array
     {
         $taux = $this->staff->tauxEncoursFondsPropres();
-        $seuil = config('sig.encours_taux_seuil_pct', 10);
+        $seuil = \App\Models\SigParametre::current()->seuilTauxPct();
 
         return [
             'title' => 'Suivi signature — seuil d’encours dépassé',

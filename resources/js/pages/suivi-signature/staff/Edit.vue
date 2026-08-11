@@ -192,7 +192,9 @@ const submit = () => {
                     <div>
                         <Label for="fonds_propres">Fonds propres (référence taux)</Label>
                         <Input id="fonds_propres" v-model="form.fonds_propres" type="number" step="0.01" min="0" class="mt-1.5" />
-                        <p class="text-muted-foreground mt-1 text-xs">Utilisé pour (encours total / fonds propres) × 100. Seuil : 10 % (configurable).</p>
+                        <p class="text-muted-foreground mt-1 text-xs">
+                            Priorité au paramétrage global (Suivi signature → Paramétrage). Sinon, cette valeur de fiche est utilisée.
+                        </p>
                     </div>
                     <div>
                         <Label>Encours total (recalculé)</Label>

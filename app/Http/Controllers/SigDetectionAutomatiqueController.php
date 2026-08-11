@@ -104,8 +104,8 @@ class SigDetectionAutomatiqueController extends Controller
         $validated = $request->validate([
             'matricule_staff' => 'required|string|max:100',
             'matricule_personnel_lie' => 'required|string|max:100',
-            'type_relation' => 'nullable|string|max:255',
-            'type_liaison' => 'nullable|string|max:255',
+            'type_relation' => ['required', 'string', 'max:255', \App\Support\SigTypeRelation::rule()],
+            'complement' => 'nullable|string|max:255',
             'classe' => 'nullable|integer|min:1|max:4',
             'nom_staff' => 'nullable|string|max:255',
             'telephone_staff' => 'nullable|string|max:50',
@@ -117,9 +117,10 @@ class SigDetectionAutomatiqueController extends Controller
 
         $matriculeStaff = trim($validated['matricule_staff']);
         $matriculeClient = trim($validated['matricule_personnel_lie']);
-        $typeRelation = trim((string) ($validated['type_relation'] ?? $validated['type_liaison'] ?? ''));
-        if ($typeRelation === '') {
-            $typeRelation = 'Lié SI';
+        $typeRelation = $validated['type_relation'];
+        $complement = trim((string) ($validated['complement'] ?? ''));
+        if ($complement !== '') {
+            $typeRelation .= ' — '.$complement;
         }
         $classe = max(1, min(4, (int) ($validated['classe'] ?? 2)));
 
@@ -187,8 +188,8 @@ class SigDetectionAutomatiqueController extends Controller
         $staff->refresh();
         $sumLiees = (float) $staff->personnesLiees()->sum('encours_credit');
         $totalProjete = (float) $staff->encours_staff_si + $sumLiees + (float) $personne->encours_credit;
-        $fp = (float) ($staff->fonds_propres ?? 0);
-        $seuil = (float) config('sig.encours_taux_seuil_pct', 10);
+        $fp = (float) ($staff->fondsPropresReference() ?? 0);
+        $seuil = \App\Models\SigParametre::current()->seuilTauxPct();
         if ($fp > 0 && ($totalProjete / $fp) * 100 > $seuil) {
             return back()->with('error', 'Liaison refusée : le seuil d’encours / fonds propres serait dépassé.');
         }

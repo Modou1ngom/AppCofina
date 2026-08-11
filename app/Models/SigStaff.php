@@ -94,10 +94,29 @@ class SigStaff extends Model
         return round((float) $this->encours_staff_si + $this->sommeEncoursPersonnesLiees(), 2);
     }
 
+    /**
+     * Fonds propres de référence : paramètre global, sinon valeur de la fiche.
+     */
+    public function fondsPropresReference(): ?float
+    {
+        $global = SigParametre::current()->fondsPropresReference();
+        if ($global !== null) {
+            return $global;
+        }
+
+        if ($this->fonds_propres === null) {
+            return null;
+        }
+
+        $fp = (float) $this->fonds_propres;
+
+        return $fp > 0 ? $fp : null;
+    }
+
     public function tauxEncoursFondsPropres(): ?float
     {
-        $fp = (float) ($this->fonds_propres ?? 0);
-        if ($fp <= 0) {
+        $fp = $this->fondsPropresReference();
+        if ($fp === null || $fp <= 0) {
             return null;
         }
 
@@ -106,7 +125,7 @@ class SigStaff extends Model
 
     public function depasseSeuilEncours(?float $seuilPct = null): bool
     {
-        $seuil = $seuilPct ?? (float) config('sig.encours_taux_seuil_pct', 10);
+        $seuil = $seuilPct ?? SigParametre::current()->seuilTauxPct();
         $taux = $this->tauxEncoursFondsPropres();
         if ($taux === null) {
             return false;
@@ -146,8 +165,8 @@ class SigStaff extends Model
     {
         $this->refresh();
 
-        $seuil = (float) config('sig.encours_taux_seuil_pct', 10);
-        $fp = $this->fonds_propres !== null ? (float) $this->fonds_propres : 0.0;
+        $seuil = SigParametre::current()->seuilTauxPct();
+        $fp = $this->fondsPropresReference() ?? 0.0;
         $encCons = $this->encoursTotal();
         $taux = $this->tauxEncoursFondsPropres();
         $depasse = $this->depasseSeuilEncours($seuil);
@@ -213,19 +232,27 @@ class SigStaff extends Model
     public function metriquesEncoursPourVue(): array
     {
         $this->loadMissing('personnesLiees');
+        $params = SigParametre::current();
         $liees = $this->sommeEncoursPersonnesLiees();
         $staffSi = (float) $this->encours_staff_si;
         $total = $this->encoursTotal();
         $taux = $this->tauxEncoursFondsPropres();
-        $seuil = (float) config('sig.encours_taux_seuil_pct', 10);
+        $seuil = $params->seuilTauxPct();
+        $fp = $this->fondsPropresReference();
+        $plafond = ($fp !== null && $fp > 0) ? round($fp * ($seuil / 100), 2) : null;
+        $ecart = $plafond !== null ? round($plafond - $total, 2) : null;
 
         return [
             'encours_staff_si' => $staffSi,
             'encours_personnes_liees' => $liees,
             'encours_total' => $total,
-            'fonds_propres' => $this->fonds_propres !== null ? (float) $this->fonds_propres : null,
+            'fonds_propres' => $fp,
+            'plafond_reglementaire' => $plafond,
+            'ecart' => $ecart,
             'taux_encours_pct' => $taux,
             'seuil_taux_pct' => $seuil,
+            'alerte_taux_pct' => $params->alerteTauxPct(),
+            'statut_conformite' => $params->statutConformitePourRatio($taux),
             'depasse_seuil_encours' => $this->depasseSeuilEncours(),
             'liaison_bloquee_encours' => $this->liaisonPersonnesLieesBloquee(),
         ];

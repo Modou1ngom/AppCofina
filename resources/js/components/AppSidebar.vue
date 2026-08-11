@@ -120,6 +120,10 @@ const mainNavItems = computed<NavItem[]>(() => {
                         title: 'Rapport encours / fonds propres',
                         href: '/suivi-signature/conformite/rapport-encours',
                     },
+                    {
+                        title: 'Paramétrage',
+                        href: '/suivi-signature/parametrage',
+                    },
                 ],
             },
             {
@@ -238,6 +242,10 @@ const mainNavItems = computed<NavItem[]>(() => {
                 {
                     title: 'Rapport encours / fonds propres',
                     href: '/suivi-signature/conformite/rapport-encours',
+                },
+                {
+                    title: 'Paramétrage',
+                    href: '/suivi-signature/parametrage',
                 },
             ],
         });
