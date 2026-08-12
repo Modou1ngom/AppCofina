@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Helpers\FilialeHelper;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -35,11 +36,13 @@ class SigOracleReportGroupeHttpClient
         }
 
         $url = $this->url(config('sig_oracle_report_groupe.http.lookup_personnel_path'));
+        $pays = FilialeHelper::oraclePaysPrefix();
 
         try {
             $request = Http::timeout((int) config('sig_oracle_report_groupe.http.timeout', 30))
                 ->acceptJson()
-                ->asJson();
+                ->asJson()
+                ->withHeaders($this->paysHeaders($pays));
 
             if (! config('sig_oracle_report_groupe.http.verify_ssl')) {
                 $request = $request->withoutVerifying();
@@ -50,10 +53,14 @@ class SigOracleReportGroupeHttpClient
                 $request = $request->withToken($token);
             }
 
-            $response = $request->post($url, ['matricule' => $matricule]);
+            $response = $request->post($url, [
+                'matricule' => $matricule,
+                'pays' => $pays,
+            ]);
         } catch (Throwable $e) {
             Log::warning('SigOracle HTTP: échec lookup personnel', [
                 'matricule' => $matricule,
+                'pays' => $pays,
                 'message' => $e->getMessage(),
             ]);
 
@@ -63,6 +70,7 @@ class SigOracleReportGroupeHttpClient
         if (! $response->successful()) {
             Log::warning('SigOracle HTTP: réponse HTTP erreur lookup personnel', [
                 'matricule' => $matricule,
+                'pays' => $pays,
                 'status' => $response->status(),
             ]);
 
@@ -86,13 +94,15 @@ class SigOracleReportGroupeHttpClient
             return [];
         }
 
+        $pays = FilialeHelper::oraclePaysPrefix();
         $path = (string) config('sig_oracle_report_groupe.http.staff_liees_path');
         $path = str_replace('{matricule}', rawurlencode($matricule), $path);
-        $url = $this->url($path);
+        $url = $this->urlWithPays($path, $pays);
 
         try {
             $request = Http::timeout((int) config('sig_oracle_report_groupe.http.timeout', 30))
-                ->acceptJson();
+                ->acceptJson()
+                ->withHeaders($this->paysHeaders($pays));
 
             if (! config('sig_oracle_report_groupe.http.verify_ssl')) {
                 $request = $request->withoutVerifying();
@@ -107,6 +117,7 @@ class SigOracleReportGroupeHttpClient
         } catch (Throwable $e) {
             Log::warning('SigOracle HTTP: échec personnes liées', [
                 'matricule' => $matricule,
+                'pays' => $pays,
                 'message' => $e->getMessage(),
             ]);
 
@@ -131,12 +142,14 @@ class SigOracleReportGroupeHttpClient
             return [];
         }
 
+        $pays = FilialeHelper::oraclePaysPrefix();
         $path = (string) config('sig_oracle_report_groupe.http.detection_staff_clients_path');
-        $url = $this->url($path);
+        $url = $this->urlWithPays($path, $pays);
 
         try {
             $request = Http::timeout(max(60, (int) config('sig_oracle_report_groupe.http.timeout', 30)))
-                ->acceptJson();
+                ->acceptJson()
+                ->withHeaders($this->paysHeaders($pays));
 
             if (! config('sig_oracle_report_groupe.http.verify_ssl')) {
                 $request = $request->withoutVerifying();
@@ -150,6 +163,7 @@ class SigOracleReportGroupeHttpClient
             $response = $request->get($url);
         } catch (Throwable $e) {
             Log::warning('SigOracle HTTP: échec détection staff-clients', [
+                'pays' => $pays,
                 'message' => $e->getMessage(),
             ]);
 
@@ -158,6 +172,7 @@ class SigOracleReportGroupeHttpClient
 
         if (! $response->successful()) {
             Log::warning('SigOracle HTTP: réponse erreur détection staff-clients', [
+                'pays' => $pays,
                 'status' => $response->status(),
             ]);
 
@@ -194,12 +209,14 @@ class SigOracleReportGroupeHttpClient
             return [];
         }
 
+        $pays = FilialeHelper::oraclePaysPrefix();
         $path = (string) config('sig_oracle_report_groupe.http.alertes_doublons_clients_path');
-        $url = $this->url($path);
+        $url = $this->urlWithPays($path, $pays);
 
         try {
             $request = Http::timeout(max(180, (int) config('sig_oracle_report_groupe.http.timeout', 30)))
-                ->acceptJson();
+                ->acceptJson()
+                ->withHeaders($this->paysHeaders($pays));
 
             if (! config('sig_oracle_report_groupe.http.verify_ssl')) {
                 $request = $request->withoutVerifying();
@@ -213,6 +230,7 @@ class SigOracleReportGroupeHttpClient
             $response = $request->get($url);
         } catch (Throwable $e) {
             Log::warning('SigOracle HTTP: échec alertes doublons clients', [
+                'pays' => $pays,
                 'message' => $e->getMessage(),
             ]);
 
@@ -221,6 +239,7 @@ class SigOracleReportGroupeHttpClient
 
         if (! $response->successful()) {
             Log::warning('SigOracle HTTP: réponse erreur alertes doublons clients', [
+                'pays' => $pays,
                 'status' => $response->status(),
             ]);
 
@@ -272,12 +291,31 @@ class SigOracleReportGroupeHttpClient
         }
     }
 
+    /**
+     * @return array<string, string>
+     */
+    private function paysHeaders(string $pays): array
+    {
+        return [
+            'X-Oracle-Pays' => $pays,
+            'X-Pays' => $pays,
+        ];
+    }
+
     private function url(string $path): string
     {
         $base = rtrim((string) config('sig_oracle_report_groupe.http.base_url'), '/');
         $path = $path[0] === '/' ? $path : '/'.$path;
 
         return $base.$path;
+    }
+
+    private function urlWithPays(string $path, string $pays): string
+    {
+        $url = $this->url($path);
+        $sep = str_contains($url, '?') ? '&' : '?';
+
+        return $url.$sep.'pays='.rawurlencode($pays);
     }
 
     /**

@@ -2,14 +2,28 @@
 
 namespace App\Models;
 
+use App\Helpers\FilialeHelper;
+use App\Traits\HasFilialeScope;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\QueryException;
 
 class SigPersonneLiee extends Model
 {
+    use HasFilialeScope;
+
     protected static function booted(): void
     {
+        static::creating(function (SigPersonneLiee $personne): void {
+            if (! $personne->filiale_id) {
+                $filialeId = FilialeHelper::getCurrentFilialeId();
+                if ($filialeId) {
+                    $personne->filiale_id = (int) $filialeId;
+                }
+            }
+        });
+
         static::saved(function (SigPersonneLiee $personneLiee): void {
             if (! $personneLiee->wasChanged('encours_credit')) {
                 return;
@@ -24,6 +38,7 @@ class SigPersonneLiee extends Model
     protected $table = 'sig_personnes_liees';
 
     protected $fillable = [
+        'filiale_id',
         'numero_client',
         'est_personne_morale',
         'prenom',
@@ -41,6 +56,11 @@ class SigPersonneLiee extends Model
             'est_personne_morale' => 'boolean',
             'encours_credit' => 'decimal:2',
         ];
+    }
+
+    public function filiale(): BelongsTo
+    {
+        return $this->belongsTo(Filiale::class, 'filiale_id');
     }
 
     public function staffs(): BelongsToMany
@@ -112,10 +132,12 @@ class SigPersonneLiee extends Model
             : $pieceType;
 
         $enc = static::encoursFromSiPayload($siData) ?? 0.0;
+        $filialeId = FilialeHelper::getCurrentFilialeId();
 
         if ($morale) {
             $rs = trim((string) ($siData['raison_sociale'] ?? $siData['prenom_nom'] ?? ''));
             $defaults = [
+                'filiale_id' => $filialeId,
                 'est_personne_morale' => true,
                 'prenom' => null,
                 'nom' => null,
@@ -129,6 +151,7 @@ class SigPersonneLiee extends Model
             $prenom = isset($siData['prenom']) ? trim((string) $siData['prenom']) : '';
             $nom = isset($siData['nom']) ? trim((string) $siData['nom']) : '';
             $defaults = [
+                'filiale_id' => $filialeId,
                 'est_personne_morale' => false,
                 'prenom' => $prenom !== '' ? $prenom : null,
                 'nom' => $nom !== '' ? $nom : null,
@@ -142,7 +165,10 @@ class SigPersonneLiee extends Model
 
         try {
             return static::query()->firstOrCreate(
-                ['numero_client' => $numero],
+                [
+                    'numero_client' => $numero,
+                    'filiale_id' => $filialeId,
+                ],
                 $defaults
             );
         } catch (QueryException $e) {

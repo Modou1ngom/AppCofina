@@ -1,4 +1,4 @@
--- Pas de table SN_* dédiée pour l'instant.
+-- Pas de table {CC}_* dédiée pour l'instant.
 SELECT
     CAST(NULL AS VARCHAR2(50)) AS CLIENT,
     CAST(NULL AS VARCHAR2(100)) AS TYPE_DE_LIEN,

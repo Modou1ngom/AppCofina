@@ -29,6 +29,7 @@ interface Ligne {
     matricule_personnel_lie: string;
     encours_personne_liee: number;
     type_liaison: string;
+    type_relation?: string | null;
     detail_liaison?: string | null;
     staff_local_id?: number | null;
     deja_lie?: boolean;
@@ -87,9 +88,23 @@ function initials(name: string): string {
 
 function badgeLiaison(type: string): string {
     const t = (type || '').toLowerCase();
+    if (t.includes('préciser') || t.includes('preciser') || t === '—' || t === '') {
+        return 'border-amber-200 bg-amber-50 text-amber-800';
+    }
     if (t.includes('caution')) return 'border-amber-200 bg-amber-50 text-amber-800';
     if (t.includes('cotitul')) return 'border-sky-200 bg-sky-50 text-sky-800';
-    return 'border-gray-200 bg-gray-50 text-gray-700';
+    return 'border-slate-200 bg-slate-50 text-slate-700';
+}
+
+function libelleTypeRelation(l: Ligne): string {
+    if (l.deja_lie && l.type_relation?.trim()) {
+        return l.type_relation.trim();
+    }
+    const t = (l.type_liaison || '').trim();
+    if (!t || t === '—' || /^détection\s*auto$/i.test(t)) {
+        return 'À préciser';
+    }
+    return t;
 }
 
 const applyFilters = (overrideAction?: string) => {
@@ -327,7 +342,7 @@ function validerLiaison() {
                                 <th class="p-3 text-right font-medium">Encours staff</th>
                                 <th class="p-3 font-medium">Personne liée</th>
                                 <th class="p-3 text-right font-medium">Encours lié</th>
-                                <th class="p-3 font-medium">Relation</th>
+                                <th class="p-3 font-medium">Type de relation</th>
                                 <th class="p-3 text-right font-medium">Action</th>
                             </tr>
                         </thead>
@@ -381,16 +396,16 @@ function validerLiaison() {
                                 <td class="p-3">
                                     <span
                                         class="inline-flex rounded-md border px-2 py-0.5 text-xs font-medium"
-                                        :class="badgeLiaison(l.type_liaison)"
+                                        :class="badgeLiaison(libelleTypeRelation(l))"
                                     >
-                                        {{ l.type_liaison || '—' }}
+                                        {{ libelleTypeRelation(l) }}
                                     </span>
                                     <div
                                         v-if="l.detail_liaison"
                                         class="text-muted-foreground mt-1 max-w-[170px] truncate text-xs"
-                                        :title="l.detail_liaison"
+                                        :title="`Compte SI : ${l.detail_liaison}`"
                                     >
-                                        {{ l.detail_liaison }}
+                                        Compte {{ l.detail_liaison }}
                                     </div>
                                 </td>
                                 <td class="p-3 text-right">
@@ -459,14 +474,14 @@ function validerLiaison() {
                             </div>
                             <div>
                                 <dt class="text-muted-foreground text-xs uppercase tracking-wide">
-                                    Type de liaison
+                                    Type de liaison SI
                                 </dt>
                                 <dd class="mt-1">
                                     <span
                                         class="inline-flex rounded-md border px-2 py-0.5 text-xs font-medium"
-                                        :class="badgeLiaison(ligneSelectionnee.type_liaison)"
+                                        :class="badgeLiaison(libelleTypeRelation(ligneSelectionnee))"
                                     >
-                                        {{ ligneSelectionnee.type_liaison || '—' }}
+                                        {{ libelleTypeRelation(ligneSelectionnee) }}
                                     </span>
                                 </dd>
                             </div>
@@ -480,11 +495,11 @@ function validerLiaison() {
                             </div>
                             <div class="sm:col-span-2">
                                 <dt class="text-muted-foreground text-xs uppercase tracking-wide">
-                                    Détail relation
+                                    Compte SI
                                 </dt>
-                                <dd class="mt-1 rounded-md border bg-background px-3 py-2 text-gray-900">
+                                <dd class="mt-1 rounded-md border bg-background px-3 py-2 font-mono text-sm text-gray-900">
                                     {{
-                                        ligneSelectionnee.detail_liaison?.trim() || 'Aucun détail complémentaire'
+                                        ligneSelectionnee.detail_liaison?.trim() || 'Non renseigné'
                                     }}
                                 </dd>
                             </div>

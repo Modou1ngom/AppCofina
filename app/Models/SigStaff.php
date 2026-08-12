@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Helpers\FilialeHelper;
 use App\Notifications\SuiviSignatureEncoursSeuilDepasseNotification;
+use App\Traits\HasFilialeScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -12,9 +14,28 @@ use Illuminate\Support\Facades\Cache;
 
 class SigStaff extends Model
 {
+    use HasFilialeScope;
+
     protected $table = 'sig_staffs';
 
+    protected static function booted(): void
+    {
+        static::creating(function (SigStaff $staff): void {
+            if ($staff->filiale_id) {
+                return;
+            }
+            $filialeId = FilialeHelper::getCurrentFilialeId();
+            if (! $filialeId && $staff->profile_id) {
+                $filialeId = Profil::query()->whereKey($staff->profile_id)->value('filiale_id');
+            }
+            if ($filialeId) {
+                $staff->filiale_id = (int) $filialeId;
+            }
+        });
+    }
+
     protected $fillable = [
+        'filiale_id',
         'reference',
         'numero_client_si',
         'profile_id',
@@ -47,6 +68,11 @@ class SigStaff extends Model
     public function profile(): BelongsTo
     {
         return $this->belongsTo(Profil::class, 'profile_id');
+    }
+
+    public function filiale(): BelongsTo
+    {
+        return $this->belongsTo(Filiale::class, 'filiale_id');
     }
 
     /**
@@ -326,6 +352,8 @@ class SigStaff extends Model
 
         try {
             $staff = static::query()->create([
+                'filiale_id' => FilialeHelper::getCurrentFilialeId()
+                    ?? ($profileId ? Profil::query()->whereKey($profileId)->value('filiale_id') : null),
                 'reference' => $numero,
                 'numero_client_si' => $numero,
                 'profile_id' => $profileId,

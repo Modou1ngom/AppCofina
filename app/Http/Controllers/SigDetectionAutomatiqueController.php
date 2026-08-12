@@ -62,8 +62,16 @@ class SigDetectionAutomatiqueController extends Controller
             $r['staff_local_id'] = $local?->id;
             $r['deja_lie'] = false;
             if ($local && $client !== '') {
-                $r['deja_lie'] = $local->personnesLiees
-                    ->contains(fn (SigPersonneLiee $p) => trim((string) $p->numero_client) === $client);
+                $liee = $local->personnesLiees->first(
+                    fn (SigPersonneLiee $p) => trim((string) $p->numero_client) === $client
+                );
+                if ($liee !== null) {
+                    $r['deja_lie'] = true;
+                    $pivotType = trim((string) ($liee->pivot->type_relation ?? ''));
+                    if ($pivotType !== '') {
+                        $r['type_relation'] = $pivotType;
+                    }
+                }
             }
 
             return $r;

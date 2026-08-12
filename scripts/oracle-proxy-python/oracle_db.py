@@ -91,6 +91,112 @@ def load_sql(*env_keys: str, default_file: str, file_env: str | None = None) -> 
     return read_sql_file(default_file) or ""
 
 
+# Alias nom pays / filiale → préfixe tables Oracle ({CC}_KYC, …)
+_PAYS_ALIASES: dict[str, str] = {
+    # Sénégal
+    "SENEGAL": "SN",
+    "SN": "SN",
+    # Togo
+    "TOGO": "TG",
+    "TG": "TG",
+    # Congo Brazzaville
+    "CONGO": "CG",
+    "CONGO BRAZZAVILLE": "CG",
+    "REPUBLIQUE DU CONGO": "CG",
+    "CG": "CG",
+    # Côte d'Ivoire
+    "COTE D IVOIRE": "CI",
+    "COTE DIVOIRE": "CI",
+    "COTE-DIVOIRE": "CI",
+    "IVOIRE": "CI",
+    "CI": "CI",
+    # Guinée
+    "GUINEE": "GN",
+    "GUINEE CONAKRY": "GN",
+    "GN": "GN",
+    # Mali
+    "MALI": "ML",
+    "ML": "ML",
+    # Burkina Faso
+    "BURKINA FASO": "BF",
+    "BURKINA": "BF",
+    "BF": "BF",
+    # Bénin
+    "BENIN": "BJ",
+    "BJ": "BJ",
+    # Gabon
+    "GABON": "GA",
+    "GA": "GA",
+    # Cameroun
+    "CAMEROUN": "CM",
+    "CM": "CM",
+    # RDC
+    "RDC": "CD",
+    "CONGO KINSHASA": "CD",
+    "REPUBLIQUE DEMOCRATIQUE DU CONGO": "CD",
+    "CD": "CD",
+}
+
+
+def _ascii_upper(value: str) -> str:
+    import unicodedata
+
+    norm = unicodedata.normalize("NFKD", value)
+    norm = "".join(c for c in norm if not unicodedata.combining(c))
+    # Apostrophes / tirets → espace pour matcher "COTE D IVOIRE"
+    norm = re.sub(r"[''`]", " ", norm)
+    norm = re.sub(r"\s+", " ", norm).strip().upper()
+    return norm
+
+
+def normalize_pays_prefix(raw: str | None) -> str:
+    """Préfixe table pays : SN, TG, CG, … (2–3 lettres A–Z). Défaut ORACLE_PAYS_PREFIX ou SN."""
+    candidate = (raw or "").strip()
+    if not candidate:
+        candidate = get_env("ORACLE_PAYS_PREFIX", "SN").strip()
+    norm = _ascii_upper(candidate)
+
+    if norm in _PAYS_ALIASES:
+        return _PAYS_ALIASES[norm]
+
+    # Contient un alias long (priorité au plus long)
+    best: tuple[int, str] | None = None
+    for alias, prefix in _PAYS_ALIASES.items():
+        if len(alias) < 4:
+            continue
+        if alias in norm or norm in alias:
+            if best is None or len(alias) > best[0]:
+                best = (len(alias), prefix)
+    if best is not None:
+        return best[1]
+
+    if re.fullmatch(r"[A-Z]{2,3}", norm):
+        return norm
+    return "SN"
+
+
+def apply_pays_prefix(sql: str, pays: str | None = None) -> str:
+    """Remplace {CC} / {PAYS} par le préfixe pays (ex. SN_KYC, TG_KYC)."""
+    if not sql:
+        return sql
+    prefix = normalize_pays_prefix(pays)
+    out = sql.replace("{CC}", prefix).replace("{PAYS}", prefix)
+    # Compat : SQL encore en dur SN_* → préfixe demandé
+    if prefix != "SN":
+        for table in (
+            "DETECTION_AUTOMATIQUE",
+            "ENCOURS_CLIENT",
+            "KYC",
+        ):
+            out = re.sub(
+                rf"\bSN_{table}\b",
+                f"{prefix}_{table}",
+                out,
+                flags=re.IGNORECASE,
+            )
+    return out
+
+
 def connect():
     import oracledb
 

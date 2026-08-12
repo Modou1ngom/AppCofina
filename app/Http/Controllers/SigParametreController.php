@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\FilialeHelper;
+use App\Models\Filiale;
 use App\Models\SigParametre;
 use App\Models\SigStaff;
 use Illuminate\Http\RedirectResponse;
@@ -18,8 +20,14 @@ class SigParametreController extends Controller
             abort(403);
         }
 
+        $filialeId = FilialeHelper::getCurrentFilialeId();
+        $filialeNom = $filialeId
+            ? Filiale::query()->whereKey($filialeId)->value('nom')
+            : null;
+
         return Inertia::render('suivi-signature/Parametrage', [
             'parametres' => SigParametre::current()->toVueArray(),
+            'environnement' => $filialeNom,
         ]);
     }
 
@@ -56,7 +64,7 @@ class SigParametreController extends Controller
             'alerte_taux_pct' => $alerte,
         ]);
 
-        // Recalcule les transitions conformité sur les fiches actives (fonds propres / seuils changés).
+        // Recalcule les transitions conformité sur les fiches actives de cet environnement.
         SigStaff::query()
             ->where('statut', 'actif')
             ->orderBy('id')
@@ -66,6 +74,6 @@ class SigParametreController extends Controller
                 }
             });
 
-        return back()->with('success', 'Paramètres de conformité enregistrés.');
+        return back()->with('success', 'Paramètres de conformité enregistrés pour cet environnement.');
     }
 }

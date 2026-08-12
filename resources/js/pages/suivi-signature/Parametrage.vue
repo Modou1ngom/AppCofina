@@ -26,7 +26,10 @@ interface Parametres {
     alerte_taux_pct: number;
 }
 
-const props = defineProps<{ parametres: Parametres }>();
+const props = defineProps<{
+    parametres: Parametres;
+    environnement?: string | null;
+}>();
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Suivi signature — Staff', href: '/suivi-signature/staff' },
@@ -97,7 +100,12 @@ const submit = () => {
                                     <h1 class="text-2xl font-bold tracking-tight text-white sm:text-3xl">
                                         Paramétrage conformité
                                     </h1>
-                                    
+                                    <p v-if="environnement" class="mt-1 text-sm text-white/70">
+                                        Environnement : {{ environnement }}
+                                    </p>
+                                    <p v-else class="mt-1 text-sm text-white/70">
+                                        Fonds propres, seuils et plafond réglementaire.
+                                    </p>
                                 </div>
                             </div>
 

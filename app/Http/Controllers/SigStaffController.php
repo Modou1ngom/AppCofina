@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Profil;
+use App\Helpers\FilialeHelper;
 use App\Models\SigPersonneLiee;
 use App\Models\SigStaff;
 use App\Models\SigStaffEncoursConformiteEvent;
 use App\Services\SigSiLookupService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -222,6 +224,7 @@ class SigStaffController extends Controller
             : (string) ($siData['nom'] ?? '');
 
         return [
+            'filiale_id' => $profil->filiale_id ? (int) $profil->filiale_id : FilialeHelper::getCurrentFilialeId(),
             'reference' => (string) ($siData['matricule'] ?? $profil->matricule),
             'numero_client_si' => null,
             'profile_id' => $profil->id,
@@ -406,7 +409,14 @@ class SigStaffController extends Controller
         }
 
         $validated = $request->validate([
-            'reference' => 'required|string|max:100|unique:sig_staffs,reference',
+            'reference' => [
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('sig_staffs', 'reference')->where(
+                    fn ($q) => $q->where('filiale_id', FilialeHelper::getCurrentFilialeId())
+                ),
+            ],
             'prenom' => 'required|string|max:255',
             'nom' => 'required|string|max:255',
             'fonction' => 'nullable|string|max:255',
@@ -421,6 +431,7 @@ class SigStaffController extends Controller
             'score_risque' => 'nullable|numeric|min:0',
         ]);
 
+        $validated['filiale_id'] = FilialeHelper::getCurrentFilialeId();
         $validated['profile_id'] = null;
         $validated['type_personne'] = 'administrateur';
         $validated['encours_staff_si'] = $validated['encours_staff_si'] ?? $validated['encours_credit_individuel'] ?? 0;
@@ -438,7 +449,14 @@ class SigStaffController extends Controller
     {
         $validated = $request->validate([
             'si_confirmed' => 'required|accepted',
-            'reference' => 'required|string|max:100|unique:sig_staffs,reference',
+            'reference' => [
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('sig_staffs', 'reference')->where(
+                    fn ($q) => $q->where('filiale_id', FilialeHelper::getCurrentFilialeId())
+                ),
+            ],
             'numero_client_si' => 'nullable|string|max:100',
             'profile_id' => 'nullable|exists:profiles,id',
             'prenom' => 'required|string|max:255',
@@ -456,6 +474,7 @@ class SigStaffController extends Controller
             'score_risque' => 'nullable|numeric|min:0',
         ]);
 
+        $validated['filiale_id'] = FilialeHelper::getCurrentFilialeId();
         $validated['encours_staff_si'] = $validated['encours_staff_si'] ?? $validated['encours_credit_individuel'] ?? 0;
         unset($validated['encours_credit_individuel'], $validated['si_confirmed']);
         $validated['encours_credit_individuel'] = 0;
@@ -917,6 +936,12 @@ class SigStaffController extends Controller
         if (! $user) {
             abort(403);
         }
+
+        $currentFilialeId = FilialeHelper::getCurrentFilialeId();
+        if ($currentFilialeId && (int) $staff->filiale_id !== (int) $currentFilialeId) {
+            abort(404);
+        }
+
         if ($user->isAdmin() || $user->isConformite()) {
             return;
         }

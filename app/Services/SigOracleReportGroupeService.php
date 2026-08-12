@@ -246,8 +246,9 @@ class SigOracleReportGroupeService
             'nom_personne_liee' => $this->string($r, ['nom_personne_liee', 'full_name_client', 'client_full_name']) ?? '—',
             'matricule_personnel_lie' => $this->string($r, ['matricule_personnel_lie', 'numero_client', 'cust_ac_no']) ?? '—',
             'encours_personne_liee' => $float($r['encours_personne_liee'] ?? $r['encours_client'] ?? 0),
-            'type_liaison' => $this->string($r, ['type_liaison', 'type_relation']) ?? '—',
-            'detail_liaison' => $this->string($r, ['detail_liaison', 'detail_relation']),
+            'type_liaison' => $this->string($r, ['type_liaison', 'type_relation']) ?? 'À préciser',
+            'type_relation' => $this->string($r, ['type_relation']),
+            'detail_liaison' => $this->string($r, ['detail_liaison', 'detail_relation', 'cust_ac_no']),
         ];
     }
 

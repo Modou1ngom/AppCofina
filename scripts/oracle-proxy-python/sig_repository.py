@@ -1,6 +1,7 @@
 """
 Logique métier SIG : filtres, jointures logiques et mapping API.
-Les fichiers sql/*.sql restent des SELECT bruts sur les tables SN_*.
+Les fichiers sql/*.sql restent des SELECT bruts avec placeholder {CC}
+(ex. SN_KYC, TG_KYC selon l'environnement / pays).
 """
 
 from __future__ import annotations
@@ -40,34 +41,43 @@ def customer_from_account(cust_ac_no: str) -> str:
     return ac
 
 
-def load_kyc_sql() -> str:
-    return db.load_sql(
-        "ORACLE_REPORT_GROUPE_LOOKUP_PERSONNEL_SQL",
-        "ORACLE_LOOKUP_PERSONNEL_SQL",
-        default_file="sql/kyc_by_customer.sql",
-        file_env="ORACLE_LOOKUP_PERSONNEL_SQL_FILE",
+def load_kyc_sql(pays: str | None = None) -> str:
+    return db.apply_pays_prefix(
+        db.load_sql(
+            "ORACLE_REPORT_GROUPE_LOOKUP_PERSONNEL_SQL",
+            "ORACLE_LOOKUP_PERSONNEL_SQL",
+            default_file="sql/kyc_by_customer.sql",
+            file_env="ORACLE_LOOKUP_PERSONNEL_SQL_FILE",
+        ),
+        pays,
     )
 
 
-def load_encours_sql() -> str:
-    return db.load_sql(
-        "ORACLE_ENCOURS_SQL",
-        "ORACLE_REPORT_GROUPE_ENCOURS_SQL",
-        default_file="sql/encours_client.sql",
-        file_env="ORACLE_ENCOURS_SQL_FILE",
+def load_encours_sql(pays: str | None = None) -> str:
+    return db.apply_pays_prefix(
+        db.load_sql(
+            "ORACLE_ENCOURS_SQL",
+            "ORACLE_REPORT_GROUPE_ENCOURS_SQL",
+            default_file="sql/encours_client.sql",
+            file_env="ORACLE_ENCOURS_SQL_FILE",
+        ),
+        pays,
     )
 
 
-def load_detection_sql() -> str:
-    return db.load_sql(
-        "ORACLE_DETECTION_STAFF_CLIENTS_SQL",
-        "ORACLE_REPORT_GROUPE_DETECTION_STAFF_CLIENTS_SQL",
-        default_file="sql/detection_staff_clients.sql",
-        file_env="ORACLE_DETECTION_STAFF_CLIENTS_SQL_FILE",
+def load_detection_sql(pays: str | None = None) -> str:
+    return db.apply_pays_prefix(
+        db.load_sql(
+            "ORACLE_DETECTION_STAFF_CLIENTS_SQL",
+            "ORACLE_REPORT_GROUPE_DETECTION_STAFF_CLIENTS_SQL",
+            default_file="sql/detection_staff_clients.sql",
+            file_env="ORACLE_DETECTION_STAFF_CLIENTS_SQL_FILE",
+        ),
+        pays,
     )
 
 
-def load_staff_liees_sql() -> str:
+def load_staff_liees_sql(pays: str | None = None) -> str:
     # Même source que détection si fichier dédié absent / identique
     sql = db.load_sql(
         "ORACLE_STAFF_LIEES_SQL",
@@ -75,20 +85,29 @@ def load_staff_liees_sql() -> str:
         default_file="sql/staff_clients_liees.sql",
         file_env="ORACLE_STAFF_LIEES_SQL_FILE",
     )
-    return sql or load_detection_sql()
+    sql = sql or db.load_sql(
+        "ORACLE_DETECTION_STAFF_CLIENTS_SQL",
+        "ORACLE_REPORT_GROUPE_DETECTION_STAFF_CLIENTS_SQL",
+        default_file="sql/detection_staff_clients.sql",
+        file_env="ORACLE_DETECTION_STAFF_CLIENTS_SQL_FILE",
+    )
+    return db.apply_pays_prefix(sql, pays)
 
 
-def load_alertes_sql() -> str:
-    return db.load_sql(
-        "ORACLE_ALERTES_DOUBLONS_CLIENTS_SQL",
-        "ORACLE_REPORT_GROUPE_ALERTES_DOUBLONS_CLIENTS_SQL",
-        default_file="sql/alertes_doublons_clients.sql",
-        file_env="ORACLE_ALERTES_DOUBLONS_CLIENTS_SQL_FILE",
+def load_alertes_sql(pays: str | None = None) -> str:
+    return db.apply_pays_prefix(
+        db.load_sql(
+            "ORACLE_ALERTES_DOUBLONS_CLIENTS_SQL",
+            "ORACLE_REPORT_GROUPE_ALERTES_DOUBLONS_CLIENTS_SQL",
+            default_file="sql/alertes_doublons_clients.sql",
+            file_env="ORACLE_ALERTES_DOUBLONS_CLIENTS_SQL_FILE",
+        ),
+        pays,
     )
 
 
-def _kyc_by_matricule(cur, matricule: str) -> dict | None:
-    base = db.strip_sql(load_kyc_sql())
+def _kyc_by_matricule(cur, matricule: str, pays: str | None = None) -> dict | None:
+    base = db.strip_sql(load_kyc_sql(pays))
     if not base:
         return None
     sql = f"""
@@ -110,8 +129,8 @@ def _kyc_by_matricule(cur, matricule: str) -> dict | None:
     return row
 
 
-def _encours_by_matricule(cur, matricule: str) -> dict | None:
-    base = db.strip_sql(load_encours_sql())
+def _encours_by_matricule(cur, matricule: str, pays: str | None = None) -> dict | None:
+    base = db.strip_sql(load_encours_sql(pays))
     if not base:
         return None
     sql = f"""
@@ -157,8 +176,8 @@ def merge_encours(data: dict, enc: dict) -> None:
         data["matricule_client"] = str(enc.get("matricule_client"))
 
 
-def lookup_personnel(matricule: str) -> dict:
-    sql = load_kyc_sql()
+def lookup_personnel(matricule: str, pays: str | None = None) -> dict:
+    sql = load_kyc_sql(pays)
     if not db.strip_sql(sql):
         return {
             "ok": False,
@@ -174,11 +193,11 @@ def lookup_personnel(matricule: str) -> dict:
 
     try:
         with conn.cursor() as cur:
-            data = _kyc_by_matricule(cur, matricule)
+            data = _kyc_by_matricule(cur, matricule, pays)
             if data is None:
                 return {"ok": True, "data": None}
             try:
-                enc = _encours_by_matricule(cur, matricule)
+                enc = _encours_by_matricule(cur, matricule, pays)
                 if enc:
                     merge_encours(data, enc)
             except Exception as e:
@@ -193,19 +212,19 @@ def lookup_personnel(matricule: str) -> dict:
         conn.close()
 
 
-def _fetch_all_detection(cur) -> list[dict]:
-    base = db.strip_sql(load_staff_liees_sql() or load_detection_sql())
+def _fetch_all_detection(cur, pays: str | None = None) -> list[dict]:
+    base = db.strip_sql(load_staff_liees_sql(pays) or load_detection_sql(pays))
     if not base:
         return []
     db.execute(cur, base)
     return db.rows_as_dicts(cur)
 
 
-def _kyc_map(cur, customer_nos: set[str]) -> dict[str, dict]:
+def _kyc_map(cur, customer_nos: set[str], pays: str | None = None) -> dict[str, dict]:
     nos = {n for n in customer_nos if n}
     if not nos:
         return {}
-    base = db.strip_sql(load_kyc_sql())
+    base = db.strip_sql(load_kyc_sql(pays))
     if not base:
         return {}
     # Bind par lots pour éviter une clause IN trop longue
@@ -227,11 +246,11 @@ def _kyc_map(cur, customer_nos: set[str]) -> dict[str, dict]:
     return out
 
 
-def _encours_map(cur, customer_ids: set[str]) -> dict[str, dict]:
+def _encours_map(cur, customer_ids: set[str], pays: str | None = None) -> dict[str, dict]:
     ids = {n for n in customer_ids if n}
     if not ids:
         return {}
-    base = db.strip_sql(load_encours_sql())
+    base = db.strip_sql(load_encours_sql(pays))
     if not base:
         return {}
     out: dict[str, dict] = {}
@@ -252,6 +271,22 @@ def _encours_map(cur, customer_ids: set[str]) -> dict[str, dict]:
     return out
 
 
+def _type_relation_from_row(d: dict) -> str:
+    for k in (
+        "type_relation",
+        "type_liaison",
+        "type_lien",
+        "type_de_lien",
+        "nature_lien",
+        "lib_relation",
+        "relation",
+    ):
+        v = _s(d.get(k))
+        if v and v.lower() not in {"detection auto", "détection auto", "n/a", "na", "—", "-"}:
+            return v
+    return ""
+
+
 def _map_detection_row(d: dict, kyc: dict[str, dict], enc: dict[str, dict]) -> dict | None:
     staff = _s(d.get("kyc_staff"))
     client = customer_from_account(_s(d.get("cust_ac_no")))
@@ -261,6 +296,7 @@ def _map_detection_row(d: dict, kyc: dict[str, dict], enc: dict[str, dict]) -> d
     kc = kyc.get(client, {})
     es = enc.get(staff, {})
     ec = enc.get(client, {})
+    type_rel = _type_relation_from_row(d)
     return {
         "nom_staff": _s(ks.get("full_name")) or staff,
         "encours_staff": _to_float(es.get("encours_total_m")) or 0.0,
@@ -271,7 +307,8 @@ def _map_detection_row(d: dict, kyc: dict[str, dict], enc: dict[str, dict]) -> d
         "nom_personne_liee": _s(kc.get("full_name")) or client,
         "matricule_personnel_lie": client,
         "encours_personne_liee": _to_float(ec.get("encours_total_m")) or 0.0,
-        "type_liaison": "Détection auto",
+        "type_liaison": type_rel or "À préciser",
+        "type_relation": type_rel or None,
         "detail_liaison": _s(d.get("cust_ac_no")) or None,
         "migration_date": d.get("migration_date"),
         "migration_date_minus1": d.get("migration_date_minus1"),
@@ -287,11 +324,12 @@ def _map_liee_row(d: dict, kyc: dict[str, dict]) -> dict | None:
     ctype = _s(cli.get("customer_type")).upper()
     morale = ctype == "C"
     full = _s(cli.get("full_name"))
+    type_rel = _type_relation_from_row(d)
     return {
         "numero_client": client,
         "matricule": client,
         "cust_ac_no": _s(d.get("cust_ac_no")),
-        "type_relation": "Détection auto",
+        "type_relation": type_rel or "À préciser",
         "classe": 2,
         "prenom_nom": full or client,
         "customer_type": ctype or None,
@@ -306,8 +344,8 @@ def _map_liee_row(d: dict, kyc: dict[str, dict]) -> dict | None:
     }
 
 
-def personnes_liees(matricule: str) -> dict:
-    sql = load_staff_liees_sql()
+def personnes_liees(matricule: str, pays: str | None = None) -> dict:
+    sql = load_staff_liees_sql(pays)
     if not db.strip_sql(sql):
         return {
             "ok": True,
@@ -324,13 +362,13 @@ def personnes_liees(matricule: str) -> dict:
     try:
         with conn.cursor() as cur:
             # Résoudre staff (n° client ou n° pièce)
-            staff_row = _kyc_by_matricule(cur, matricule)
+            staff_row = _kyc_by_matricule(cur, matricule, pays)
             staff_no = _s(staff_row.get("customer_no")) if staff_row else matricule
 
-            raw = _fetch_all_detection(cur)
+            raw = _fetch_all_detection(cur, pays)
             raw = [r for r in raw if _s(r.get("kyc_staff")) == staff_no]
             clients = {customer_from_account(_s(r.get("cust_ac_no"))) for r in raw}
-            kyc = _kyc_map(cur, clients)
+            kyc = _kyc_map(cur, clients, pays)
             data = []
             seen = set()
             for r in raw:
@@ -347,8 +385,8 @@ def personnes_liees(matricule: str) -> dict:
         conn.close()
 
 
-def detection_staff_clients() -> dict:
-    sql = load_detection_sql()
+def detection_staff_clients(pays: str | None = None) -> dict:
+    sql = load_detection_sql(pays)
     if not db.strip_sql(sql):
         return {
             "ok": True,
@@ -368,8 +406,8 @@ def detection_staff_clients() -> dict:
             raw = db.rows_as_dicts(cur)
             staffs = {_s(r.get("kyc_staff")) for r in raw}
             clients = {customer_from_account(_s(r.get("cust_ac_no"))) for r in raw}
-            kyc = _kyc_map(cur, staffs | clients)
-            enc = _encours_map(cur, staffs | clients)
+            kyc = _kyc_map(cur, staffs | clients, pays)
+            enc = _encours_map(cur, staffs | clients, pays)
             data = []
             seen = set()
             for r in raw:
@@ -396,8 +434,8 @@ def detection_staff_clients() -> dict:
         conn.close()
 
 
-def alertes_doublons_clients() -> dict:
-    sql = load_alertes_sql()
+def alertes_doublons_clients(pays: str | None = None) -> dict:
+    sql = load_alertes_sql(pays)
     if not db.strip_sql(sql):
         return {
             "ok": True,
