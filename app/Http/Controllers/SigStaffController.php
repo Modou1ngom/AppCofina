@@ -394,11 +394,22 @@ class SigStaffController extends Controller
     }
 
     /**
-     * Saisie manuelle réservée aux membres du Conseil d'administration absents du SI (conformité).
+     * Membre CA : recherche par n° client SI si présent, sinon création hors SI (encours = 0, jamais saisi).
      */
-    public function createManuel(): Response
+    public function createManuel(Request $request): Response
     {
-        return Inertia::render('suivi-signature/staff/CreateManuel');
+        if ($request->boolean('reset')) {
+            $request->session()->forget(['sig_lookup_si_data', 'sig_lookup_ca_not_found', 'sig_lookup_context']);
+        }
+
+        $siData = $request->session()->get('sig_lookup_si_data');
+        $notFound = $request->session()->get('sig_lookup_ca_not_found');
+
+        return Inertia::render('suivi-signature/staff/CreateManuel', [
+            'siData' => $siData,
+            'lookupDone' => $siData !== null || $notFound !== null,
+            'siNotFoundMatricule' => is_string($notFound) ? $notFound : null,
+        ]);
     }
 
     public function storeManuel(Request $request): RedirectResponse
@@ -409,14 +420,8 @@ class SigStaffController extends Controller
         }
 
         $validated = $request->validate([
-            'reference' => [
-                'required',
-                'string',
-                'max:100',
-                Rule::unique('sig_staffs', 'reference')->where(
-                    fn ($q) => $q->where('filiale_id', FilialeHelper::getCurrentFilialeId())
-                ),
-            ],
+            'numero_client_si' => 'nullable|string|max:100|required_if:depuis_si,1,true',
+            'reference' => 'nullable|string|max:100',
             'prenom' => 'required|string|max:255',
             'nom' => 'required|string|max:255',
             'fonction' => 'nullable|string|max:255',
@@ -425,24 +430,74 @@ class SigStaffController extends Controller
             'kyc_piece_identite' => 'nullable|string|max:255',
             'kyc_adresse' => 'nullable|string',
             'kyc_telephone' => 'nullable|string|max:50',
-            'encours_credit_individuel' => 'nullable|numeric|min:0',
-            'encours_staff_si' => 'nullable|numeric|min:0',
-            'fonds_propres' => 'nullable|numeric|min:0',
             'score_risque' => 'nullable|numeric|min:0',
+            'depuis_si' => 'nullable|boolean',
         ]);
 
-        $validated['filiale_id'] = FilialeHelper::getCurrentFilialeId();
-        $validated['profile_id'] = null;
-        $validated['type_personne'] = 'administrateur';
-        $validated['encours_staff_si'] = $validated['encours_staff_si'] ?? $validated['encours_credit_individuel'] ?? 0;
-        unset($validated['encours_credit_individuel']);
-        $validated['encours_credit_individuel'] = 0;
+        $numeroClient = trim((string) ($validated['numero_client_si'] ?? ''));
+        $reference = trim((string) ($validated['reference'] ?? '')) ?: $numeroClient;
+        $filialeId = FilialeHelper::getCurrentFilialeId();
 
-        $staff = SigStaff::create($validated);
+        if ($reference === '') {
+            return back()
+                ->withErrors(['reference' => 'Indiquez une référence pour ce membre CA hors SI.'])
+                ->withInput();
+        }
+
+        $cles = array_values(array_filter([$numeroClient, $reference], fn ($v) => $v !== ''));
+
+        $existe = SigStaff::query()
+            ->where('filiale_id', $filialeId)
+            ->where(function ($q) use ($cles) {
+                $q->whereIn('numero_client_si', $cles)
+                    ->orWhereIn('reference', $cles);
+            })
+            ->exists();
+
+        if ($existe) {
+            return back()
+                ->withErrors(['numero_client_si' => 'Ce numéro client / référence existe déjà dans le suivi signature.'])
+                ->withInput();
+        }
+
+        $siData = $request->session()->get('sig_lookup_si_data');
+        $depuisSi = (bool) ($validated['depuis_si'] ?? false) && is_array($siData);
+        $encoursSi = 0.0;
+        if ($depuisSi) {
+            $encoursSi = SigPersonneLiee::encoursFromSiPayload($siData) ?? 0.0;
+        }
+
+        $staff = SigStaff::create([
+            'filiale_id' => $filialeId,
+            'reference' => $reference,
+            'numero_client_si' => $numeroClient !== '' ? $numeroClient : null,
+            'profile_id' => null,
+            'prenom' => $validated['prenom'],
+            'nom' => $validated['nom'],
+            'fonction' => $validated['fonction'] ?? null,
+            'departement' => $validated['departement'] ?? null,
+            'type_personne' => 'administrateur',
+            'statut' => $validated['statut'],
+            'kyc_piece_identite' => $validated['kyc_piece_identite'] ?? null,
+            'kyc_adresse' => $validated['kyc_adresse'] ?? null,
+            'kyc_telephone' => $validated['kyc_telephone'] ?? null,
+            'encours_staff_si' => $encoursSi,
+            'encours_credit_individuel' => 0,
+            'score_risque' => $validated['score_risque'] ?? null,
+        ]);
         $staff->synchroniserEncoursTotaux();
 
-        return redirect()->route('suivi-signature.staff.index')
-            ->with('success', 'Membre du Conseil d\'administration enregistré (saisie conformité).');
+        $request->session()->forget([
+            'sig_lookup_si_data',
+            'sig_lookup_ca_not_found',
+            'sig_lookup_context',
+        ]);
+
+        $msg = $depuisSi
+            ? 'Membre CA enregistré depuis le SI (encours récupéré automatiquement).'
+            : 'Membre CA enregistré hors SI (encours à 0 — pas de saisie manuelle).';
+
+        return redirect()->route('suivi-signature.staff.index')->with('success', $msg);
     }
 
     public function store(Request $request): RedirectResponse

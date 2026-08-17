@@ -50,9 +50,13 @@ class SigEncoursConformiteController extends Controller
             'seuilTauxPct' => \App\Models\SigParametre::current()->seuilTauxPct(),
             'typeOptions' => [
                 ['value' => '', 'label' => 'Tous les types'],
-                ['value' => SigStaffEncoursConformiteEvent::TYPE_DEPASSEMENT, 'label' => SigStaffEncoursConformiteEvent::typeLabel(SigStaffEncoursConformiteEvent::TYPE_DEPASSEMENT)],
-                ['value' => SigStaffEncoursConformiteEvent::TYPE_RETOUR_CONFORME, 'label' => SigStaffEncoursConformiteEvent::typeLabel(SigStaffEncoursConformiteEvent::TYPE_RETOUR_CONFORME)],
-                ['value' => SigStaffEncoursConformiteEvent::TYPE_COMMENTAIRE, 'label' => SigStaffEncoursConformiteEvent::typeLabel(SigStaffEncoursConformiteEvent::TYPE_COMMENTAIRE)],
+                ...collect(SigStaffEncoursConformiteEvent::typesFiltres())
+                    ->map(fn (string $t) => [
+                        'value' => $t,
+                        'label' => SigStaffEncoursConformiteEvent::typeLabel($t),
+                    ])
+                    ->values()
+                    ->all(),
             ],
         ]);
     }
@@ -147,11 +151,7 @@ class SigEncoursConformiteController extends Controller
         }
 
         $type = (string) $request->get('type', '');
-        if ($type !== '' && in_array($type, [
-            SigStaffEncoursConformiteEvent::TYPE_DEPASSEMENT,
-            SigStaffEncoursConformiteEvent::TYPE_RETOUR_CONFORME,
-            SigStaffEncoursConformiteEvent::TYPE_COMMENTAIRE,
-        ], true)) {
+        if ($type !== '' && in_array($type, SigStaffEncoursConformiteEvent::typesFiltres(), true)) {
             $query->where('type', $type);
         }
 

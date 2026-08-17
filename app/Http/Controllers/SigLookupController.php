@@ -22,17 +22,17 @@ class SigLookupController extends Controller
     {
         $context = $request->session()->pull('sig_lookup_context', 'personne_liee');
 
-        return redirect()->route(
-            $context === 'staff'
-                ? 'suivi-signature.staff.create'
-                : 'suivi-signature.personnes-liees.create'
-        );
+        return redirect()->route(match ($context) {
+            'staff' => 'suivi-signature.staff.create',
+            'membre_ca' => 'suivi-signature.staff.manuel.create',
+            default => 'suivi-signature.personnes-liees.create',
+        });
     }
 
     public function lookup(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'context' => 'required|in:staff,personne_liee',
+            'context' => 'required|in:staff,personne_liee,membre_ca',
             'matricule' => 'required|string|max:100',
             'type_client' => 'required|in:personnel,entreprise',
         ]);
@@ -42,8 +42,8 @@ class SigLookupController extends Controller
             abort(403);
         }
 
-        if ($validated['context'] === 'staff' && ! $user->isAdmin() && ! $user->isConformite()) {
-            abort(403, 'Seuls les administrateurs ou la conformité peuvent créer une fiche staff depuis le SI.');
+        if (in_array($validated['context'], ['staff', 'membre_ca'], true) && ! $user->isAdmin() && ! $user->isConformite()) {
+            abort(403, 'Seuls les administrateurs ou la conformité peuvent créer une fiche depuis le SI.');
         }
 
         if ($validated['context'] === 'personne_liee' && ! $user->isAdmin() && ! $user->isConformite()) {
@@ -53,11 +53,39 @@ class SigLookupController extends Controller
         $matricule = trim($validated['matricule']);
         $siData = $this->siLookup->lookup($matricule, $validated['type_client']);
 
+        $request->session()->flash('sig_lookup_context', $validated['context']);
+
+        if ($validated['context'] === 'membre_ca') {
+            $request->session()->forget(['sig_lookup_si_data', 'sig_lookup_ca_not_found', 'sig_lookup_personnes_liees_si']);
+
+            if (SigStaff::query()
+                ->where(function ($q) use ($matricule, $siData) {
+                    $cle = trim((string) ($siData['matricule'] ?? $matricule));
+                    $q->where('reference', $cle)
+                        ->orWhere('numero_client_si', $cle)
+                        ->orWhere('reference', $matricule)
+                        ->orWhere('numero_client_si', $matricule);
+                })
+                ->exists()) {
+                return redirect()
+                    ->route('suivi-signature.staff.manuel.create')
+                    ->withErrors(['matricule' => 'Ce numéro client est déjà enregistré dans le suivi signature.']);
+            }
+
+            if ($siData === null) {
+                $request->session()->put('sig_lookup_ca_not_found', $matricule);
+
+                return redirect()->route('suivi-signature.staff.manuel.create');
+            }
+
+            $request->session()->put('sig_lookup_si_data', $siData);
+
+            return redirect()->route('suivi-signature.staff.manuel.create');
+        }
+
         $createRoute = $validated['context'] === 'staff'
             ? 'suivi-signature.staff.create'
             : 'suivi-signature.personnes-liees.create';
-
-        $request->session()->flash('sig_lookup_context', $validated['context']);
 
         if ($siData === null) {
             return redirect()

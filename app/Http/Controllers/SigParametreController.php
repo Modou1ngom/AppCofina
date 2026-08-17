@@ -56,24 +56,57 @@ class SigParametreController extends Controller
         }
 
         $params = SigParametre::current();
+        $ancienFp = $params->fondsPropresReference();
+        $nouveauFp = ($validated['fonds_propres'] !== null && $validated['fonds_propres'] !== '')
+            ? (float) $validated['fonds_propres']
+            : null;
+        if ($nouveauFp !== null && $nouveauFp <= 0) {
+            $nouveauFp = null;
+        }
+
+        $fpChanged = $this->fondsPropresOntChange($ancienFp, $nouveauFp);
+
         $params->update([
-            'fonds_propres' => $validated['fonds_propres'] !== null && $validated['fonds_propres'] !== ''
-                ? $validated['fonds_propres']
-                : null,
+            'fonds_propres' => $nouveauFp,
             'seuil_taux_pct' => $seuil,
             'alerte_taux_pct' => $alerte,
         ]);
 
-        // Recalcule les transitions conformité sur les fiches actives de cet environnement.
+        // Recalcule les transitions conformité ; si FP changés, photographie chaque fiche active.
         SigStaff::query()
             ->where('statut', 'actif')
             ->orderBy('id')
-            ->chunkById(50, function ($chunk) {
+            ->chunkById(50, function ($chunk) use ($fpChanged, $ancienFp, $nouveauFp, $user) {
                 foreach ($chunk as $staff) {
+                    /** @var SigStaff $staff */
                     $staff->synchroniserEncoursTotaux();
+                    if ($fpChanged) {
+                        $staff->photographierApresChangementFondsPropres(
+                            $user?->id,
+                            $ancienFp,
+                            $nouveauFp
+                        );
+                    }
                 }
             });
 
-        return back()->with('success', 'Paramètres de conformité enregistrés pour cet environnement.');
+        $msg = 'Paramètres de conformité enregistrés pour cet environnement.';
+        if ($fpChanged) {
+            $msg .= ' Un snapshot a été enregistré dans le rapport de conformité pour chaque fiche active.';
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    private function fondsPropresOntChange(?float $ancien, ?float $nouveau): bool
+    {
+        if ($ancien === null && $nouveau === null) {
+            return false;
+        }
+        if ($ancien === null || $nouveau === null) {
+            return true;
+        }
+
+        return round($ancien, 2) !== round($nouveau, 2);
     }
 }

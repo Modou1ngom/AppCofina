@@ -13,6 +13,9 @@ class SigStaffEncoursConformiteEvent extends Model
 
     public const TYPE_COMMENTAIRE = 'commentaire';
 
+    /** Snapshot suite à un changement des fonds propres de référence (paramétrage). */
+    public const TYPE_CHANGEMENT_FONDS_PROPRES = 'changement_fonds_propres';
+
     protected $table = 'sig_staff_encours_conformite_events';
 
     protected $fillable = [
@@ -52,7 +55,21 @@ class SigStaffEncoursConformiteEvent extends Model
             self::TYPE_DEPASSEMENT => 'Détection dépassement',
             self::TYPE_RETOUR_CONFORME => 'Retour sous le seuil',
             self::TYPE_COMMENTAIRE => 'Commentaire / justification',
+            self::TYPE_CHANGEMENT_FONDS_PROPRES => 'Snapshot fonds propres',
             default => $type,
         };
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function typesFiltres(): array
+    {
+        return [
+            self::TYPE_DEPASSEMENT,
+            self::TYPE_RETOUR_CONFORME,
+            self::TYPE_COMMENTAIRE,
+            self::TYPE_CHANGEMENT_FONDS_PROPRES,
+        ];
     }
 }

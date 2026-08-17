@@ -253,6 +253,47 @@ class SigStaff extends Model
     }
 
     /**
+     * Photographie l’état réglementaire de la fiche après un changement des fonds propres de référence.
+     */
+    public function photographierApresChangementFondsPropres(
+        ?int $userId,
+        ?float $ancienFondsPropres,
+        ?float $nouveauxFondsPropres,
+    ): void {
+        $this->loadMissing('personnesLiees');
+        $this->refresh();
+
+        $params = SigParametre::current();
+        $seuil = $params->seuilTauxPct();
+        $fp = $nouveauxFondsPropres ?? $this->fondsPropresReference();
+        $encCons = $this->encoursTotal();
+        $taux = ($fp !== null && $fp > 0) ? round(($encCons / $fp) * 100, 2) : null;
+
+        $fmt = static function (?float $v): string {
+            if ($v === null) {
+                return 'non renseignés';
+            }
+
+            return number_format($v, 0, ',', ' ');
+        };
+
+        SigStaffEncoursConformiteEvent::query()->create([
+            'sig_staff_id' => $this->id,
+            'user_id' => $userId,
+            'type' => SigStaffEncoursConformiteEvent::TYPE_CHANGEMENT_FONDS_PROPRES,
+            'fonds_propres' => $fp,
+            'encours_consolide' => $encCons,
+            'taux_pct' => $taux,
+            'seuil_pct' => $seuil,
+            'commentaire' => sprintf(
+                'Changement des fonds propres de référence : %s → %s.',
+                $fmt($ancienFondsPropres),
+                $fmt($nouveauxFondsPropres)
+            ),
+        ]);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function metriquesEncoursPourVue(): array

@@ -162,8 +162,9 @@ const nouvelleRecherche = () => {
                 v-if="canSaisieMembreCa"
                 class="rounded-lg border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-50"
             >
-                <strong>Membre du Conseil d’administration</strong> absent du SI ? La conformité peut l’enregistrer en saisie manuelle.
-                <Link href="/suivi-signature/staff/manuel/create" class="text-primary ml-1 font-medium underline">Saisie membre CA (hors SI)</Link>
+                <strong>Membre du Conseil d’administration</strong> :
+                recherche par n° client SI (encours auto) ou création hors SI (encours à 0, jamais saisi).
+                <Link href="/suivi-signature/staff/manuel/create" class="text-primary ml-1 font-medium underline">Ajouter un membre CA</Link>
             </div>
 
             <!-- Étape 1 : recherche -->

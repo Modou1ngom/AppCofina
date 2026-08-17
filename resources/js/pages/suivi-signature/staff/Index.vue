@@ -166,7 +166,7 @@ const breadcrumbs: BreadcrumbItem[] = [{ title: 'Suivi signature — Staff', hre
                         <Button>Nouvelle fiche (SI)</Button>
                     </Link>
                     <Link v-if="canSaisieMembreCa" href="/suivi-signature/staff/manuel/create">
-                        <Button variant="secondary">Membre CA (conformité)</Button>
+                        <Button variant="secondary">Ajouter membre CA</Button>
                     </Link>
                     <Link v-if="canSaisieMembreCa" href="/suivi-signature/parametrage">
                         <Button variant="outline">Paramétrage</Button>
