@@ -7,18 +7,29 @@ import { useForm } from '@inertiajs/vue3';
 import { Loader2, Send, Sparkles, User } from 'lucide-vue-next';
 import { computed } from 'vue';
 
+interface FilialeOption {
+    id: number;
+    nom: string;
+}
+
 interface Props {
     criteres: Record<string, string>;
     recommandations: Record<string, string>;
     qualitesPriseEnCharge: Record<string, string>;
     delaisReponse: Record<string, string>;
+    filiales: FilialeOption[];
+    filialeIdInitiale?: number | null;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+    filiales: () => [],
+    filialeIdInitiale: null,
+});
 
 const notesInitiales = Object.fromEntries(Object.keys(props.criteres).map((k) => [k, null as number | null]));
 
 const form = useForm({
+    filiale_id: props.filialeIdInitiale ?? (null as number | null),
     nom: '',
     matricule: '',
     service: '',
@@ -89,6 +100,11 @@ const criteresListe = computed(() =>
 
 const hasNotesError = computed(() => Object.keys(form.errors).some((k) => k in props.criteres));
 
+const setFilialeId = (event: Event) => {
+    const value = (event.target as HTMLSelectElement).value;
+    form.filiale_id = value ? Number(value) : null;
+};
+
 const setNote = (key: string, valeur: number) => {
     (form as unknown as Record<string, unknown>)[key] = valeur;
 };
@@ -139,11 +155,28 @@ const submit = () => {
                     <div class="min-w-0 flex-1">
                         <h2 class="text-base font-semibold tracking-tight text-slate-900">Identification</h2>
                         <p class="mt-0.5 text-xs leading-relaxed text-slate-500">
-                            Facultatif — vous pouvez répondre de manière totalement anonyme.
+                            Indiquez votre filiale. Les autres champs sont facultatifs — vous pouvez répondre de manière anonyme.
                         </p>
                     </div>
                 </div>
-                <div class="grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-3 sm:p-6">
+                <div class="grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-4 sm:p-6">
+                    <div class="space-y-1.5">
+                        <Label for="filiale_id" class="text-xs font-medium uppercase tracking-wide text-slate-500">
+                            Filiale <span class="text-rose-600">*</span>
+                        </Label>
+                        <select
+                            id="filiale_id"
+                            class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 shadow-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40"
+                            :value="form.filiale_id ?? ''"
+                            @change="setFilialeId"
+                        >
+                            <option value="" disabled>Choisissez votre filiale</option>
+                            <option v-for="filiale in filiales" :key="filiale.id" :value="filiale.id">
+                                {{ filiale.nom }}
+                            </option>
+                        </select>
+                        <p v-if="form.errors.filiale_id" class="text-sm text-red-600">{{ form.errors.filiale_id }}</p>
+                    </div>
                     <div class="space-y-1.5">
                         <Label for="nom" class="text-xs font-medium uppercase tracking-wide text-slate-500">Nom</Label>
                         <Input id="nom" v-model="form.nom" class="h-11 rounded-xl border-slate-200 bg-white" autocomplete="name" placeholder="Optionnel" />
@@ -152,7 +185,7 @@ const submit = () => {
                         <Label for="matricule" class="text-xs font-medium uppercase tracking-wide text-slate-500">Matricule</Label>
                         <Input id="matricule" v-model="form.matricule" class="h-11 rounded-xl border-slate-200 bg-white" placeholder="Optionnel" />
                     </div>
-                    <div class="space-y-1.5 sm:col-span-2 lg:col-span-1">
+                    <div class="space-y-1.5">
                         <Label for="service" class="text-xs font-medium uppercase tracking-wide text-slate-500">Service / département</Label>
                         <Input id="service" v-model="form.service" class="h-11 rounded-xl border-slate-200 bg-white" placeholder="Ex. Finance, RH…" />
                     </div>

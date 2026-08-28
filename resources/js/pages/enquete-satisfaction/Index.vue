@@ -8,6 +8,7 @@ import { ref } from 'vue';
 
 interface Row {
     id: number;
+    filiale: string | null;
     nom: string | null;
     matricule: string | null;
     service: string | null;
@@ -59,7 +60,7 @@ const copierLien = async () => {
             <div>
                 <h1 class="text-2xl font-semibold tracking-tight">Enquête de satisfaction — Services IT</h1>
                 <p class="mt-1 text-sm text-muted-foreground">
-                    Consultez les réponses et partagez le lien public au staff (sans authentification).
+                    Réponses de l’environnement (filiale) actuellement sélectionné. Partagez le lien public au staff (sans authentification).
                 </p>
             </div>
 
@@ -113,6 +114,7 @@ const copierLien = async () => {
                     <thead class="border-b bg-muted/50">
                         <tr>
                             <th class="p-3 text-left font-medium">Date</th>
+                            <th class="p-3 text-left font-medium">Filiale</th>
                             <th class="p-3 text-left font-medium">Nom</th>
                             <th class="p-3 text-left font-medium">Matricule</th>
                             <th class="p-3 text-center font-medium">Sat. globale</th>
@@ -124,6 +126,7 @@ const copierLien = async () => {
                     <tbody>
                         <tr v-for="r in reponses.data" :key="r.id" class="border-b last:border-0">
                             <td class="p-3">{{ r.created_at ?? '—' }}</td>
+                            <td class="p-3">{{ r.filiale || '—' }}</td>
                             <td class="p-3">{{ r.nom || '—' }}</td>
                             <td class="p-3">{{ r.matricule || '—' }}</td>
                             <td class="p-3 text-center">{{ r.satisfaction_globale }}/5</td>
@@ -138,7 +141,7 @@ const copierLien = async () => {
                             </td>
                         </tr>
                         <tr v-if="!reponses.data.length">
-                            <td colspan="7" class="p-8 text-center text-muted-foreground">Aucune réponse pour le moment.</td>
+                            <td colspan="8" class="p-8 text-center text-muted-foreground">Aucune réponse pour le moment.</td>
                         </tr>
                     </tbody>
                 </table>

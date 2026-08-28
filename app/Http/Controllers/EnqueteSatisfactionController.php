@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\FilialeHelper;
 use App\Models\EnqueteSatisfactionReponse;
+use App\Models\Filiale;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -11,13 +13,21 @@ use Inertia\Response;
 
 class EnqueteSatisfactionController extends Controller
 {
-    public function create(): Response
+    public function create(Request $request): Response
     {
+        $filiales = $this->filialesActives();
+        $filialeId = $request->integer('filiale_id') ?: null;
+        if ($filialeId && ! $filiales->contains('id', $filialeId)) {
+            $filialeId = null;
+        }
+
         return Inertia::render('enquete-satisfaction/Formulaire', [
             'criteres' => EnqueteSatisfactionReponse::CRITERES,
             'recommandations' => EnqueteSatisfactionReponse::RECOMMANDATIONS,
             'qualitesPriseEnCharge' => EnqueteSatisfactionReponse::QUALITE_PRISE_EN_CHARGE,
             'delaisReponse' => EnqueteSatisfactionReponse::DELAIS_REPONSE,
+            'filiales' => $filiales,
+            'filialeIdInitiale' => $filialeId,
         ]);
     }
 
@@ -26,6 +36,11 @@ class EnqueteSatisfactionController extends Controller
         $noteRule = ['required', 'integer', 'between:1,5'];
 
         $validated = $request->validate([
+            'filiale_id' => [
+                'required',
+                'integer',
+                Rule::exists('filiales', 'id')->where('actif', true),
+            ],
             'nom' => ['nullable', 'string', 'max:120'],
             'matricule' => ['nullable', 'string', 'max:64'],
             'service' => ['nullable', 'string', 'max:120'],
@@ -59,13 +74,15 @@ class EnqueteSatisfactionController extends Controller
         return Inertia::render('enquete-satisfaction/Merci');
     }
 
-    public function index(Request $request): Response
+    public function index(): Response
     {
         $reponses = EnqueteSatisfactionReponse::query()
+            ->with('filiale:id,nom')
             ->latest()
             ->paginate(20)
             ->through(fn (EnqueteSatisfactionReponse $r) => [
                 'id' => $r->id,
+                'filiale' => $r->filiale?->nom,
                 'nom' => $r->nom,
                 'matricule' => $r->matricule,
                 'service' => $r->service,
@@ -76,9 +93,13 @@ class EnqueteSatisfactionController extends Controller
                 'created_at' => $r->created_at?->format('d/m/Y H:i'),
             ]);
 
+        $lienPublic = route('enquete-satisfaction.create', array_filter([
+            'filiale_id' => FilialeHelper::getCurrentFilialeId(),
+        ]));
+
         return Inertia::render('enquete-satisfaction/Index', [
             'reponses' => $reponses,
-            'lienPublic' => route('enquete-satisfaction.create'),
+            'lienPublic' => $lienPublic,
             'stats' => [
                 'total' => EnqueteSatisfactionReponse::query()->count(),
                 'moyenne_globale' => round((float) EnqueteSatisfactionReponse::query()->avg('satisfaction_globale'), 2),
@@ -88,11 +109,12 @@ class EnqueteSatisfactionController extends Controller
 
     public function show(EnqueteSatisfactionReponse $enqueteSatisfaction): Response
     {
-        $r = $enqueteSatisfaction;
+        $r = $enqueteSatisfaction->loadMissing('filiale:id,nom');
 
         return Inertia::render('enquete-satisfaction/Show', [
             'reponse' => [
                 'id' => $r->id,
+                'filiale' => $r->filiale?->nom,
                 'nom' => $r->nom,
                 'matricule' => $r->matricule,
                 'service' => $r->service,
@@ -112,5 +134,16 @@ class EnqueteSatisfactionController extends Controller
                 'created_at' => $r->created_at?->format('d/m/Y à H:i'),
             ],
         ]);
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, Filiale>
+     */
+    private function filialesActives()
+    {
+        return Filiale::query()
+            ->where('actif', true)
+            ->orderBy('nom')
+            ->get(['id', 'nom']);
     }
 }

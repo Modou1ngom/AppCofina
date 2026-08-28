@@ -13,6 +13,7 @@ interface NoteRow {
 
 interface ReponseDetail {
     id: number;
+    filiale: string | null;
     nom: string | null;
     matricule: string | null;
     service: string | null;
@@ -66,7 +67,11 @@ const barColor = (note: number) => {
 
             <section class="rounded-2xl border bg-card p-6 shadow-sm">
                 <h2 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Identification</h2>
-                <dl class="mt-4 grid gap-4 text-sm sm:grid-cols-3">
+                <dl class="mt-4 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                    <div>
+                        <dt class="text-muted-foreground">Filiale</dt>
+                        <dd>{{ reponse.filiale || '—' }}</dd>
+                    </div>
                     <div>
                         <dt class="text-muted-foreground">Nom</dt>
                         <dd>{{ reponse.nom || '—' }}</dd>

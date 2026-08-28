@@ -2,10 +2,27 @@
 
 namespace App\Models;
 
+use App\Helpers\FilialeHelper;
+use App\Traits\HasFilialeScope;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class EnqueteSatisfactionReponse extends Model
 {
+    use HasFilialeScope;
+
+    protected static function booted(): void
+    {
+        static::creating(function (EnqueteSatisfactionReponse $reponse): void {
+            if (! $reponse->filiale_id) {
+                $filialeId = FilialeHelper::getCurrentFilialeId();
+                if ($filialeId) {
+                    $reponse->filiale_id = (int) $filialeId;
+                }
+            }
+        });
+    }
+
     public const CRITERES = [
         'qualite_accueil_ecoute' => 'Qualité de l’accueil et de l’écoute',
         'rapidite_prise_en_charge' => 'Rapidité de prise en charge',
@@ -37,6 +54,7 @@ class EnqueteSatisfactionReponse extends Model
     ];
 
     protected $fillable = [
+        'filiale_id',
         'nom',
         'matricule',
         'service',
@@ -69,6 +87,11 @@ class EnqueteSatisfactionReponse extends Model
             'communication_suivi' => 'integer',
             'satisfaction_globale' => 'integer',
         ];
+    }
+
+    public function filiale(): BelongsTo
+    {
+        return $this->belongsTo(Filiale::class, 'filiale_id');
     }
 
     public function moyenneNotes(): float
