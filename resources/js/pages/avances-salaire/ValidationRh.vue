@@ -3,7 +3,7 @@ import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
-import { ClipboardCheck, Eye, Pencil, Trash2, CircleCheck } from 'lucide-vue-next';
+import { ClipboardCheck, Eye, Pencil, Trash2 } from 'lucide-vue-next';
 
 interface Row {
     id: number;
@@ -30,10 +30,6 @@ interface Props {
 const props = defineProps<Props>();
 const page = usePage();
 const isAdmin = Boolean((page.props.auth as { isAdmin?: boolean } | undefined)?.isAdmin);
-const authUserId = (page.props.auth as { user?: { id: number } } | undefined)?.user?.id as number | undefined;
-
-/** RH ne traite pas l’intégration sur sa propre demande (même logique que PriseEnChargeRh). */
-const peutAgirIntegration = (d: Row) => authUserId === undefined || d.user_id !== authUserId;
 
 const supprimer = (id: number) => {
     if (!confirm('Supprimer cette demande ?')) return;
@@ -52,17 +48,15 @@ const statutLabel = (s: string) =>
         en_attente: 'En attente',
         en_validation_finance: 'En validation CFO / MD',
         approuvee: 'Approuvée',
-        en_attente_prise_en_charge: 'En attente d’intégration',
-        en_cours_traitement: 'En cours d’intégration',
+        en_attente_prise_en_charge: 'Validée',
+        en_cours_traitement: 'Validée',
         terminee: 'Terminée',
         rejetee: 'Demande rejetée',
     } as Record<string, string>)[s] || s;
 
 const libelleStatut = (d: Row) => d.statut_label ?? statutLabel(d.statut);
 
-type ActionPrincipale =
-    | { kind: 'link'; href: string; label: string; icon: 'eye' | 'clipboard' }
-    | { kind: 'post-terminer'; label: string };
+type ActionPrincipale = { kind: 'link'; href: string; label: string; icon: 'eye' | 'clipboard' };
 
 function actionPrincipale(d: Row): ActionPrincipale {
     const s = d.statut;
@@ -71,22 +65,8 @@ function actionPrincipale(d: Row): ActionPrincipale {
     if (s === 'terminee' || s === 'rejetee') {
         return { kind: 'link', href: `/avances-salaire/${d.id}`, label: 'Voir le dossier', icon: 'eye' };
     }
-    if (s === 'en_attente_prise_en_charge') {
-        if (!peutAgirIntegration(d)) {
-            return { kind: 'link', href: `/avances-salaire/${d.id}`, label: 'Voir le dossier', icon: 'eye' };
-        }
-        return {
-            kind: 'link',
-            href: `/avances-salaire/${d.id}/integration-rh/form`,
-            label: 'Démarrer l’intégration',
-            icon: 'clipboard',
-        };
-    }
-    if (s === 'en_cours_traitement') {
-        if (!peutAgirIntegration(d)) {
-            return { kind: 'link', href: `/avances-salaire/${d.id}`, label: 'Voir le dossier', icon: 'eye' };
-        }
-        return { kind: 'post-terminer', label: 'Terminer l’intégration', icon: 'check' };
+    if (s === 'en_attente_prise_en_charge' || s === 'en_cours_traitement') {
+        return { kind: 'link', href: `/avances-salaire/${d.id}`, label: 'Voir le dossier', icon: 'eye' };
     }
     if (s === 'en_validation_finance' || (s === 'en_attente' && av === 'en_validation_finance')) {
         return { kind: 'link', href: `/avances-salaire/${d.id}`, label: 'Suivre la validation CFO/MD', icon: 'eye' };
@@ -104,12 +84,6 @@ function actionPrincipale(d: Row): ActionPrincipale {
         return { kind: 'link', href: `/avances-salaire/${d.id}`, label: 'Voir le dossier', icon: 'eye' };
     }
     return { kind: 'link', href: `/avances-salaire/${d.id}`, label: 'Voir le dossier', icon: 'eye' };
-}
-
-function terminerIntegration(d: Row) {
-    if (!peutAgirIntegration(d) || d.statut !== 'en_cours_traitement') return;
-    if (!confirm('Terminer l’intégration pour cette demande ?')) return;
-    router.post(`/avances-salaire/${d.id}/terminer-integration-rh`, {}, { preserveScroll: true });
 }
 </script>
 
@@ -144,27 +118,15 @@ function terminerIntegration(d: Row) {
                             <td class="p-3 text-right tabular-nums">{{ d.montant.toLocaleString('fr-FR') }} FCFA</td>
                             <td class="p-3">{{ libelleStatut(d) }}</td>
                             <td class="p-3 text-right">
-                                <template v-if="actionPrincipale(d).kind === 'link'">
-                                    <Button variant="ghost" size="sm" as-child>
-                                        <Link :href="actionPrincipale(d).href">
-                                            <ClipboardCheck
-                                                v-if="actionPrincipale(d).icon === 'clipboard'"
-                                                class="mr-1 h-4 w-4"
-                                            />
-                                            <Eye v-else class="mr-1 h-4 w-4" />
-                                            {{ actionPrincipale(d).label }}
-                                        </Link>
-                                    </Button>
-                                </template>
-                                <Button
-                                    v-else
-                                    variant="ghost"
-                                    size="sm"
-                                    class="text-neutral-900"
-                                    @click="terminerIntegration(d)"
-                                >
-                                    <CircleCheck class="mr-1 h-4 w-4" />
-                                    {{ actionPrincipale(d).label }}
+                                <Button variant="ghost" size="sm" as-child>
+                                    <Link :href="actionPrincipale(d).href">
+                                        <ClipboardCheck
+                                            v-if="actionPrincipale(d).icon === 'clipboard'"
+                                            class="mr-1 h-4 w-4"
+                                        />
+                                        <Eye v-else class="mr-1 h-4 w-4" />
+                                        {{ actionPrincipale(d).label }}
+                                    </Link>
                                 </Button>
                                 <Button v-if="isAdmin" variant="ghost" size="sm" as-child>
                                     <Link :href="`/avances-salaire/${d.id}`">

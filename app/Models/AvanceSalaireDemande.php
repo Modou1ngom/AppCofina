@@ -190,7 +190,7 @@ class AvanceSalaireDemande extends Model
     }
 
     /**
-     * Libellé métier lisible pour l’utilisateur (workflow : soumission → RH / CFO-MD → intégration).
+     * Libellé métier lisible pour l’utilisateur (workflow : soumission → RH / CFO-MD).
      */
     public function libelleStatutWorkflow(): string
     {
@@ -212,11 +212,8 @@ class AvanceSalaireDemande extends Model
         if ($s === self::STATUT_EN_ATTENTE && $avant === self::STATUT_EN_VALIDATION_FINANCE) {
             return 'Mise en attente (CFO / MD)';
         }
-        if ($s === self::STATUT_EN_ATTENTE_PRISE_EN_CHARGE) {
-            return 'En attente d’intégration';
-        }
-        if ($s === self::STATUT_EN_COURS_TRAITEMENT) {
-            return 'En cours d’intégration';
+        if ($s === self::STATUT_EN_ATTENTE_PRISE_EN_CHARGE || $s === self::STATUT_EN_COURS_TRAITEMENT) {
+            return 'Validée';
         }
         if ($s === self::STATUT_TERMINEE) {
             return 'Terminée';

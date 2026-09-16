@@ -500,9 +500,6 @@ const mainNavItems = computed<NavItem[]>(() => {
         avancesItems.push({ title: 'Historique', href: historiqueHref });
     }
     if (auth.value?.isAdmin || auth.value?.isRh) {
-        avancesItems.push({ title: 'Intégration', href: '/avances-salaire/integration-rh' });
-    }
-    if (auth.value?.isAdmin || auth.value?.isRh) {
         avancesItems.push({ title: 'Paramétrage', href: '/avances-salaire/parametrage' });
     }
     if (avancesItems.length) {

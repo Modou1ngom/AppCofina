@@ -81,12 +81,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/validation-rh', [AvanceSalaireDemandeController::class, 'validationRh'])
             ->middleware('role:admin,rh')
             ->name('validation-rh');
-        Route::get('/integration-rh', [AvanceSalaireDemandeController::class, 'priseEnChargeRh'])
-            ->middleware('role:admin,rh')
-            ->name('integration-rh');
-        Route::post('/integration-rh/envoyer-template-externe', [AvanceSalaireDemandeController::class, 'envoyerTemplateVersIntegrationExterne'])
-            ->middleware('role:admin,rh')
-            ->name('integration-rh.envoyer-template-externe');
+        Route::redirect('/integration-rh', '/avances-salaire/validation-rh');
         Route::get('/validation-finance', [AvanceSalaireDemandeController::class, 'validationFinance'])
             ->middleware('role:admin,finance,md')
             ->name('validation-finance');
@@ -111,15 +106,6 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/{avance_salaire_demande}/decision-rh', [AvanceSalaireDemandeController::class, 'decisionRh'])
             ->middleware('role:admin,rh')
             ->name('decision-rh');
-        Route::get('/{avance_salaire_demande}/integration-rh/form', [AvanceSalaireDemandeController::class, 'integrationRhForm'])
-            ->middleware('role:admin,rh')
-            ->name('integration-rh.form');
-        Route::post('/{avance_salaire_demande}/integration-rh', [AvanceSalaireDemandeController::class, 'marquerPriseEnChargeRh'])
-            ->middleware('role:admin,rh')
-            ->name('integration-rh.store');
-        Route::post('/{avance_salaire_demande}/terminer-integration-rh', [AvanceSalaireDemandeController::class, 'terminerTraitementRh'])
-            ->middleware('role:admin,rh')
-            ->name('terminer-integration-rh');
         Route::post('/{avance_salaire_demande}/decision-finance', [AvanceSalaireDemandeController::class, 'decisionFinance'])
             ->middleware('role:admin,finance')
             ->name('decision-finance');

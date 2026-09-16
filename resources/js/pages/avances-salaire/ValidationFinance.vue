@@ -44,8 +44,8 @@ const statutLabel = (s: string) =>
     ({
         en_validation_finance: 'En validation CFO / MD',
         en_attente: 'En attente',
-        en_attente_prise_en_charge: 'En attente d’intégration',
-        en_cours_traitement: 'En cours d’intégration',
+        en_attente_prise_en_charge: 'Validée',
+        en_cours_traitement: 'Validée',
         terminee: 'Terminée',
         approuvee: 'Approuvée',
     } as Record<string, string>)[s] || s;

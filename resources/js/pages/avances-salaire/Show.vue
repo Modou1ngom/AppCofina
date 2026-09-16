@@ -125,8 +125,8 @@ const statutLabel = (s: string) =>
         en_validation_finance: 'En validation CFO / MD',
         en_attente: 'En attente',
         approuvee: 'Approuvée',
-        en_attente_prise_en_charge: 'En attente d’intégration',
-        en_cours_traitement: 'En cours d’intégration',
+        en_attente_prise_en_charge: 'Validée',
+        en_cours_traitement: 'Validée',
         terminee: 'Terminée',
         rejetee: 'Demande rejetée',
     } as Record<string, string>)[s] || s;
@@ -620,16 +620,6 @@ const libelleCategorieDemande = computed(() => {
     return ({ non_cadre: 'Non cadre', cadre: 'Cadre', emc: 'EMC' } as Record<string, string>)[k] ?? k;
 });
 
-const marquerPriseEnChargeRh = () => {
-    if (!confirm('Démarrer l’intégration pour cette demande ?')) return;
-    router.post(`/avances-salaire/${props.demande.id}/integration-rh`, {}, { preserveScroll: true });
-};
-
-const terminerTraitementRh = () => {
-    if (!confirm('Terminer l’intégration pour cette demande ?')) return;
-    router.post(`/avances-salaire/${props.demande.id}/terminer-integration-rh`, {}, { preserveScroll: true });
-};
-
 const datesTranchesResume = computed(() => {
     const arr = props.demande.dates_tranches ?? [];
     if (!arr.length) return '—';
@@ -659,28 +649,10 @@ const datesTranchesResume = computed(() => {
             </div>
 
             <div
-                v-if="canMarquerPriseEnChargeRh"
-                class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"
-            >
-                <p class="font-medium">En attente d’intégration — vous pouvez démarrer l’intégration (paie / paiement).</p>
-                <Button type="button" class="bg-red-700 hover:bg-red-800" @click="marquerPriseEnChargeRh">
-                    Démarrer l’intégration
-                </Button>
-            </div>
-            <div
-                v-else-if="canTerminerTraitementRh"
-                class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950"
-            >
-                <p class="font-medium">En cours d’intégration.</p>
-                <Button type="button" class="bg-red-700 hover:bg-red-800" @click="terminerTraitementRh">
-                    Terminer l’intégration
-                </Button>
-            </div>
-            <div
                 v-else-if="afficherBlocsValidation && demande.statut === 'terminee'"
                 class="mb-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-900"
             >
-                Intégration terminée
+                Demande validée
                 <span v-if="demande.rh_traitement_termine_by"> par {{ demande.rh_traitement_termine_by.name }}</span>
                 <span v-if="demande.rh_traitement_termine_at">
                     — {{ new Date(demande.rh_traitement_termine_at).toLocaleString('fr-FR') }}</span

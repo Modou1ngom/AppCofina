@@ -1161,7 +1161,7 @@ class AvanceSalaireDemandeController extends Controller
         return DB::transaction(function () use ($demande, $user, $decision, $commentaire, $suiteRh) {
             if ($decision === 'approuve' && $suiteRh === 'cloture_rh') {
                 $demande->update([
-                    'statut' => AvanceSalaireDemande::STATUT_EN_ATTENTE_PRISE_EN_CHARGE,
+                    'statut' => AvanceSalaireDemande::STATUT_TERMINEE,
                     'statut_avant_attente' => null,
                     'rh_niveau_finance' => null,
                     'rh_decided_at' => now(),
@@ -1169,7 +1169,7 @@ class AvanceSalaireDemandeController extends Controller
                     'rh_commentaire' => $commentaire,
                 ]);
 
-                return redirect()->back()->with('success', 'Demande validée et clôturée au niveau RH. En attente d’intégration opérationnelle.');
+                return redirect()->back()->with('success', 'Demande validée et clôturée au niveau RH.');
             }
             if ($decision === 'approuve' && $suiteRh === 'transmettre_cfo') {
                 $demande->update([
@@ -1262,14 +1262,14 @@ class AvanceSalaireDemandeController extends Controller
 
             if ($niveau === null || $niveau === '') {
                 $demande->update([
-                    'statut' => AvanceSalaireDemande::STATUT_EN_ATTENTE_PRISE_EN_CHARGE,
+                    'statut' => AvanceSalaireDemande::STATUT_TERMINEE,
                     'statut_avant_attente' => null,
                     'finance_decided_at' => now(),
                     'finance_decided_by' => $user->id,
                     'finance_commentaire' => $commentaire,
                 ]);
 
-                return redirect()->back()->with('success', 'Demande approuvée par le CFO. En attente d’intégration RH.');
+                return redirect()->back()->with('success', 'Demande approuvée par le CFO.');
             }
 
             if ($niveau === 'cfo') {
@@ -1277,11 +1277,11 @@ class AvanceSalaireDemandeController extends Controller
                     'cfo_validated_at' => now(),
                     'cfo_validated_by' => $user->id,
                     'cfo_commentaire' => $commentaire,
-                    'statut' => AvanceSalaireDemande::STATUT_EN_ATTENTE_PRISE_EN_CHARGE,
+                    'statut' => AvanceSalaireDemande::STATUT_TERMINEE,
                     'statut_avant_attente' => null,
                 ]);
 
-                return redirect()->back()->with('success', 'Demande approuvée (validation CFO). En attente d’intégration RH.');
+                return redirect()->back()->with('success', 'Demande approuvée (validation CFO).');
             }
 
             if ($niveau === 'md') {
@@ -1299,22 +1299,22 @@ class AvanceSalaireDemandeController extends Controller
                     'md_validated_at' => now(),
                     'md_validated_by' => $user->id,
                     'md_commentaire' => $commentaire,
-                    'statut' => AvanceSalaireDemande::STATUT_EN_ATTENTE_PRISE_EN_CHARGE,
+                    'statut' => AvanceSalaireDemande::STATUT_TERMINEE,
                     'statut_avant_attente' => null,
                 ]);
 
-                return redirect()->back()->with('success', 'Demande approuvée (CFO et MD). En attente d’intégration RH.');
+                return redirect()->back()->with('success', 'Demande approuvée (CFO et MD).');
             }
 
             $demande->update([
-                'statut' => AvanceSalaireDemande::STATUT_EN_ATTENTE_PRISE_EN_CHARGE,
+                'statut' => AvanceSalaireDemande::STATUT_TERMINEE,
                 'statut_avant_attente' => null,
                 'finance_decided_at' => now(),
                 'finance_decided_by' => $user->id,
                 'finance_commentaire' => $commentaire,
             ]);
 
-            return redirect()->back()->with('success', 'Demande approuvée par le CFO. En attente d’intégration RH.');
+            return redirect()->back()->with('success', 'Demande approuvée par le CFO.');
         });
     }
 
