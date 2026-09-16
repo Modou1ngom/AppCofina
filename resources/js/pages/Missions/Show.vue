@@ -689,7 +689,6 @@ const soumettreDecision = () => {
                             <p v-if="p.logistique?.vehicule">Véhicule : {{ p.logistique.vehicule }}</p>
                             <p v-if="p.logistique?.logement">Logement : {{ p.logistique.logement }}</p>
                             <p v-if="p.logistique?.jours != null">Jours chauffeur : {{ p.logistique.jours }}</p>
-                            <p v-if="p.logistique?.nuits != null">Nuitées chauffeur : {{ p.logistique.nuits }}</p>
                             <p v-if="p.logistique?.per_diem">Per diem : {{ formatMontant(p.logistique.per_diem) }}</p>
                             <p v-if="p.logistique?.prix_carburant">Frais carburant : {{ formatMontant(p.logistique.prix_carburant) }}</p>
                             <p v-if="p.logistique?.prix_transport">Frais transport : {{ formatMontant(p.logistique.prix_transport) }}</p>

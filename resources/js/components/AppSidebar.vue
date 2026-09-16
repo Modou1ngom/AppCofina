@@ -73,6 +73,10 @@ const mainNavItems = computed<NavItem[]>(() => {
                         title: 'Liste des enrolements',
                         href: '/profils',
                     },
+                    {
+                        title: 'Arrivées / départs / postes',
+                        href: '/profils/mouvements',
+                    },
                   
                 ],
             },
@@ -291,6 +295,10 @@ const mainNavItems = computed<NavItem[]>(() => {
                         title: 'Liste des enrolements',
                         href: '/profils',
                     },
+                    {
+                        title: 'Arrivées / départs / postes',
+                        href: '/profils/mouvements',
+                    },
                   
                 ],
             },
@@ -505,10 +513,10 @@ const mainNavItems = computed<NavItem[]>(() => {
         });
     }
 
-    // Gestion des missions — onglets selon le rôle / la hiérarchie du workflow
+    // Missions — onglets selon le rôle / la hiérarchie du workflow
     const missionSubItems = [
-        { title: 'Mon tableau de bord', href: '/missions' },
-        { title: 'Planifier une mission', href: '/missions/create' },
+        { title: 'Tableau de bord', href: '/missions' },
+        { title: 'Nouvelle mission', href: '/missions/create' },
     ];
 
     // N+1 et/ou DGA (pas le MD qui a sa propre file)
@@ -523,7 +531,7 @@ const mainNavItems = computed<NavItem[]>(() => {
 
     // Facilities / logistique
     if (auth.value?.isLogistique || auth.value?.isFacilities) {
-        missionSubItems.push({ title: 'Dotations Logistique (Facilities)', href: '/missions/validation/facilities' });
+        missionSubItems.push({ title: 'Facilities', href: '/missions/validation/facilities' });
     }
 
     // RH — génération des ordres de mission (rôle rh uniquement)
@@ -538,19 +546,18 @@ const mainNavItems = computed<NavItem[]>(() => {
 
     // Finance (CFO)
     if (estFinance.value) {
-        missionSubItems.push({ title: 'Validation Finance', href: '/missions/validation/finance' });
+        missionSubItems.push({ title: 'Finance', href: '/missions/validation/finance' });
     }
 
-    missionSubItems.push({ title: 'Rapport de mission', href: '/missions/rapports' });
-    missionSubItems.push({ title: 'Traitées/Cloturées', href: '/missions/traitees' });
+    missionSubItems.push({ title: 'Rapports', href: '/missions/rapports' });
+    missionSubItems.push({ title: 'Traitées', href: '/missions/traitees' });
 
     if (auth.value?.peutVoirRecapLogistique && !auth.value?.isLogistique && !auth.value?.isFinance) {
         missionSubItems.push({ title: 'Récap logistique', href: '/missions/recap-logistique?context=finance' });
     }
 
-    //ajoute le menu des missions dans le menu principal
     items.push({
-        title: 'Gestion des missions',
+        title: 'Missions',
         icon: Briefcase,
         items: missionSubItems,
     });

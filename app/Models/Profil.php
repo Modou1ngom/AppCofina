@@ -30,11 +30,33 @@ class Profil extends Model
         'n_plus_2_id',
         'filiale_id',
         'date_entree',
+        'date_sortie',
+        'motif_depart',
     ];
 
     protected $casts = [
         'date_entree' => 'date',
+        'date_sortie' => 'date',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Profil $profil): void {
+            if (blank($profil->date_entree)) {
+                $profil->date_entree = now()->toDateString();
+            }
+        });
+
+        static::created(function (Profil $profil): void {
+            if ($profil->date_entree || ! $profil->created_at) {
+                return;
+            }
+
+            $profil->forceFill([
+                'date_entree' => $profil->created_at->toDateString(),
+            ])->saveQuietly();
+        });
+    }
 
     // Relations
     public function nPlus1()
@@ -66,6 +88,11 @@ class Profil extends Model
     public function habilitationsEnTantQueBeneficiaire()
     {
         return $this->hasMany(Habilitation::class, 'beneficiary_profile_id');
+    }
+
+    public function mouvements()
+    {
+        return $this->hasMany(ProfilMouvement::class, 'profil_id')->orderByDesc('date_effet')->orderByDesc('id');
     }
 
     // Méthodes alias pour compatibilité ascendante

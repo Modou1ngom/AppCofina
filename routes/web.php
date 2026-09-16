@@ -10,6 +10,7 @@ use App\Http\Controllers\EnqueteSatisfactionController;
 use App\Http\Controllers\FilialeController;
 use App\Http\Controllers\HabilitationController;
 use App\Http\Controllers\ProfilController;
+use App\Http\Controllers\ProfilMouvementController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SigAlertesDoublonsController;
 use App\Http\Controllers\SigDetectionAutomatiqueController;
@@ -49,6 +50,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('profils/import', [ProfilController::class, 'showImport'])->name('profils.import')->middleware('role:admin,rh');
     Route::post('profils/import', [ProfilController::class, 'import'])->name('profils.import.store')->middleware('role:admin,rh');
     Route::get('profils/export', [ProfilController::class, 'export'])->name('profils.export')->middleware('role:admin,rh');
+    Route::middleware('role:admin,rh')->group(function () {
+        Route::get('profils/mouvements', [ProfilMouvementController::class, 'index'])->name('profils.mouvements.index');
+        Route::get('profils/mouvements/depart', [ProfilMouvementController::class, 'createDepart'])->name('profils.mouvements.depart');
+        Route::post('profils/mouvements/depart', [ProfilMouvementController::class, 'storeDepart'])->name('profils.mouvements.depart.store');
+        Route::get('profils/mouvements/changement-poste', [ProfilMouvementController::class, 'createChangementPoste'])->name('profils.mouvements.changement-poste');
+        Route::post('profils/mouvements/changement-poste', [ProfilMouvementController::class, 'storeChangementPoste'])->name('profils.mouvements.changement-poste.store');
+    });
     Route::resource('profils', ProfilController::class)->middleware('role:admin,rh');
     Route::resource('roles', RoleController::class)->middleware('role:admin');
     Route::resource('departements', DepartementController::class)->middleware('role:admin');
@@ -207,10 +215,12 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/validation/facilities/{mission}', [\App\Http\Controllers\MissionController::class, 'traitementFacilities'])->middleware('logistique')->name('traitement-facilities');
         Route::get('/validation/finance', [\App\Http\Controllers\MissionController::class, 'vueFinance'])->name('validation-finance');
         Route::get('/recap-logistique', [\App\Http\Controllers\MissionController::class, 'recapLogistique'])->name('recap-logistique');
+        Route::get('/recap-logistique/export', [\App\Http\Controllers\MissionController::class, 'exporterRecapLogistique'])->name('recap-logistique.export');
         Route::get('/rapports', [\App\Http\Controllers\MissionController::class, 'vueRapportsMission'])->name('rapports');
         Route::get('/espace-missionnaire', [\App\Http\Controllers\MissionController::class, 'espaceMissionnaire'])->name('espace-missionnaire');
         Route::get('/traitees', [\App\Http\Controllers\MissionController::class, 'vueMissionsTraitees'])->name('traitees');
         Route::get('/traitees/recap', [\App\Http\Controllers\MissionController::class, 'recapMissionsTraitees'])->name('traitees-recap');
+        Route::get('/traitees/recap/export', [\App\Http\Controllers\MissionController::class, 'exporterRecapMissionsTraitees'])->name('traitees-recap.export');
 
         Route::get('/{mission}', [\App\Http\Controllers\MissionController::class, 'show'])->name('show');
 

@@ -9,6 +9,7 @@ use App\Models\Filiale;
 use App\Models\Profil;
 use App\Models\User;
 use App\Services\ProfilBulkImportService;
+use App\Services\ProfilMouvementService;
 use App\Services\ProfilSignatureService;
 use App\Services\ProfilUserProvisioningService;
 use App\Support\ProfilExcelImport;
@@ -207,6 +208,7 @@ class ProfilController extends Controller
                 'statut_rh' => 'nullable|string|max:255',
                 'type_office' => 'nullable|in:Back Office,Front Office',
                 'n_plus_1_id' => 'nullable|exists:profiles,id',
+                'date_entree' => 'nullable|date',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             throw $e;
@@ -280,14 +282,37 @@ class ProfilController extends Controller
             'n_plus_2_id' => $nPlus2Id,
         ];
 
+        $dateEntree = $validated['date_entree'] ?? null;
+        if (is_string($dateEntree) && trim($dateEntree) === '') {
+            $dateEntree = null;
+        }
+        if ($dateEntree !== null) {
+            $data['date_entree'] = $dateEntree;
+        }
+
         $provisioner = app(ProfilUserProvisioningService::class);
+        $mouvementService = app(ProfilMouvementService::class);
 
         $hadEmail = trim((string) ($data['email'] ?? '')) !== '';
 
-        $createdUser = DB::transaction(function () use ($data, $provisioner) {
+        $createdUser = DB::transaction(function () use ($data, $provisioner, $mouvementService, $user) {
             $profil = Profil::create($data);
+            $profil->refresh();
 
-            return $provisioner->provisionUserForProfil($profil);
+            if (! $profil->date_entree && $profil->created_at) {
+                $profil->date_entree = $profil->created_at->toDateString();
+                $profil->save();
+            }
+
+            $created = $provisioner->provisionUserForProfil($profil);
+            $mouvementService->enregistrerArrivee(
+                $profil,
+                $profil->date_entree ?? $profil->created_at,
+                'Enrôlement staff',
+                $user,
+            );
+
+            return $created;
         });
 
         $message = 'Profil créé avec succès !';
@@ -319,6 +344,13 @@ class ProfilController extends Controller
             'nPlus1:id,nom,prenom,matricule',
             'nPlus2:id,nom,prenom,matricule',
             'subordonnes:id,nom,prenom,matricule',
+            'mouvements' => fn ($q) => $q
+                ->with([
+                    'nPlus1Avant:id,nom,prenom,matricule',
+                    'nPlus1Apres:id,nom,prenom,matricule',
+                    'createur:id,name',
+                ])
+                ->limit(20),
         ]);
 
         // Préparer les données avec les relations en snake_case pour le frontend
@@ -330,7 +362,26 @@ class ProfilController extends Controller
         })->toArray();
 
         $profilData['email'] = $profil->email;
+        $profilData['date_entree'] = ($profil->date_entree ?? $profil->created_at)?->format('Y-m-d');
+        $profilData['date_sortie'] = $profil->date_sortie?->format('Y-m-d');
+        $profilData['motif_depart'] = $profil->motif_depart;
         $profilData['compte_utilisateur'] = $this->compteUtilisateurPourProfil($profil);
+        $profilData['mouvements'] = $profil->mouvements->map(function ($m) {
+            return [
+                'id' => $m->id,
+                'type' => $m->type,
+                'type_label' => $m->typeLabel(),
+                'date_effet' => $m->date_effet?->format('Y-m-d'),
+                'motif' => $m->motif,
+                'fonction_avant' => $m->fonction_avant,
+                'fonction_apres' => $m->fonction_apres,
+                'departement_avant' => $m->departement_avant,
+                'departement_apres' => $m->departement_apres,
+                'site_avant' => $m->site_avant,
+                'site_apres' => $m->site_apres,
+                'createur' => $m->createur?->name,
+            ];
+        })->values();
 
         return Inertia::render('profils/Show', [
             'profil' => $profilData,
@@ -434,6 +485,9 @@ class ProfilController extends Controller
             'statut_rh' => 'nullable|string|max:255',
             'type_office' => 'nullable|in:Back Office,Front Office',
             'n_plus_1_id' => 'nullable|exists:profiles,id',
+            'date_entree' => 'nullable|date',
+            'date_sortie' => 'nullable|date',
+            'motif_depart' => 'nullable|string|max:255',
             'signature' => 'nullable|string',
             'replace_signature' => 'nullable|boolean',
             'signature_file' => 'nullable|image|max:2048',
@@ -454,12 +508,20 @@ class ProfilController extends Controller
 
         $validated['n_plus_2_id'] = $nPlus2Id;
 
+        if (array_key_exists('date_entree', $validated) && blank($validated['date_entree'])) {
+            $validated['date_entree'] = $profil->created_at?->toDateString();
+        }
+
         $signaturePayload = $validated['signature'] ?? null;
         $replaceSignature = (bool) ($validated['replace_signature'] ?? false);
         unset($validated['signature'], $validated['replace_signature'], $validated['signature_file']);
 
         // Vérifier si le N+1 a changé
         $nPlus1Changed = isset($validated['n_plus_1_id']) && $profil->n_plus_1_id != $validated['n_plus_1_id'];
+
+        $mouvementService = app(ProfilMouvementService::class);
+        $snapshotAvant = $mouvementService->snapshot($profil);
+        $snapshotAvant['statut'] = $profil->statut;
 
         $profil->update($validated);
         $profil->refresh();
@@ -476,6 +538,8 @@ class ProfilController extends Controller
         }
 
         app(ProfilUserProvisioningService::class)->provisionUserForProfil($profil);
+
+        $mouvementService->enregistrerDepuisMiseAJourProfil($profil, $snapshotAvant, $user);
 
         // Si le N+1 a changé, recalculer les N+2 de tous les subordonnés
         if ($nPlus1Changed) {
@@ -575,6 +639,16 @@ class ProfilController extends Controller
                 if (config('cofina.provision_user_on_profil_create', true) && $result['created_profils'] !== []) {
                     $usersProvisioned = app(ProfilUserProvisioningService::class)
                         ->provisionMany($result['created_profils']);
+                }
+
+                $mouvementService = app(ProfilMouvementService::class);
+                foreach ($result['new_profils'] ?? [] as $newProfil) {
+                    $mouvementService->enregistrerArrivee(
+                        $newProfil,
+                        $newProfil->date_entree,
+                        'Import Excel',
+                        $user,
+                    );
                 }
 
                 DB::commit();

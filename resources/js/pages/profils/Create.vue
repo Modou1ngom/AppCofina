@@ -77,6 +77,7 @@ const form = useForm({
     statut: 'actif' as 'actif' | 'inactif',
     type_office: '' as '' | 'Back Office' | 'Front Office',
     n_plus_1_id: null as string | number | null,
+    date_entree: '',
 });
 
 // Initialiser la filiale avec celle de l'utilisateur (si admin/RH et pas super admin)
@@ -405,6 +406,18 @@ const submit = () => {
                                 <option value="Front Office">Front Office</option>
                             </select>
                             <InputError :message="form.errors.type_office" />
+                        </div>
+
+                        <div>
+                            <Label for="date_entree" class="text-sm font-medium text-gray-700 mb-2 block">Date d'arrivée</Label>
+                            <Input
+                                id="date_entree"
+                                v-model="form.date_entree"
+                                type="date"
+                                class="h-10 rounded-lg border-gray-300 focus-visible:border-purple-500 focus-visible:ring-2 focus-visible:ring-purple-500/20"
+                            />
+                            <InputError :message="form.errors.date_entree" />
+                            <p class="mt-1 text-xs text-gray-500">Par défaut : date de création du profil.</p>
                         </div>
 
                         <div>

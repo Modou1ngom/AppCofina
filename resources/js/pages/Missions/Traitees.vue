@@ -40,7 +40,7 @@ const flash = computed(() => page.props.flash as { success?: string; error?: str
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Gestion des missions', href: '/missions' },
-    { title: 'Traitées/Cloturées', href: '#' },
+    { title: 'Traitées', href: '#' },
 ];
 const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
@@ -59,7 +59,7 @@ const getStatusLabel = (status: string) => {
 
 <template>
     <AppLayout :breadcrumbs="breadcrumbs">
-        <Head title="Traitées/Cloturées" />
+        <Head title="Missions traitées" />
 
         <MissionPageShell>
                 <MissionCard>
@@ -69,7 +69,7 @@ const getStatusLabel = (status: string) => {
                                 <Archive class="h-6 w-6 shrink-0" />
                             </div>
                             <div class="min-w-0">
-                                <h1 class="text-xl font-semibold sm:text-2xl">Traitées/Cloturées</h1>
+                                <h1 class="text-xl font-semibold sm:text-2xl">Missions traitées</h1>
                                 <p class="mt-1 text-sm text-muted-foreground">
                                     Missions que vous avez déjà validées ou qui sont clôturées. Si une mission vous est renvoyée, elle réapparaît dans l'onglet de validation correspondant.
                                 </p>

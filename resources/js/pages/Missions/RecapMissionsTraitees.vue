@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { missionCard, statCardSky, statCardAmber, statCardEmerald } from '@/lib/missionPastel';
-import { BarChart3, CalendarDays, Briefcase, TrendingUp, Wallet } from 'lucide-vue-next';
+import { BarChart3, CalendarDays, Briefcase, Download, FileSpreadsheet, TrendingUp, Wallet } from 'lucide-vue-next';
 import { ref } from 'vue';
 
 interface PeriodeRecap {
@@ -59,7 +59,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Gestion des missions', href: '/missions' },
-    { title: 'Traitées/Cloturées', href: '/missions/traitees' },
+    { title: 'Traitées', href: '/missions/traitees' },
     { title: 'Récapitulation missionnaires', href: '#' },
 ];
 
@@ -91,6 +91,17 @@ const changerPeriode = (cle: string) => {
 
 const appliquerPlage = () => {
     naviguerRecap({});
+};
+
+const urlExport = (format: 'excel' | 'zip') => {
+    const params = new URLSearchParams({
+        periode: props.periode,
+        date_debut: dateDebutLocale.value,
+        date_fin: dateFinLocale.value,
+        format,
+    });
+
+    return `/missions/traitees/recap/export?${params.toString()}`;
 };
 
 const periodeBtnClass = (cle: string) =>
@@ -158,6 +169,20 @@ const libellePeriode = () =>
                     <Button type="submit" variant="outline" class="shrink-0 border-sky-300">
                         Appliquer
                     </Button>
+                    <div class="flex shrink-0 flex-wrap gap-2">
+                        <Button as-child variant="outline" class="border-emerald-300 text-emerald-800 hover:bg-emerald-50">
+                            <a :href="urlExport('excel')">
+                                <FileSpreadsheet class="mr-1.5 h-4 w-4" />
+                                Excel
+                            </a>
+                        </Button>
+                        <Button as-child variant="outline" class="border-slate-300">
+                            <a :href="urlExport('zip')">
+                                <Download class="mr-1.5 h-4 w-4" />
+                                ZIP (CSV)
+                            </a>
+                        </Button>
+                    </div>
                 </form>
 
                 <p v-if="recap.plage?.libelle" class="text-sm text-muted-foreground">

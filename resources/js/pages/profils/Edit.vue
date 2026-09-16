@@ -59,6 +59,10 @@ interface Props {
         type_office?: string;
         n_plus_1_id?: number;
         n_plus_2_id?: number;
+        date_entree?: string | null;
+        date_sortie?: string | null;
+        motif_depart?: string | null;
+        created_at?: string | null;
         };
     profils: Profil[];
     departements: Departement[];
@@ -92,6 +96,9 @@ const form = useForm({
     statut: props.profil.statut as 'actif' | 'inactif',
     type_office: (props.profil.type_office || '') as '' | 'Back Office' | 'Front Office',
     n_plus_1_id: props.profil.n_plus_1_id || null,
+    date_entree: (props.profil.date_entree || props.profil.created_at)
+        ? String(props.profil.date_entree || props.profil.created_at).slice(0, 10)
+        : '',
     signature: props.profil.signature ?? '',
     replace_signature: false,
 });
@@ -339,6 +346,18 @@ const submit = () => {
                             <option value="inactif">Inactif</option>
                         </select>
                         <InputError :message="form.errors.statut" />
+                    </div>
+
+                    <div>
+                        <Label for="date_entree" class="text-base font-medium text-gray-700">Date d'arrivée</Label>
+                        <Input
+                            id="date_entree"
+                            v-model="form.date_entree"
+                            type="date"
+                            class="mt-1.5 border-gray-300 focus-visible:border-gray-400"
+                        />
+                        <InputError :message="form.errors.date_entree" />
+                        <p class="mt-1 text-xs text-gray-500">Par défaut : date de création du profil.</p>
                     </div>
 
                     <div>

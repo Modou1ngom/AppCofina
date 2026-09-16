@@ -17,8 +17,9 @@ import { urlIsActive } from '@/lib/utils';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
 import { ChevronRight } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 
-defineProps<{
+const props = defineProps<{
     items: NavItem[];
 }>();
 
@@ -29,7 +30,7 @@ const isItemActive = (item: NavItem): boolean => {
         return urlIsActive(item.href, page.url);
     }
     if (item.items) {
-        return item.items.some(subItem => isItemActive(subItem));
+        return item.items.some((subItem) => isItemActive(subItem));
     }
     return false;
 };
@@ -38,6 +39,36 @@ const isSubItemActive = (href?: string): boolean => {
     if (!href) return false;
     return urlIsActive(href, page.url);
 };
+
+const menuKey = (item: NavItem): string => item.title;
+
+const activeCollapsibleKey = computed(() => {
+    const actif = props.items.find((item) => item.items?.length && isItemActive(item));
+
+    return actif ? menuKey(actif) : null;
+});
+
+const openMenuKey = ref<string | null>(activeCollapsibleKey.value);
+
+watch(activeCollapsibleKey, (key) => {
+    openMenuKey.value = key;
+});
+
+const estMenuOuvert = (item: NavItem): boolean => openMenuKey.value === menuKey(item);
+
+const basculerMenu = (item: NavItem, ouvert: boolean) => {
+    const cle = menuKey(item);
+
+    if (ouvert) {
+        openMenuKey.value = cle;
+        return;
+    }
+
+    // Ignorer le close émis par l'ancien menu quand un autre vient d'être ouvert.
+    if (openMenuKey.value === cle) {
+        openMenuKey.value = null;
+    }
+};
 </script>
 
 <template>
@@ -45,7 +76,11 @@ const isSubItemActive = (href?: string): boolean => {
         <SidebarMenu>
             <SidebarMenuItem v-for="item in items" :key="item.title">
                 <!-- Menu avec sous-menus -->
-                <Collapsible v-if="item.items && item.items.length > 0" :default-open="isItemActive(item)">
+                <Collapsible
+                    v-if="item.items && item.items.length > 0"
+                    :open="estMenuOuvert(item)"
+                    @update:open="(ouvert) => basculerMenu(item, ouvert)"
+                >
                     <template #default="{ open }">
                         <CollapsibleTrigger as-child>
                             <SidebarMenuButton
@@ -53,19 +88,19 @@ const isSubItemActive = (href?: string): boolean => {
                                 :tooltip="item.title"
                             >
                                 <component :is="item.icon" />
-                                <span>{{ item.title }}</span>
+                                <span class="min-w-0 flex-1 truncate">{{ item.title }}</span>
                                 <ChevronRight class="ml-auto size-5 transition-transform duration-200" :class="{ 'rotate-90': open }" />
                             </SidebarMenuButton>
                         </CollapsibleTrigger>
                         <CollapsibleContent>
                             <SidebarMenuSub>
-                                <SidebarMenuSubItem v-for="subItem in item.items" :key="subItem.title">
+                                <SidebarMenuSubItem v-for="subItem in item.items" :key="String(subItem.href ?? subItem.title)">
                                     <SidebarMenuSubButton
                                         v-if="subItem.href"
                                         as-child
                                         :is-active="isSubItemActive(subItem.href)"
                                     >
-                                        <Link :href="subItem.href">
+                                        <Link :href="subItem.href" :title="subItem.title">
                                             <span>{{ subItem.title }}</span>
                                         </Link>
                                     </SidebarMenuSubButton>

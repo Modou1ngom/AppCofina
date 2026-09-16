@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\RecapLogistiqueExport;
+use App\Exports\RecapMissionsTraiteesExport;
 use App\Models\Mission;
 use App\Models\MissionLog;
 use App\Models\MissionParticipant;
@@ -23,8 +25,11 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use ZipArchive;
 
 class MissionController extends Controller
 {
@@ -1475,34 +1480,56 @@ class MissionController extends Controller
                 $cle = $this->selectionChauffeurDepuisParticipant($participant);
 
                 if (! isset($groupes[$cle])) {
+                    $sitesTotaux = $this->totauxDepuisLogistiqueSites($participant->logistique_sites ?? []);
+                    $jours = (int) ($participant->jours ?? 0);
+                    $perDiemChauffeurStocke = max(
+                        0,
+                        (float) ($participant->per_diem ?? 0) - (float) ($sitesTotaux['per_diem'] ?? 0),
+                    );
+                    $perDiemJournalier = $jours > 0
+                        ? round($perDiemChauffeurStocke / $jours, 2)
+                        : $perDiemChauffeurStocke;
+
                     $groupes[$cle] = [
                         'chauffeur_selection' => $cle,
                         'participant_ids' => [],
                         'vehicule' => $participant->vehicule ?? '',
                         'logement' => $participant->logement ?? '',
-                        'jours' => (int) ($participant->jours ?? 0),
-                        'nuits' => (int) ($participant->nuits ?? 0),
-                        'per_diem' => (float) ($participant->per_diem ?? 0),
+                        'jours' => $jours,
+                        'per_diem' => $perDiemJournalier,
                         'prix_carburant' => (float) ($participant->prix_carburant ?? 0),
-                        'prix_logement' => (float) ($participant->prix_logement ?? 0),
+                        'prix_logement' => max(
+                            0,
+                            (float) ($participant->prix_logement ?? 0) - (float) ($sitesTotaux['prix_logement'] ?? 0),
+                        ),
                         'autres_frais' => (float) ($participant->autres_frais ?? 0),
                     ];
                 }
 
                 $groupes[$cle]['participant_ids'][] = $participant->id;
 
-                if ((float) ($participant->prix_carburant ?? 0) > 0 || $participant->jours !== null || $participant->nuits !== null) {
+                if ((float) ($participant->prix_carburant ?? 0) > 0 || $participant->jours !== null) {
+                    $sitesTotaux = $this->totauxDepuisLogistiqueSites($participant->logistique_sites ?? []);
+                    $jours = (int) ($participant->jours ?? 0);
+                    $perDiemChauffeurStocke = max(
+                        0,
+                        (float) ($participant->per_diem ?? 0) - (float) ($sitesTotaux['per_diem'] ?? 0),
+                    );
+                    $perDiemJournalier = $jours > 0
+                        ? round($perDiemChauffeurStocke / $jours, 2)
+                        : $perDiemChauffeurStocke;
+
                     $groupes[$cle]['vehicule'] = $participant->vehicule ?? $groupes[$cle]['vehicule'];
                     $groupes[$cle]['prix_carburant'] = (float) ($participant->prix_carburant ?? 0);
-                    $groupes[$cle]['per_diem'] = (float) ($participant->per_diem ?? 0);
-                    $groupes[$cle]['prix_logement'] = (float) ($participant->prix_logement ?? 0);
+                    $groupes[$cle]['per_diem'] = $perDiemJournalier;
+                    $groupes[$cle]['prix_logement'] = max(
+                        0,
+                        (float) ($participant->prix_logement ?? 0) - (float) ($sitesTotaux['prix_logement'] ?? 0),
+                    );
                     $groupes[$cle]['autres_frais'] = (float) ($participant->autres_frais ?? 0);
                     $groupes[$cle]['logement'] = $participant->logement ?? $groupes[$cle]['logement'];
                     if ($participant->jours !== null) {
                         $groupes[$cle]['jours'] = (int) $participant->jours;
-                    }
-                    if ($participant->nuits !== null) {
-                        $groupes[$cle]['nuits'] = (int) $participant->nuits;
                     }
                 }
             }
@@ -1522,7 +1549,10 @@ class MissionController extends Controller
     private function calculerTotalLogistiqueFacilities(array $chauffeursLogistique, array $missionnairesAutonomes): float
     {
         $totalChauffeurs = (float) collect($chauffeursLogistique)->sum(function (array $bloc) {
-            return (float) ($bloc['per_diem'] ?? 0)
+            $jours = max(0, (int) ($bloc['jours'] ?? 0));
+            $perDiemJournalier = (float) ($bloc['per_diem'] ?? 0);
+
+            return ($jours * $perDiemJournalier)
                 + (float) ($bloc['prix_carburant'] ?? 0)
                 + (float) ($bloc['prix_logement'] ?? 0)
                 + (float) ($bloc['autres_frais'] ?? 0);
@@ -2367,7 +2397,7 @@ class MissionController extends Controller
                 'priorite' => $validated['priorite'],
                 'date_debut' => $validated['date_debut'],
                 'date_fin' => $validated['date_fin'],
-                'budget' => null,
+                'budget' => 0,
                 'current_step' => $estBrouillon ? Mission::STEP_BROUILLON : Mission::STEP_ATTENTE_N1,
                 'status' => $estBrouillon ? 'brouillon' : 'en_cours',
             ]);
@@ -2393,7 +2423,7 @@ class MissionController extends Controller
             DB::rollBack();
             Log::error('Échec création mission', ['error' => $e->getMessage(), 'user_id' => $user->id]);
 
-            return redirect()->back()->withInput()->with('error', 'Une erreur est survenue lors de l’enregistrement. Vérifiez les missionnaires sélectionnés et réessayez.');
+            return redirect()->back()->withInput()->with('error', 'Impossible d’enregistrer la mission. Réessayez. Si le problème continue, contactez le support.');
         }
 
         if (! $estBrouillon) {
@@ -2765,7 +2795,6 @@ class MissionController extends Controller
                 'chauffeurs_logistique.*.vehicule' => ['nullable', 'string', 'max:255'],
                 'chauffeurs_logistique.*.logement' => ['nullable', 'string', 'max:255'],
                 'chauffeurs_logistique.*.jours' => ['nullable', 'integer', 'min:0'],
-                'chauffeurs_logistique.*.nuits' => ['nullable', 'integer', 'min:0'],
                 'chauffeurs_logistique.*.per_diem' => ['nullable', 'numeric', 'min:0'],
                 'chauffeurs_logistique.*.prix_carburant' => ['nullable', 'numeric', 'min:0'],
                 'chauffeurs_logistique.*.prix_logement' => ['nullable', 'numeric', 'min:0'],
@@ -2856,17 +2885,21 @@ class MissionController extends Controller
                         ->firstOrFail();
 
                     $sitesTotaux = $this->fusionnerLogistiqueSitesParticipant($participant, $frais['logistique_sites'] ?? []);
+                    $joursChauffeur = $premier ? max(0, (int) ($bloc['jours'] ?? 0)) : 0;
+                    $perDiemChauffeur = $premier
+                        ? $joursChauffeur * (float) ($bloc['per_diem'] ?? 0)
+                        : 0.0;
 
                     $participant->update([
                         'vehicule' => $premier ? ($bloc['vehicule'] ?? null) : null,
                         'logement' => $frais['logement'] ?? ($premier ? ($bloc['logement'] ?? null) : null),
-                        'per_diem' => $sitesTotaux['per_diem'] + ($premier ? (float) ($bloc['per_diem'] ?? 0) : 0),
+                        'per_diem' => $sitesTotaux['per_diem'] + $perDiemChauffeur,
                         'prix_carburant' => $premier ? ($bloc['prix_carburant'] ?? 0) : 0,
                         'prix_transport' => 0,
                         'prix_logement' => $sitesTotaux['prix_logement'] + ($premier ? (float) ($bloc['prix_logement'] ?? 0) : 0),
                         'autres_frais' => (float) ($frais['autres_frais'] ?? 0) + ($premier ? (float) ($bloc['autres_frais'] ?? 0) : 0),
-                        'jours' => $premier ? max(0, (int) ($bloc['jours'] ?? 0)) : null,
-                        'nuits' => $premier ? max(0, (int) ($bloc['nuits'] ?? 0)) : null,
+                        'jours' => $premier ? $joursChauffeur : null,
+                        'nuits' => null,
                         'logistique_sites' => $sitesTotaux['lignes'],
                         'besoin_chauffeur' => true,
                         'chauffeur_id' => $chauffeurId,
@@ -2880,7 +2913,7 @@ class MissionController extends Controller
                     $chauffeursAttribues[$chauffeurId] = [
                         'role_dans_mission' => 'chauffeur',
                         'jours' => max(0, (int) ($bloc['jours'] ?? 0)),
-                        'nuits' => max(0, (int) ($bloc['nuits'] ?? 0)),
+                        'nuits' => null,
                     ];
                 } elseif ($chauffeurProfilId) {
                     MissionParticipant::query()->updateOrCreate(
@@ -2892,7 +2925,7 @@ class MissionController extends Controller
                         [
                             'user_id' => null,
                             'jours' => max(0, (int) ($bloc['jours'] ?? 0)),
-                            'nuits' => max(0, (int) ($bloc['nuits'] ?? 0)),
+                            'nuits' => null,
                         ],
                     );
                 }
@@ -3737,6 +3770,99 @@ class MissionController extends Controller
         ]);
     }
 
+    public function exporterRecapLogistique(Request $request): BinaryFileResponse|StreamedResponse
+    {
+        if (! $this->peutVoirRecapLogistique($request->user())) {
+            abort(403, 'Accès réservé aux profils autorisés (Facilities, Finance, RH, RRH, DGA, MD).');
+        }
+
+        $context = $request->query('context', 'facilities');
+        if (! in_array($context, ['facilities', 'finance'], true)) {
+            $context = 'facilities';
+        }
+
+        $format = strtolower((string) $request->query('format', 'excel'));
+        if (! in_array($format, ['excel', 'zip'], true)) {
+            $format = 'excel';
+        }
+
+        [$dateDebut, $dateFin] = $this->resoudrePlageDatesRecapLogistique($request);
+        $donnees = $this->donneesExportRecapLogistique($context, $dateDebut, $dateFin);
+        $slugContexte = $context === 'finance' ? 'finance' : 'facilities';
+        $baseName = sprintf(
+            'recap-logistique-%s_%s_%s',
+            $slugContexte,
+            $dateDebut->format('Ymd'),
+            $dateFin->format('Ymd'),
+        );
+
+        if ($format === 'zip') {
+            return $this->telechargerZipRecap(
+                $baseName.'.zip',
+                [
+                    '01_synthese.csv' => array_merge(
+                        [
+                            ['Titre', $donnees['meta']['titre']],
+                            ['Contexte', $donnees['meta']['contexte']],
+                            ['Période', $donnees['meta']['periode']],
+                            [],
+                        ],
+                        $donnees['synthese'],
+                    ),
+                    '02_categories.csv' => $donnees['categories'],
+                    '03_missions.csv' => $donnees['missions'],
+                ],
+            );
+        }
+
+        return Excel::download(new RecapLogistiqueExport($donnees), $baseName.'.xlsx');
+    }
+
+    public function exporterRecapMissionsTraitees(Request $request): BinaryFileResponse|StreamedResponse
+    {
+        $user = $request->user();
+        $periode = $request->query('periode', 'mois');
+        if (! in_array($periode, ['semaine', 'mois', 'annee'], true)) {
+            $periode = 'mois';
+        }
+
+        $format = strtolower((string) $request->query('format', 'excel'));
+        if (! in_array($format, ['excel', 'zip'], true)) {
+            $format = 'excel';
+        }
+
+        [$dateDebut, $dateFin] = $this->resoudrePlageDatesRecapLogistique($request);
+        $donnees = $this->donneesExportRecapMissionsTraitees($user, $periode, $dateDebut, $dateFin);
+        $baseName = sprintf(
+            'recap-missionnaires_%s_%s_%s',
+            $periode,
+            $dateDebut->format('Ymd'),
+            $dateFin->format('Ymd'),
+        );
+
+        if ($format === 'zip') {
+            return $this->telechargerZipRecap(
+                $baseName.'.zip',
+                [
+                    '01_synthese.csv' => array_merge(
+                        [
+                            ['Titre', $donnees['meta']['titre']],
+                            ['Regroupement', $donnees['meta']['periode_regroupement']],
+                            ['Période', $donnees['meta']['plage']],
+                            [],
+                        ],
+                        $donnees['synthese'],
+                    ),
+                    '02_periodes.csv' => $donnees['periodes'],
+                    '03_missions.csv' => $donnees['missions'],
+                    '04_sites.csv' => $donnees['sites'],
+                ],
+            );
+        }
+
+        return Excel::download(new RecapMissionsTraiteesExport($donnees), $baseName.'.xlsx');
+    }
+
     /**
      * @return array{0: Carbon, 1: Carbon}
      */
@@ -4075,15 +4201,20 @@ class MissionController extends Controller
         $query = Mission::query()
             ->whereNotNull('total_logistique')
             ->where('total_logistique', '>', 0)
-            ->whereDate('date_debut', '>=', $dateDebut->toDateString())
-            ->whereDate('date_debut', '<=', $dateFin->toDateString())
-            ->with(['missionParticipants' => fn ($q) => $q->where('role_dans_mission', 'missionnaire')])
-            ->orderBy('date_debut');
+            ->with(['missionParticipants' => fn ($q) => $q->where('role_dans_mission', 'missionnaire')]);
 
         if ($context === 'finance') {
-            $query->whereNotNull('finance_logistique_validee_at');
+            // Comptabilisation Finance : période = date de validation des dépenses logistiques
+            $query->whereNotNull('finance_logistique_validee_at')
+                ->whereDate('finance_logistique_validee_at', '>=', $dateDebut->toDateString())
+                ->whereDate('finance_logistique_validee_at', '<=', $dateFin->toDateString())
+                ->orderBy('finance_logistique_validee_at');
         } else {
-            $query->whereNotIn('current_step', $this->etapesAvantValidationFinanceLogistique());
+            // Facilities : période = chevauchement avec les dates de mission
+            $query->whereNotIn('current_step', $this->etapesAvantValidationFinanceLogistique())
+                ->whereDate('date_debut', '<=', $dateFin->toDateString())
+                ->whereDate('date_fin', '>=', $dateDebut->toDateString())
+                ->orderBy('date_debut');
         }
 
         $missions = $query->get();
@@ -4146,6 +4277,276 @@ class MissionController extends Controller
                 'libelle' => $libellePlage,
             ],
         ];
+    }
+
+    /**
+     * @return array{
+     *     meta: array{titre: string, contexte: string, periode: string},
+     *     synthese: array<int, array<int, string|int|float>>,
+     *     categories: array<int, array<int, string|int|float>>,
+     *     missions: array<int, array<int, string|int|float>>
+     * }
+     */
+    private function donneesExportRecapLogistique(string $context, Carbon $dateDebut, Carbon $dateFin): array
+    {
+        $recap = $this->construireRecapLogistique($context, $dateDebut, $dateFin);
+        $categoriesMeta = [
+            'per_diem' => 'Per diems',
+            'prix_carburant' => 'Essence / carburant',
+            'prix_transport' => 'Transport',
+            'prix_logement' => 'Logement',
+            'autres_frais' => 'Autres frais',
+        ];
+
+        $query = Mission::query()
+            ->whereNotNull('total_logistique')
+            ->where('total_logistique', '>', 0)
+            ->with([
+                'demandeur',
+                'missionParticipants' => fn ($q) => $q->where('role_dans_mission', 'missionnaire'),
+            ]);
+
+        if ($context === 'finance') {
+            $query->whereNotNull('finance_logistique_validee_at')
+                ->whereDate('finance_logistique_validee_at', '>=', $dateDebut->toDateString())
+                ->whereDate('finance_logistique_validee_at', '<=', $dateFin->toDateString())
+                ->orderBy('finance_logistique_validee_at');
+        } else {
+            $query->whereNotIn('current_step', $this->etapesAvantValidationFinanceLogistique())
+                ->whereDate('date_debut', '<=', $dateFin->toDateString())
+                ->whereDate('date_fin', '>=', $dateDebut->toDateString())
+                ->orderBy('date_debut');
+        }
+
+        $missions = $query->get();
+
+        $missionsRows = [[
+            'N° mission',
+            'Objet',
+            'Demandeur',
+            'Date début',
+            'Date fin',
+            'Étape',
+            'Total logistique (XOF)',
+            'Per diems',
+            'Carburant',
+            'Transport',
+            'Logement',
+            'Autres frais',
+            'Validation Finance',
+        ]];
+
+        foreach ($missions as $mission) {
+            $totaux = array_fill_keys(array_keys($categoriesMeta), 0.0);
+            foreach ($mission->missionParticipants as $participant) {
+                foreach (array_keys($categoriesMeta) as $cle) {
+                    $totaux[$cle] += (float) ($participant->{$cle} ?? 0);
+                }
+            }
+
+            $missionsRows[] = [
+                $mission->libelleNumero(),
+                (string) $mission->objet,
+                $mission->demandeur?->name ?? '—',
+                optional($mission->date_debut)->format('d/m/Y') ?? '',
+                optional($mission->date_fin)->format('d/m/Y') ?? '',
+                (string) $mission->current_step,
+                round((float) $mission->total_logistique, 2),
+                round($totaux['per_diem'], 2),
+                round($totaux['prix_carburant'], 2),
+                round($totaux['prix_transport'], 2),
+                round($totaux['prix_logement'], 2),
+                round($totaux['autres_frais'], 2),
+                $mission->finance_logistique_validee_at
+                    ? $mission->finance_logistique_validee_at->format('d/m/Y H:i')
+                    : '',
+            ];
+        }
+
+        $categoriesRows = [['Catégorie', 'Total (XOF)', 'Moyenne / mission (XOF)']];
+        foreach ($recap['global']['categories'] as $cat) {
+            $categoriesRows[] = [
+                $cat['libelle'],
+                $cat['total'],
+                $cat['moyenne'],
+            ];
+        }
+
+        return [
+            'meta' => [
+                'titre' => $context === 'finance'
+                    ? 'Récapitulatif des dépenses logistiques (Finance)'
+                    : 'Récapitulatif des dépenses logistiques (Facilities)',
+                'contexte' => $context === 'finance' ? 'Finance' : 'Facilities',
+                'periode' => $recap['plage']['libelle'],
+            ],
+            'synthese' => [
+                ['Indicateur', 'Valeur'],
+                ['Nombre de missions', $recap['global']['nb_missions']],
+                ['Dépense totale (XOF)', $recap['global']['total']],
+                ['Moyenne par mission (XOF)', $recap['global']['moyenne_par_mission']],
+            ],
+            'categories' => $categoriesRows,
+            'missions' => $missionsRows,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     meta: array{titre: string, periode_regroupement: string, plage: string},
+     *     synthese: array<int, array<int, string|int|float>>,
+     *     periodes: array<int, array<int, string|int|float>>,
+     *     missions: array<int, array<int, string|int|float>>,
+     *     sites: array<int, array<int, string|int|float>>
+     * }
+     */
+    private function donneesExportRecapMissionsTraitees(
+        User $user,
+        string $periode,
+        Carbon $dateDebut,
+        Carbon $dateFin,
+    ): array {
+        $recap = $this->construireRecapMissionsTraitees($user, $periode, $dateDebut, $dateFin);
+        $missions = $this->queryMissionsRecapMissionnaire($user, $dateDebut, $dateFin)
+            ->with('demandeur')
+            ->orderBy('date_debut')
+            ->get();
+
+        $libelleRegroupement = match ($periode) {
+            'semaine' => 'Par semaine',
+            'annee' => 'Par année',
+            default => 'Par mois',
+        };
+
+        $missionsRows = [[
+            'N° mission',
+            'Objet',
+            'Demandeur',
+            'Date début',
+            'Date fin',
+            'Étape',
+            'Per diem missionnaire (XOF)',
+            'Sites',
+        ]];
+
+        foreach ($missions as $mission) {
+            $sites = $this->sitesPourRecapMission($mission);
+            $missionsRows[] = [
+                $mission->libelleNumero(),
+                (string) $mission->objet,
+                $mission->demandeur?->name ?? '—',
+                optional($mission->date_debut)->format('d/m/Y') ?? '',
+                optional($mission->date_fin)->format('d/m/Y') ?? '',
+                (string) $mission->current_step,
+                round($this->totalPerDiemMissionnaireConnecte($mission, $user), 2),
+                implode(', ', $sites),
+            ];
+        }
+
+        $periodesRows = [[
+            'Période',
+            'Nb missions',
+            'Montant total (XOF)',
+            'Moyenne / mission (XOF)',
+            'Sites visités',
+            'Sites moyen / mission',
+            'Visites / site (moy.)',
+        ]];
+        foreach ($recap['periodes'] as $periodeItem) {
+            $periodesRows[] = [
+                $periodeItem['libelle'],
+                $periodeItem['nb_missions'],
+                $periodeItem['montant_total'],
+                $periodeItem['montant_moyen_par_mission'],
+                $periodeItem['sites_visites_total'],
+                $periodeItem['sites_moyen_par_mission'],
+                $periodeItem['visites_par_site_moyenne'],
+            ];
+        }
+
+        $sitesRows = [['Site', 'Nombre de visites']];
+        foreach ($recap['sites_populaires'] as $site) {
+            $sitesRows[] = [$site['site'], $site['count']];
+        }
+
+        return [
+            'meta' => [
+                'titre' => 'Récapitulation missionnaires',
+                'periode_regroupement' => $libelleRegroupement,
+                'plage' => $recap['plage']['libelle'],
+            ],
+            'synthese' => [
+                ['Indicateur', 'Valeur'],
+                ['Nombre de missions', $recap['global']['nb_missions']],
+                ['Moyenne missions / période', $recap['global']['moyenne_missions_par_periode']],
+                ['Per diem total (XOF)', $recap['global']['montant_total']],
+                ['Per diem moyen / mission (XOF)', $recap['global']['montant_moyen_par_mission']],
+                ['Sites visités (total)', $recap['global']['sites_visites_total']],
+                ['Sites uniques', $recap['global']['nb_sites_uniques']],
+            ],
+            'periodes' => $periodesRows,
+            'missions' => $missionsRows,
+            'sites' => $sitesRows,
+        ];
+    }
+
+    /**
+     * @param  array<string, array<int, array<int, string|int|float|null>>>  $fichiers
+     */
+    private function telechargerZipRecap(string $nomFichier, array $fichiers): StreamedResponse
+    {
+        if (! class_exists(ZipArchive::class)) {
+            abort(500, 'L’extension PHP Zip n’est pas disponible sur ce serveur.');
+        }
+
+        $tmpPath = tempnam(sys_get_temp_dir(), 'recap_zip_');
+        if ($tmpPath === false) {
+            abort(500, 'Impossible de créer le fichier d’export.');
+        }
+
+        $zip = new ZipArchive;
+        if ($zip->open($tmpPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            @unlink($tmpPath);
+            abort(500, 'Impossible de créer l’archive ZIP.');
+        }
+
+        foreach ($fichiers as $nomInterne => $lignes) {
+            $zip->addFromString($nomInterne, $this->lignesVersCsv($lignes));
+        }
+
+        $zip->close();
+
+        return response()->streamDownload(function () use ($tmpPath) {
+            readfile($tmpPath);
+            @unlink($tmpPath);
+        }, $nomFichier, [
+            'Content-Type' => 'application/zip',
+        ]);
+    }
+
+    /**
+     * @param  array<int, array<int, string|int|float|null>>  $lignes
+     */
+    private function lignesVersCsv(array $lignes): string
+    {
+        $handle = fopen('php://temp', 'r+');
+        if ($handle === false) {
+            return '';
+        }
+
+        fwrite($handle, "\xEF\xBB\xBF");
+        foreach ($lignes as $ligne) {
+            fputcsv($handle, array_map(
+                fn ($valeur) => is_scalar($valeur) || $valeur === null ? (string) ($valeur ?? '') : '',
+                $ligne,
+            ), ';');
+        }
+
+        rewind($handle);
+        $contenu = stream_get_contents($handle) ?: '';
+        fclose($handle);
+
+        return $contenu;
     }
 
     /**

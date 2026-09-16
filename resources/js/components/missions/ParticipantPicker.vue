@@ -35,6 +35,10 @@ const collaborateursFiltres = computed(() => {
 
 const selectionnes = computed(() => props.modelValue.length);
 
+const collaborateursSelectionnes = computed(() =>
+    props.collaborateurs.filter((c) => props.modelValue.includes(c.id)),
+);
+
 const toggle = (profilId: number) => {
     const ids = [...props.modelValue];
     const idx = ids.indexOf(profilId);
@@ -62,6 +66,18 @@ const toggle = (profilId: number) => {
         <p v-if="selectionnes > 0" class="text-xs text-slate-500">
             {{ selectionnes }} missionnaire(s) sélectionné(s)
         </p>
+        <div v-if="collaborateursSelectionnes.length" class="flex flex-wrap gap-2">
+            <button
+                v-for="c in collaborateursSelectionnes"
+                :key="`sel-${c.id}`"
+                type="button"
+                class="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-900"
+                @click="toggle(c.id)"
+            >
+                {{ c.prenom }} {{ c.nom }}
+                <span aria-hidden="true" class="text-sky-600">×</span>
+            </button>
+        </div>
 
         <div class="max-h-56 overflow-y-auto rounded-md border border-input">
             <ul class="divide-y divide-slate-100">

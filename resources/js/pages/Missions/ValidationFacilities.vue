@@ -32,7 +32,6 @@ interface ChauffeurBloc {
     vehicule: string;
     logement: string;
     jours: number;
-    nuits: number;
     per_diem: number;
     prix_carburant: number;
     prix_logement: number;
@@ -97,7 +96,7 @@ let nextBlocKey = 1;
 const blocsInitiaux: ChauffeurBloc[] = (props.logistique_initiale.chauffeurs_logistique ?? []).map((bloc) => ({
     ...bloc,
     jours: Number(bloc.jours ?? 0) || 0,
-    nuits: Number(bloc.nuits ?? 0) || 0,
+    per_diem: Number(bloc.per_diem ?? 0) || 0,
     participant_ids: [...bloc.participant_ids],
     _key: nextBlocKey++,
 }));
@@ -173,11 +172,15 @@ const missionnairesDisponiblesPourBloc = (blocIndex: number) => {
     return props.mission.participants.filter((p) => !idsAutresBlocs.has(p.id));
 };
 
-const totalBlocChauffeur = (bloc: ChauffeurBloc) =>
-    (Number(bloc.per_diem) || 0)
-    + (Number(bloc.prix_carburant) || 0)
-    + (Number(bloc.prix_logement) || 0)
-    + (Number(bloc.autres_frais) || 0);
+const totalBlocChauffeur = (bloc: ChauffeurBloc) => {
+    const jours = Number(bloc.jours) || 0;
+    const perDiemJournalier = Number(bloc.per_diem) || 0;
+
+    return (jours * perDiemJournalier)
+        + (Number(bloc.prix_carburant) || 0)
+        + (Number(bloc.prix_logement) || 0)
+        + (Number(bloc.autres_frais) || 0);
+};
 
 const estProlongation = computed(() => props.logistique_initiale.est_prolongation ?? false);
 
@@ -220,7 +223,6 @@ const ajouterBlocChauffeur = () => {
         vehicule: '',
         logement: '',
         jours: 0,
-        nuits: 0,
         per_diem: 0,
         prix_carburant: 0,
         prix_logement: 0,
@@ -355,7 +357,7 @@ const submit = () => {
                     Ajoutez un ou plusieurs <strong>chauffeurs</strong> et indiquez les <strong>missionnaires</strong> qu’ils accompagnent
                     (si la mission n’a qu’un seul missionnaire, il est sélectionné automatiquement),
                     puis renseignez les frais de chaque missionnaire ci-dessous.
-                    Pour le chauffeur, saisissez manuellement les <strong>jours</strong> et <strong>nuitées</strong> (aucun calcul automatique).
+                    Pour le chauffeur, saisissez manuellement le <strong>nombre de jours</strong> : le sous-total multiplie jours × per diem journalier.
                     Pour les missionnaires, les jours et nuitées sont préremplis selon les dates de mission (nuits = jours − 1) et restent modifiables.
                 </p>
             </div>
@@ -469,16 +471,14 @@ const submit = () => {
                             <div>
                                 <Label>Nombre de jours (chauffeur)</Label>
                                 <Input v-model.number="bloc.jours" type="number" min="0" step="1" class="mt-1 bg-white" />
-                                <p class="mt-1 text-xs text-muted-foreground">Saisie manuelle — aucun calcul automatique.</p>
+                                <p class="mt-1 text-xs text-muted-foreground">Saisie manuelle — multiplié par le per diem journalier.</p>
                             </div>
                             <div>
-                                <Label>Nombre de nuitées (chauffeur)</Label>
-                                <Input v-model.number="bloc.nuits" type="number" min="0" step="1" class="mt-1 bg-white" />
-                                <p class="mt-1 text-xs text-muted-foreground">Saisie manuelle — aucun calcul automatique.</p>
-                            </div>
-                            <div>
-                                <Label>Per diem chauffeur (XOF)</Label>
+                                <Label>Per diem journalier chauffeur (XOF)</Label>
                                 <Input v-model.number="bloc.per_diem" type="number" min="0" class="mt-1 bg-white" />
+                                <p class="mt-1 text-xs text-muted-foreground">
+                                    Total per diem : {{ formatMontant((Number(bloc.jours) || 0) * (Number(bloc.per_diem) || 0)) }}
+                                </p>
                             </div>
                             <div>
                                 <Label>Frais carburant (XOF)</Label>

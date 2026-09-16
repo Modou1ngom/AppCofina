@@ -7,7 +7,7 @@ import DataTable, { type Column } from '@/components/DataTable.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials } from '@/composables/useInitials';
 import { computed } from 'vue';
-import { Code, Eye, Pencil, Trash2, Filter, Upload, Download } from 'lucide-vue-next';
+import { Code, Eye, Pencil, Trash2, Filter, Upload, Download, ArrowLeftRight, UserMinus } from 'lucide-vue-next';
 import { Input } from '@/components/ui/input';
 import { ref } from 'vue';
 
@@ -234,6 +234,12 @@ const tableData = computed(() => {
                         <span class="sm:hidden">Importer</span>
                     </Button>
                     <Link
+                        href="/profils/mouvements"
+                        class="inline-flex items-center justify-center rounded-md bg-slate-700 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-slate-800 w-full sm:w-auto"
+                    >
+                        Mouvements RH
+                    </Link>
+                    <Link
                         href="/profils/create"
                         class="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 w-full sm:w-auto"
                     >
@@ -398,6 +404,22 @@ const tableData = computed(() => {
                             title="Modifier"
                         >
                             <Pencil class="h-5 w-5" />
+                        </Link>
+                        <Link
+                            v-if="item.statut === 'actif'"
+                            :href="`/profils/mouvements/changement-poste?profil_id=${item.id}`"
+                            class="inline-flex items-center justify-center rounded-md p-2 text-blue-600 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                            title="Changement de poste"
+                        >
+                            <ArrowLeftRight class="h-5 w-5" />
+                        </Link>
+                        <Link
+                            v-if="item.statut === 'actif'"
+                            :href="`/profils/mouvements/depart?profil_id=${item.id}`"
+                            class="inline-flex items-center justify-center rounded-md p-2 text-orange-600 hover:bg-orange-50 hover:text-orange-700 transition-colors"
+                            title="Déclarer un départ"
+                        >
+                            <UserMinus class="h-5 w-5" />
                         </Link>
                         <button
                             @click="deleteProfil(item.id)"

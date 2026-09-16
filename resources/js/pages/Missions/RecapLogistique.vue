@@ -14,6 +14,8 @@ import {
     BarChart3,
     CalendarDays,
     Car,
+    Download,
+    FileSpreadsheet,
     Fuel,
     Home,
     Plane,
@@ -87,6 +89,17 @@ const appliquerPlage = () => {
     );
 };
 
+const urlExport = (format: 'excel' | 'zip') => {
+    const params = new URLSearchParams({
+        context: props.context,
+        date_debut: dateDebutLocale.value,
+        date_fin: dateFinLocale.value,
+        format,
+    });
+
+    return `/missions/recap-logistique/export?${params.toString()}`;
+};
+
 const iconeCategorie = (cle: string) => {
     switch (cle) {
         case 'per_diem':
@@ -128,7 +141,12 @@ const titrePage = computed(() =>
                             <div>
                                 <h1 class="text-xl font-semibold sm:text-2xl">{{ titrePage }}</h1>
                                 <p class="mt-1 text-sm text-muted-foreground">
-                                    Synthèse des dépenses logistiques sur la période sélectionnée.
+                                    <template v-if="context === 'finance'">
+                                        Synthèse des dépenses validées par Finance sur la période (selon la date de validation).
+                                    </template>
+                                    <template v-else>
+                                        Synthèse des dépenses logistiques des missions chevauchant la période sélectionnée.
+                                    </template>
                                 </p>
                             </div>
                         </div>
@@ -158,6 +176,20 @@ const titrePage = computed(() =>
                         <Button type="submit" variant="outline" class="shrink-0 border-amber-300">
                             Appliquer
                         </Button>
+                        <div class="flex shrink-0 flex-wrap gap-2">
+                            <Button as-child variant="outline" class="border-emerald-300 text-emerald-800 hover:bg-emerald-50">
+                                <a :href="urlExport('excel')">
+                                    <FileSpreadsheet class="mr-1.5 h-4 w-4" />
+                                    Excel
+                                </a>
+                            </Button>
+                            <Button as-child variant="outline" class="border-slate-300">
+                                <a :href="urlExport('zip')">
+                                    <Download class="mr-1.5 h-4 w-4" />
+                                    ZIP (CSV)
+                                </a>
+                            </Button>
+                        </div>
                     </form>
 
                     <p v-if="recap.plage?.libelle" class="text-sm text-muted-foreground">

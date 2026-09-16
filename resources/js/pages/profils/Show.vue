@@ -22,6 +22,9 @@ interface Props {
         site?: string;
         type_contrat: string;
         statut: string;
+        date_entree?: string | null;
+        date_sortie?: string | null;
+        motif_depart?: string | null;
         n_plus_1?: {
             id: number;
             prenom: string;
@@ -39,6 +42,20 @@ interface Props {
             prenom: string;
             nom: string;
             matricule: string;
+        }>;
+        mouvements?: Array<{
+            id: number;
+            type: string;
+            type_label: string;
+            date_effet: string | null;
+            motif: string | null;
+            fonction_avant: string | null;
+            fonction_apres: string | null;
+            departement_avant: string | null;
+            departement_apres: string | null;
+            site_avant: string | null;
+            site_apres: string | null;
+            createur?: string | null;
         }>;
     };
 }
@@ -65,6 +82,18 @@ const breadcrumbs: BreadcrumbItem[] = [
             <div class="flex items-center justify-between">
                 <h1 class="text-2xl font-bold">{{ profil.prenom }} {{ profil.nom }}</h1>
                 <div class="flex gap-2">
+                    <Link
+                        v-if="profil.statut === 'actif'"
+                        :href="`/profils/mouvements/changement-poste?profil_id=${profil.id}`"
+                    >
+                        <Button variant="outline">Changement de poste</Button>
+                    </Link>
+                    <Link
+                        v-if="profil.statut === 'actif'"
+                        :href="`/profils/mouvements/depart?profil_id=${profil.id}`"
+                    >
+                        <Button variant="outline" class="border-red-300 text-red-700 hover:bg-red-50">Déclarer un départ</Button>
+                    </Link>
                     <Link :href="`/profils/${profil.id}/edit`">
                         <Button variant="outline">Modifier</Button>
                     </Link>
@@ -149,6 +178,18 @@ const breadcrumbs: BreadcrumbItem[] = [
                                 </span>
                             </dd>
                         </div>
+                        <div v-if="profil.date_entree">
+                            <dt class="text-muted-foreground text-sm font-medium">Date d'arrivée</dt>
+                            <dd class="mt-1 text-sm">{{ profil.date_entree }}</dd>
+                        </div>
+                        <div v-if="profil.date_sortie">
+                            <dt class="text-muted-foreground text-sm font-medium">Date de départ</dt>
+                            <dd class="mt-1 text-sm">{{ profil.date_sortie }}</dd>
+                        </div>
+                        <div v-if="profil.motif_depart">
+                            <dt class="text-muted-foreground text-sm font-medium">Motif de départ</dt>
+                            <dd class="mt-1 text-sm">{{ profil.motif_depart }}</dd>
+                        </div>
                         <div v-if="profil.n_plus_1">
                             <dt class="text-muted-foreground text-sm font-medium">N+1</dt>
                             <dd class="mt-1 text-sm">
@@ -183,6 +224,32 @@ const breadcrumbs: BreadcrumbItem[] = [
                         </li>
                     </ul>
                 </div>
+            </div>
+
+            <div
+                v-if="profil.mouvements && profil.mouvements.length > 0"
+                class="rounded-lg border border-sidebar-border bg-card p-6"
+            >
+                <h2 class="mb-4 text-lg font-semibold">Historique des mouvements</h2>
+                <ul class="space-y-3">
+                    <li
+                        v-for="mouvement in profil.mouvements"
+                        :key="mouvement.id"
+                        class="rounded-md border border-gray-100 bg-gray-50 p-3 text-sm"
+                    >
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <span class="font-medium text-gray-900">{{ mouvement.type_label }}</span>
+                            <span class="text-gray-500">{{ mouvement.date_effet || '—' }}</span>
+                        </div>
+                        <p v-if="mouvement.fonction_avant !== mouvement.fonction_apres" class="mt-1 text-gray-700">
+                            Poste : {{ mouvement.fonction_avant || '—' }} → {{ mouvement.fonction_apres || '—' }}
+                        </p>
+                        <p v-if="mouvement.departement_avant !== mouvement.departement_apres" class="text-gray-700">
+                            Département : {{ mouvement.departement_avant || '—' }} → {{ mouvement.departement_apres || '—' }}
+                        </p>
+                        <p v-if="mouvement.motif" class="mt-1 text-gray-600">{{ mouvement.motif }}</p>
+                    </li>
+                </ul>
             </div>
         </div>
     </AppLayout>

@@ -8,6 +8,7 @@ use App\Models\Filiale;
 use App\Models\Profil;
 use App\Models\User;
 use App\Support\ProfilExcelImport;
+use Carbon\Carbon;
 
 class ProfilBulkImportService
 {
@@ -69,6 +70,7 @@ class ProfilBulkImportService
         $skipped = 0;
         $errors = [];
         $createdProfils = [];
+        $newProfils = [];
 
         foreach ($rows as $rowIndex => $row) {
             if ($row === [] || ! array_filter($row, static fn ($v) => ProfilExcelImport::cellToString($v) !== '')) {
@@ -170,6 +172,15 @@ class ProfilBulkImportService
                 'filiale_id' => $filialeSenegal->id,
             ];
 
+            $dateEntree = $this->optionalDate($row, $mappedColumns, 'date_entree');
+            $dateSortie = $this->optionalDate($row, $mappedColumns, 'date_sortie');
+            if ($dateEntree !== null) {
+                $attributes['date_entree'] = $dateEntree;
+            }
+            if ($dateSortie !== null) {
+                $attributes['date_sortie'] = $dateSortie;
+            }
+
             // Type de contrat : uniquement si renseigné et reconnu (sinon laissé vide)
             if ($typeContrat !== null) {
                 $attributes['type_contrat'] = $typeContrat;
@@ -194,6 +205,7 @@ class ProfilBulkImportService
             } else {
                 $profil = Profil::create($attributes);
                 $created++;
+                $newProfils[] = $profil;
             }
 
             $this->rememberProfil($profil);
@@ -211,6 +223,7 @@ class ProfilBulkImportService
             'emails_generated' => $emailsGenerated,
             'errors' => $errors,
             'created_profils' => $createdProfils,
+            'new_profils' => $newProfils,
         ];
     }
 
@@ -288,6 +301,24 @@ class ProfilBulkImportService
         $value = ProfilExcelImport::cellToString($row[$mappedColumns[$key]] ?? '');
 
         return $value !== '' ? $value : null;
+    }
+
+    /**
+     * @param  list<mixed>  $row
+     * @param  array<string, int>  $mappedColumns
+     */
+    private function optionalDate(array $row, array $mappedColumns, string $key): ?string
+    {
+        $raw = $this->optionalCell($row, $mappedColumns, $key);
+        if ($raw === null) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($raw)->toDateString();
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**
