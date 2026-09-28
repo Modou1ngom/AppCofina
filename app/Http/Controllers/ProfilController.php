@@ -743,15 +743,15 @@ class ProfilController extends Controller
                     ->with('success', $message)
                     ->with('import_errors', $errors);
 
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 DB::rollBack();
-                Log::error('Erreur lors de l\'import Excel: '.$e->getMessage());
+                Log::error('Erreur lors de l\'import Excel: '.$e->getMessage(), ['exception' => $e]);
 
                 return back()->withErrors(['file' => 'Erreur lors de l\'import: '.$e->getMessage()]);
             }
 
-        } catch (\Exception $e) {
-            Log::error('Erreur lors de la lecture du fichier Excel: '.$e->getMessage());
+        } catch (\Throwable $e) {
+            Log::error('Erreur lors de la lecture du fichier Excel: '.$e->getMessage(), ['exception' => $e]);
 
             return back()->withErrors(['file' => 'Erreur lors de la lecture du fichier: '.$e->getMessage()]);
         }

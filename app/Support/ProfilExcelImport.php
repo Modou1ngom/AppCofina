@@ -340,39 +340,80 @@ class ProfilExcelImport
     }
 
     /**
+     * Le classeur RH marque parfois des colonnes très loin (ex. CUA) sans données utiles.
+     * On ne lit que les colonnes de l'en-tête, pour éviter un dépassement mémoire ou un timeout (HTTP 500).
+     */
+    private const MAX_IMPORT_COLUMNS = 80;
+
+    /**
      * @return list<list<string>>
      */
     public static function readRowsFromWorksheet(Worksheet $sheet): array
     {
+        $highestRow = (int) $sheet->getHighestDataRow();
+        if ($highestRow < 1) {
+            return [];
+        }
+
+        $maxColumn = self::detectImportColumnCount($sheet, $highestRow);
+        $endColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($maxColumn);
         $rows = [];
-        $highestRow = $sheet->getHighestDataRow();
-        $highestColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString(
-            $sheet->getHighestDataColumn()
-        );
 
-        for ($rowIndex = 1; $rowIndex <= $highestRow; $rowIndex++) {
-            $rowData = [];
+        foreach ($sheet->getRowIterator(1, $highestRow) as $row) {
+            $rowData = array_fill(0, $maxColumn, '');
             $hasValue = false;
+            $cellIterator = $row->getCellIterator('A', $endColumn);
+            $cellIterator->setIterateOnlyExistingCells(true);
 
-            for ($colIndex = 1; $colIndex <= $highestColumnIndex; $colIndex++) {
-                $cell = $sheet->getCellByColumnAndRow($colIndex, $rowIndex);
+            foreach ($cellIterator as $cell) {
+                $columnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($cell->getColumn());
+                if ($columnIndex < 1 || $columnIndex > $maxColumn) {
+                    continue;
+                }
+
                 $value = self::extractCellValue($cell);
-                $rowData[] = $value;
+                $rowData[$columnIndex - 1] = $value;
                 if ($value !== '') {
                     $hasValue = true;
                 }
+            }
+
+            if (! $hasValue) {
+                continue;
             }
 
             while ($rowData !== [] && end($rowData) === '') {
                 array_pop($rowData);
             }
 
-            if ($hasValue) {
-                $rows[] = $rowData;
-            }
+            $rows[] = $rowData;
         }
 
         return $rows;
+    }
+
+    private static function detectImportColumnCount(Worksheet $sheet, int $highestRow): int
+    {
+        $maxColumn = 1;
+        $scanUntil = min(8, $highestRow);
+
+        foreach ($sheet->getRowIterator(1, $scanUntil) as $row) {
+            $cellIterator = $row->getCellIterator();
+            $cellIterator->setIterateOnlyExistingCells(true);
+
+            foreach ($cellIterator as $cell) {
+                $columnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($cell->getColumn());
+                if ($columnIndex > self::MAX_IMPORT_COLUMNS || $columnIndex <= $maxColumn) {
+                    continue;
+                }
+
+                if (self::extractCellValue($cell) !== '') {
+                    $maxColumn = $columnIndex;
+                }
+            }
+        }
+
+        return $maxColumn;
     }
 
     /**

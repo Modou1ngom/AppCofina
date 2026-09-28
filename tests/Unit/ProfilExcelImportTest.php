@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Support\ProfilExcelImport;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use Tests\TestCase;
 
 class ProfilExcelImportTest extends TestCase
@@ -116,6 +117,23 @@ class ProfilExcelImportTest extends TestCase
         $this->assertSame(32, $mapped['email']);
         $this->assertSame(33, $mapped['numero_carte_assurance']);
         $this->assertArrayNotHasKey('login', $mapped);
+    }
+
+    public function test_read_ignores_cells_far_beyond_the_header(): void
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setCellValue('A1', 'Nom');
+        $sheet->setCellValue('B1', 'Prénom');
+        $sheet->setCellValue('A2', 'BA');
+        $sheet->setCellValue('B2', 'Dieynaba');
+        $sheet->setCellValue('CUA2', 'bruit');
+
+        $rows = ProfilExcelImport::readRowsFromWorksheet($sheet);
+
+        $this->assertCount(2, $rows);
+        $this->assertSame(['Nom', 'Prénom'], $rows[0]);
+        $this->assertSame(['BA', 'Dieynaba'], $rows[1]);
     }
 
     public function test_duplicate_matricule_headers_keep_first_as_matricule_and_second_as_sirh(): void
