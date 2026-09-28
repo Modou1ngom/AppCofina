@@ -17,16 +17,32 @@ class Profil extends Model
 
     protected $fillable = [
         'matricule',
+        'matricule_sirh',
         'prenom',
         'nom',
+        'entite',
+        'nationalite',
         'fonction',
+        'categorie',
         'departement',
         'email',
+        'numero_carte_assurance',
         'telephone',
         'site',
+        'genre',
+        'date_naissance',
+        'diplome',
+        'age',
+        'situation_matrimoniale',
+        'nombre_enfants',
+        'numero_cni',
         'numero_compte',
         'code_agence',
         'type_contrat',
+        'duree_contrat',
+        'date_debut_contrat',
+        'date_fin_contrat',
+        'date_embauche',
         'statut',
         'pointage_statut',
         'pointage_demande_at',
@@ -40,23 +56,36 @@ class Profil extends Model
         'n_plus_2_id',
         'filiale_id',
         'date_entree',
+        'dossier_a_jour',
+        'anciennete',
         'date_sortie',
         'motif_depart',
+        'grade',
+        'h',
     ];
 
     protected $casts = [
+        'date_naissance' => 'date',
+        'date_debut_contrat' => 'date',
+        'date_fin_contrat' => 'date',
+        'date_embauche' => 'date',
         'date_entree' => 'date',
         'date_sortie' => 'date',
+        'dossier_a_jour' => 'boolean',
+        'age' => 'integer',
+        'nombre_enfants' => 'integer',
         'pointage_demande_at' => 'datetime',
         'pointage_confirme_at' => 'datetime',
     ];
 
     protected static function booted(): void
     {
-        static::creating(function (Profil $profil): void {
-            if (blank($profil->date_entree)) {
+        static::saving(function (Profil $profil): void {
+            if (! $profil->exists && blank($profil->date_entree)) {
                 $profil->date_entree = now()->toDateString();
             }
+
+            $profil->syncDerivedRhFields();
         });
 
         static::created(function (Profil $profil): void {
@@ -156,6 +185,39 @@ class Profil extends Model
     public function getFullNameAttribute()
     {
         return "{$this->prenom} {$this->nom}";
+    }
+
+    /**
+     * Âge depuis la date de naissance, ancienneté depuis l'embauche ou l'entrée.
+     */
+    public function syncDerivedRhFields(): void
+    {
+        if ($this->date_naissance) {
+            $this->age = $this->date_naissance->age;
+        }
+
+        $start = $this->date_embauche ?? $this->date_entree;
+        if ($start) {
+            $this->anciennete = self::formatAnciennete($start);
+        }
+    }
+
+    public static function formatAnciennete(\DateTimeInterface $start): string
+    {
+        $diff = \Carbon\Carbon::parse($start)->diff(now());
+        $parts = [];
+
+        if ($diff->y > 0) {
+            $parts[] = $diff->y.' an'.($diff->y > 1 ? 's' : '');
+        }
+        if ($diff->m > 0) {
+            $parts[] = $diff->m.' mois';
+        }
+        if ($parts === [] && $diff->d > 0) {
+            $parts[] = $diff->d.' jour'.($diff->d > 1 ? 's' : '');
+        }
+
+        return $parts === [] ? '0 jour' : implode(' ', $parts);
     }
 
     /**

@@ -29,6 +29,11 @@ class DashboardController extends Controller
         if ($isSuperAdmin) {
             // Pas de restriction pour le super admin - il voit tout
         }
+        // Admin / RH : toutes les habilitations de leur filiale (scope appliqué ci-dessous).
+        // Prioritaire sur la file IT, sinon un admin du département IT ne voit pas les demandes en cours.
+        elseif ($user && ($user->isAdmin() || $user->isRh())) {
+            // Pas de filtre métier supplémentaire
+        }
         // Exécuteur IT : file d'attente ou dossiers assignés
         elseif ($user && $user->isExecuteurIt()) {
             $query->where(function($q) use ($user) {
@@ -44,10 +49,6 @@ class DashboardController extends Controller
                 $q->where('status', 'pending_control')
                   ->orWhere('validator_control_id', $user->id);
             });
-        }
-        // Admin / RH : toutes les habilitations de leur filiale (scope appliqué ci-dessous)
-        elseif ($user && ($user->isAdmin() || $user->isRh())) {
-            // Pas de filtre métier supplémentaire
         }
         // Métier : périmètre personnel / hiérarchie (hors rôles fonctionnels ci-dessus)
         elseif ($profil) {

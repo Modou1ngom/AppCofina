@@ -210,7 +210,7 @@ class ProfilController extends Controller
                 'type_office' => 'nullable|in:Back Office,Front Office',
                 'n_plus_1_id' => 'nullable|exists:profiles,id',
                 'date_entree' => 'nullable|date',
-            ]);
+            ] + $this->rhFieldRules());
         } catch (\Illuminate\Validation\ValidationException $e) {
             throw $e;
         }
@@ -293,6 +293,8 @@ class ProfilController extends Controller
         if ($dateEntree !== null) {
             $data['date_entree'] = $dateEntree;
         }
+
+        $data = array_merge($data, $this->rhPayload($validated));
 
         $provisioner = app(ProfilUserProvisioningService::class);
         $mouvementService = app(ProfilMouvementService::class);
@@ -501,6 +503,7 @@ class ProfilController extends Controller
             'date_entree' => 'nullable|date',
             'date_sortie' => 'nullable|date',
             'motif_depart' => 'nullable|string|max:255',
+        ] + $this->rhFieldRules() + [
             'signature' => 'nullable|string',
             'replace_signature' => 'nullable|boolean',
             'signature_file' => 'nullable|image|max:2048',
@@ -586,6 +589,51 @@ class ProfilController extends Controller
 
         return redirect()->route('profils.index')
             ->with('success', 'Profil supprimé avec succès !');
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function rhFieldRules(): array
+    {
+        return [
+            'matricule_sirh' => 'nullable|string|max:64',
+            'entite' => 'nullable|string|max:255',
+            'nationalite' => 'nullable|string|max:100',
+            'genre' => 'nullable|string|max:20',
+            'date_naissance' => 'nullable|date',
+            'diplome' => 'nullable|string|max:255',
+            'age' => 'nullable|integer|min:0|max:120',
+            'situation_matrimoniale' => 'nullable|string|max:100',
+            'nombre_enfants' => 'nullable|integer|min:0|max:30',
+            'numero_cni' => 'nullable|string|max:64',
+            'categorie' => 'nullable|string|max:100',
+            'duree_contrat' => 'nullable|string|max:100',
+            'date_debut_contrat' => 'nullable|date',
+            'date_fin_contrat' => 'nullable|date',
+            'date_embauche' => 'nullable|date',
+            'dossier_a_jour' => 'nullable|boolean',
+            'anciennete' => 'nullable|string|max:100',
+            'grade' => 'nullable|string|max:100',
+            'h' => 'nullable|string|max:50',
+            'numero_carte_assurance' => 'nullable|string|max:64',
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function rhPayload(array $validated): array
+    {
+        $payload = [];
+        foreach (array_keys($this->rhFieldRules()) as $key) {
+            if (array_key_exists($key, $validated)) {
+                $payload[$key] = $validated[$key];
+            }
+        }
+
+        return $payload;
     }
 
     /**

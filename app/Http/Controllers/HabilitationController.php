@@ -69,6 +69,10 @@ class HabilitationController extends Controller
         if ($user && $user->isSuperAdmin()) {
             // Pas de restriction pour le super admin
         }
+        // Admin : périmètre filiale appliqué en fin de requête, même si le profil est aussi IT
+        elseif ($user && $user->isAdmin()) {
+            // Pas de filtre métier supplémentaire
+        }
         // Utilisateurs avec plusieurs rôles (RH + Exécuteur IT, etc.) : combiner les conditions
         elseif ($user && $profil) {
             $hasMultipleRoles = ($user->isRh() ? 1 : 0) + ($user->isExecuteurIt() ? 1 : 0) + ($user->isControle() ? 1 : 0) > 1;

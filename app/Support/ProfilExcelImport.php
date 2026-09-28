@@ -13,6 +13,7 @@ class ProfilExcelImport
     public const COLUMN_ALIASES = [
         'nom' => ['nom', 'name', 'lastname', 'last_name'],
         'prenom' => ['prenom', 'prénom', 'firstname', 'first_name'],
+        'matricule_sirh' => ['matricule sirh', 'matricule_sirh', 'sirh', 'id sirh'],
         'matricule' => ['matricule', 'matricul', 'mat', 'employee_id', 'id employe', 'id employé'],
         'email' => [
             'email',
@@ -20,6 +21,7 @@ class ProfilExcelImport
             'e mail',
             'adresse email',
             'adresse e-mail',
+            'adresses mail',
             'adresse mail',
             'adresse electronique',
             'adresse électronique',
@@ -51,7 +53,18 @@ class ProfilExcelImport
             'samaccountname',
             'account name',
         ],
-        'telephone' => ['telephone', 'téléphone', 'tel', 'phone', 'mobile', 'gsm'],
+        'telephone' => [
+            'telephone',
+            'téléphone',
+            'tel',
+            'phone',
+            'mobile',
+            'gsm',
+            'numero de telephone',
+            'numéro de téléphone',
+            'n telephone',
+            'n° téléphone',
+        ],
         'fonction' => ['fonction', 'function', 'poste', 'job', 'position', 'intitule poste', 'intitulé poste'],
         'departement' => ['departement', 'département', 'department', 'dept', 'direction'],
         'site' => ['site', 'agence', 'agency', 'location', 'lieu'],
@@ -76,7 +89,34 @@ class ProfilExcelImport
         ],
         'statut' => ['status', 'etat', 'état', 'statut actif', 'statut collaborateur'],
         'statut_rh' => ['statut rh', 'statut_rh', 'classification statut', 'statut rh'],
+        'entite' => ['entite', 'entité', 'entity'],
+        'nationalite' => ['nationalite', 'nationalité', 'nationality'],
+        'genre' => ['genre', 'sexe', 'gender'],
+        'date_naissance' => ['date de naissance', 'date naissance', 'date_naissance', 'ddn', 'birth date', 'date of birth'],
+        'diplome' => ['diplome', 'diplôme', 'diploma'],
+        'age' => ['age', 'âge'],
+        'situation_matrimoniale' => ['situation matrimoniale', 'situation familiale', 'etat civil', 'état civil'],
+        'nombre_enfants' => [
+            'nbre d enfant',
+            'nbre d\'enfant',
+            'nbre d enfants',
+            'nombre d enfants',
+            'nombre d\'enfants',
+            'nombre enfants',
+            'nb enfants',
+            'nbre enfant',
+        ],
+        'numero_cni' => ['n cni', 'n° cni', 'numero cni', 'numéro cni', 'cni', 'no cni', 'piece identite', 'pièce identité'],
+        'categorie' => ['categorie', 'catégorie', 'category'],
+        'duree_contrat' => ['duree', 'durée', 'duree contrat', 'durée contrat', 'duree du contrat', 'durée du contrat'],
+        'date_debut_contrat' => ['date de debut contrat', 'date debut contrat', 'date de début contrat', 'debut contrat', 'début contrat'],
+        'date_fin_contrat' => ['date de fin contrat', 'date fin contrat', 'fin contrat', 'fin de contrat'],
+        'date_embauche' => ['date embauche', 'date d embauche', 'date d\'embauche', 'date d\'embauche', 'hire date'],
         'date_entree' => [
+            'date entree dans l etablissement',
+            'date d entree dans l etablissement',
+            'date d\'entree dans l\'etablissement',
+            'date d\'entrée dans l\'établissement',
             'date entree',
             'date d entree',
             'date d\'entree',
@@ -85,10 +125,20 @@ class ProfilExcelImport
             'date_entree',
             'date arrivee',
             'date arrivée',
-            'date embauche',
-            'date d embauche',
-            'hire date',
             'entry date',
+        ],
+        'dossier_a_jour' => ['dossier a jour', 'dossier à jour', 'dossier a jour'],
+        'anciennete' => ['anciennete', 'ancienneté'],
+        'motif_depart' => ['motifs', 'motif', 'motif de depart', 'motif de départ', 'motifs de depart'],
+        'grade' => ['grade'],
+        'h' => ['h'],
+        'numero_carte_assurance' => [
+            'n carte assurance',
+            'n° carte assurance',
+            'numero carte assurance',
+            'numéro carte assurance',
+            'carte assurance',
+            'n assurance',
         ],
         'date_sortie' => [
             'date sortie',
@@ -110,6 +160,10 @@ class ProfilExcelImport
             'back office',
             'front office',
             'back/front',
+            'front/ back',
+            'front / back',
+            'front/back',
+            'front back',
         ],
         'n_plus_1' => [
             'n+1',
@@ -133,12 +187,17 @@ class ProfilExcelImport
      */
     public static function mapColumns(array $headerRow): array
     {
-        $headerMap = [];
+        $headerIndexes = [];
         foreach ($headerRow as $index => $col) {
             $key = self::normalizeHeaderKey($col);
             if ($key !== '') {
-                $headerMap[$key] = (int) $index;
+                $headerIndexes[$key][] = (int) $index;
             }
+        }
+
+        $headerMap = [];
+        foreach ($headerIndexes as $key => $indexes) {
+            $headerMap[$key] = $indexes[0];
         }
 
         $mapped = [];
@@ -150,6 +209,15 @@ class ProfilExcelImport
                     break;
                 }
             }
+        }
+
+        // Le tableau RH répète l'en-tête « Matricule » : la 1re colonne est le matricule, la 2e le matricule SIRH.
+        $matriculeIndexes = $headerIndexes[self::normalizeHeaderKey('matricule')] ?? [];
+        if (count($matriculeIndexes) >= 2 && ! isset($mapped['matricule_sirh'])) {
+            $mapped['matricule'] = $matriculeIndexes[0];
+            $mapped['matricule_sirh'] = $matriculeIndexes[1];
+        } elseif ($matriculeIndexes !== []) {
+            $mapped['matricule'] = $matriculeIndexes[0];
         }
 
         // Correspondance partielle (ex. "Type de contrat (RH)")
@@ -326,6 +394,17 @@ class ProfilExcelImport
 
     public static function extractCellValue(Cell $cell): string
     {
+        if (\PhpOffice\PhpSpreadsheet\Shared\Date::isDateTime($cell)) {
+            $excelDate = $cell->getCalculatedValue();
+            if (is_numeric($excelDate)) {
+                try {
+                    return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float) $excelDate)->format('Y-m-d');
+                } catch (\Throwable) {
+                    // Valeur non convertible : on retombe sur le texte de la cellule.
+                }
+            }
+        }
+
         $value = $cell->getCalculatedValue();
 
         if ($value instanceof RichText) {

@@ -113,7 +113,7 @@ const downloadTemplate = () => {
                             <li>Les e-mails doivent être présents dans le fichier (colonne « Email », « E-mail », etc.)</li>
                             <li>Les comptes utilisateurs sont créés automatiquement à la fin de l'import si un e-mail est renseigné</li>
                           <!--  <li>Si le matricule est fourni dans le fichier, il sera utilisé. Sinon, il sera généré automatiquement (M1, M2, M3...)</li>-->
-                            <li>Les lignes avec des matricules ou emails déjà existants seront ignorées</li>
+                            <li>Une fiche déjà présente (même matricule, même numéro SIRH comme 803 pour M0803, même e-mail, ou nom et prénom uniques) est mise à jour, y compris le matricule</li>
                         </ul>
                     </div>
                 </div>

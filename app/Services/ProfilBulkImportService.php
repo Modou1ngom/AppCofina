@@ -27,6 +27,15 @@ class ProfilBulkImportService
     /** @var array<string, int> */
     private array $profilIdByName = [];
 
+    /** @var array<string, int> */
+    private array $profilIdByMatriculeAlias = [];
+
+    /** @var array<string, true> */
+    private array $ambiguousMatriculeAliases = [];
+
+    /** @var array<string, int> */
+    private array $nameCounts = [];
+
     /** @var array<string, string> */
     private array $departementCache = [];
 
@@ -91,6 +100,8 @@ class ProfilBulkImportService
                 ? ProfilExcelImport::cellToString($row[$mappedColumns['matricule']] ?? '')
                 : '';
             $matricule = $matricule !== '' ? $matricule : null;
+            $matriculeSirh = $this->optionalCell($row, $mappedColumns, 'matricule_sirh');
+            [$matricule, $matriculeSirh] = $this->alignMatriculeAndSirh($matricule, $matriculeSirh);
 
             $excludeFromEmailScan = array_values(array_filter([
                 $mappedColumns['nom'] ?? null,
@@ -112,9 +123,15 @@ class ProfilBulkImportService
                 $matricule = $this->nextAutoMatricule();
             }
 
-            $matriculeKey = strtoupper($matricule);
-            $existingProfilId = $this->profilIdByMatricule[$matriculeKey] ?? null;
-            $existingProfil = $existingProfilId ? Profil::query()->find($existingProfilId) : null;
+            $existingProfil = $this->findExistingProfil($matricule, $matriculeSirh, $email, $prenom, $nom);
+
+            $matriculeOwnerId = $this->profilIdByMatricule[strtoupper($matricule)] ?? null;
+            if ($matriculeOwnerId !== null && ($existingProfil === null || (int) $matriculeOwnerId !== (int) $existingProfil->id)) {
+                $skipped++;
+                $errors[] = "Ligne {$line}: Matricule déjà utilisé par un autre profil ({$matricule})";
+
+                continue;
+            }
 
             if ($email !== null) {
                 $emailOwnerId = $this->profilIdByEmail[$email] ?? null;
@@ -181,6 +198,54 @@ class ProfilBulkImportService
                 $attributes['date_sortie'] = $dateSortie;
             }
 
+            if ($matriculeSirh !== null) {
+                $attributes['matricule_sirh'] = $matriculeSirh;
+            }
+
+            foreach ([
+                'entite',
+                'nationalite',
+                'diplome',
+                'situation_matrimoniale',
+                'numero_cni',
+                'categorie',
+                'duree_contrat',
+                'anciennete',
+                'grade',
+                'h',
+                'numero_carte_assurance',
+                'motif_depart',
+            ] as $textKey) {
+                $value = $this->optionalCell($row, $mappedColumns, $textKey);
+                if ($value !== null) {
+                    $attributes[$textKey] = $value;
+                }
+            }
+
+            $genre = $this->optionalGenre($row, $mappedColumns);
+            if ($genre !== null) {
+                $attributes['genre'] = $genre;
+            }
+
+            foreach (['date_naissance', 'date_debut_contrat', 'date_fin_contrat', 'date_embauche'] as $dateKey) {
+                $dateValue = $this->optionalDate($row, $mappedColumns, $dateKey);
+                if ($dateValue !== null) {
+                    $attributes[$dateKey] = $dateValue;
+                }
+            }
+
+            $age = $this->optionalInt($row, $mappedColumns, 'age');
+            if ($age !== null) {
+                $attributes['age'] = $age;
+            }
+            $enfants = $this->optionalInt($row, $mappedColumns, 'nombre_enfants');
+            if ($enfants !== null) {
+                $attributes['nombre_enfants'] = $enfants;
+            }
+            if (isset($mappedColumns['dossier_a_jour'])) {
+                $attributes['dossier_a_jour'] = $this->optionalBool($row, $mappedColumns, 'dossier_a_jour');
+            }
+
             // Type de contrat : uniquement si renseigné et reconnu (sinon laissé vide)
             if ($typeContrat !== null) {
                 $attributes['type_contrat'] = $typeContrat;
@@ -236,8 +301,12 @@ class ProfilBulkImportService
         $this->profilIdByName = [];
         $this->nextMatriculeNum = 0;
 
-        foreach (Profil::query()->select('id', 'matricule', 'email', 'prenom', 'nom', 'n_plus_1_id')->cursor() as $profil) {
+        foreach (Profil::query()->select('id', 'matricule', 'matricule_sirh', 'email', 'prenom', 'nom', 'n_plus_1_id')->cursor() as $profil) {
             $this->rememberProfil($profil, false);
+            $nameKey = $this->nameKey((string) $profil->prenom, (string) $profil->nom);
+            if ($nameKey !== '') {
+                $this->nameCounts[$nameKey] = ($this->nameCounts[$nameKey] ?? 0) + 1;
+            }
             $number = $this->extractMatriculeNumber((string) $profil->matricule);
             if ($number > $this->nextMatriculeNum) {
                 $this->nextMatriculeNum = $number;
@@ -250,9 +319,15 @@ class ProfilBulkImportService
         $matriculeKey = strtoupper(trim((string) $profil->matricule));
         if ($matriculeKey !== '') {
             $this->profilIdByMatricule[$matriculeKey] = (int) $profil->id;
+            $this->indexMatriculeAliases($matriculeKey, (int) $profil->id);
             if ($trackMatricule) {
                 $this->knownMatricules[$matriculeKey] = true;
             }
+        }
+
+        $sirhKey = strtoupper(trim((string) $profil->matricule_sirh));
+        if ($sirhKey !== '') {
+            $this->indexMatriculeAliases($sirhKey, (int) $profil->id);
         }
 
         $email = strtolower(trim((string) $profil->email));
@@ -267,6 +342,97 @@ class ProfilBulkImportService
         if ($nameKey !== '') {
             $this->profilIdByName[$nameKey] = (int) $profil->id;
         }
+    }
+
+    private function findExistingProfil(?string $matricule, ?string $matriculeSirh, ?string $email, string $prenom, string $nom): ?Profil
+    {
+        $profilId = null;
+
+        foreach ([$matricule, $matriculeSirh] as $value) {
+            if ($value === null || trim($value) === '') {
+                continue;
+            }
+
+            foreach ($this->matriculeAliases($value) as $alias) {
+                if (isset($this->profilIdByMatriculeAlias[$alias])) {
+                    $profilId = $this->profilIdByMatriculeAlias[$alias];
+                    break 2;
+                }
+            }
+        }
+
+        if ($profilId === null && $email !== null) {
+            $profilId = $this->profilIdByEmail[$email] ?? null;
+        }
+
+        if ($profilId === null) {
+            $nameKey = $this->nameKey($prenom, $nom);
+            if ($nameKey !== '' && ($this->nameCounts[$nameKey] ?? 0) === 1) {
+                $profilId = $this->profilIdByName[$nameKey] ?? null;
+            }
+        }
+
+        return $profilId ? Profil::query()->find($profilId) : null;
+    }
+
+    /**
+     * @return array{0: ?string, 1: ?string}
+     */
+    private function alignMatriculeAndSirh(?string $matricule, ?string $matriculeSirh): array
+    {
+        if ($matricule !== null && $matriculeSirh !== null
+            && preg_match('/^\d+$/', $matricule) === 1
+            && preg_match('/^M\d+$/i', $matriculeSirh) === 1) {
+            return [$matriculeSirh, $matricule];
+        }
+
+        return [$matricule, $matriculeSirh];
+    }
+
+    private function indexMatriculeAliases(string $value, int $profilId): void
+    {
+        foreach ($this->matriculeAliases($value) as $alias) {
+            if (isset($this->ambiguousMatriculeAliases[$alias])) {
+                continue;
+            }
+
+            $ownerId = $this->profilIdByMatriculeAlias[$alias] ?? null;
+            if ($ownerId !== null && $ownerId !== $profilId) {
+                unset($this->profilIdByMatriculeAlias[$alias]);
+                $this->ambiguousMatriculeAliases[$alias] = true;
+
+                continue;
+            }
+
+            $this->profilIdByMatriculeAlias[$alias] = $profilId;
+        }
+    }
+
+    /**
+     * M0803, M803 et 803 désignent le même matricule.
+     *
+     * @return list<string>
+     */
+    private function matriculeAliases(string $value): array
+    {
+        $raw = strtoupper(trim($value));
+        if ($raw === '') {
+            return [];
+        }
+
+        $aliases = [$raw];
+        $digits = preg_replace('/\D/', '', $raw) ?? '';
+        if ($digits === '') {
+            return $aliases;
+        }
+
+        $number = ltrim($digits, '0');
+        $number = $number === '' ? '0' : $number;
+        $aliases[] = $number;
+        $aliases[] = 'M'.$number;
+        $aliases[] = 'M'.str_pad($number, 4, '0', STR_PAD_LEFT);
+
+        return array_values(array_unique($aliases));
     }
 
     private function nextAutoMatricule(): string
@@ -307,11 +473,81 @@ class ProfilBulkImportService
      * @param  list<mixed>  $row
      * @param  array<string, int>  $mappedColumns
      */
+    private function optionalInt(array $row, array $mappedColumns, string $key): ?int
+    {
+        $raw = $this->optionalCell($row, $mappedColumns, $key);
+        if ($raw === null || ! is_numeric($raw)) {
+            return null;
+        }
+
+        return (int) $raw;
+    }
+
+    /**
+     * @param  list<mixed>  $row
+     * @param  array<string, int>  $mappedColumns
+     */
+    private function optionalBool(array $row, array $mappedColumns, string $key): ?bool
+    {
+        $raw = $this->optionalCell($row, $mappedColumns, $key);
+        if ($raw === null) {
+            return null;
+        }
+
+        $value = mb_strtolower($raw);
+
+        if (in_array($value, ['oui', 'o', 'yes', '1', 'true', 'vrai', 'a jour', 'à jour'], true)) {
+            return true;
+        }
+        if (in_array($value, ['non', 'n', 'no', '0', 'false', 'faux'], true)) {
+            return false;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  list<mixed>  $row
+     * @param  array<string, int>  $mappedColumns
+     */
+    private function optionalGenre(array $row, array $mappedColumns): ?string
+    {
+        $raw = $this->optionalCell($row, $mappedColumns, 'genre');
+        if ($raw === null) {
+            return null;
+        }
+
+        $value = mb_strtolower($raw);
+        if (in_array($value, ['m', 'h', 'homme', 'masculin'], true)) {
+            return 'Homme';
+        }
+        if (in_array($value, ['f', 'femme', 'feminin', 'féminin'], true)) {
+            return 'Femme';
+        }
+
+        return $raw;
+    }
+
+    /**
+     * @param  list<mixed>  $row
+     * @param  array<string, int>  $mappedColumns
+     */
     private function optionalDate(array $row, array $mappedColumns, string $key): ?string
     {
         $raw = $this->optionalCell($row, $mappedColumns, $key);
         if ($raw === null) {
             return null;
+        }
+
+        if (is_numeric($raw)) {
+            $serial = (float) $raw;
+            if ($serial >= 10000 && $serial <= 80000) {
+                try {
+                    return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($serial)->format('Y-m-d');
+                } catch (\Throwable) {
+                    return null;
+                }
+            }
         }
 
         try {

@@ -62,6 +62,71 @@ class ProfilExcelImportTest extends TestCase
         );
     }
 
+    public function test_map_sirh_profile_headers(): void
+    {
+        $header = [
+            'Matricule',
+            'Matricule SIRH',
+            'Nom',
+            'Prénom',
+            'Entité',
+            'Nationalité',
+            'Departement',
+            'Site',
+            'Genre',
+            'Date de naissance',
+            'Diplôme',
+            'Age',
+            'Situation Matrimoniale',
+            'Nbre d\'enfant',
+            'N° CNI',
+            'Numéro de téléphone',
+            'Fonction',
+            'Catégorie',
+            'Front/ Back',
+            'N+1',
+            'Type de contrat',
+            'Durée',
+            'Date de début contrat',
+            'Date de fin contrat',
+            'Date d\'embauche',
+            'Date d\'entrée dans l\'Etablissement',
+            'Dossier a jour',
+            'ANCIENNETE',
+            'DATE DE DEPART',
+            'MOTIFS',
+            'GRADE',
+            'H',
+            'Adresses Mail',
+            'N° Carte Assurance',
+        ];
+
+        $mapped = ProfilExcelImport::mapColumns($header);
+
+        $this->assertSame(0, $mapped['matricule']);
+        $this->assertSame(1, $mapped['matricule_sirh']);
+        $this->assertSame(4, $mapped['entite']);
+        $this->assertSame(18, $mapped['type_office']);
+        $this->assertSame(19, $mapped['n_plus_1']);
+        $this->assertSame(24, $mapped['date_embauche']);
+        $this->assertSame(25, $mapped['date_entree']);
+        $this->assertSame(28, $mapped['date_sortie']);
+        $this->assertSame(29, $mapped['motif_depart']);
+        $this->assertSame(31, $mapped['h']);
+        $this->assertSame(32, $mapped['email']);
+        $this->assertSame(33, $mapped['numero_carte_assurance']);
+        $this->assertArrayNotHasKey('login', $mapped);
+    }
+
+    public function test_duplicate_matricule_headers_keep_first_as_matricule_and_second_as_sirh(): void
+    {
+        $mapped = ProfilExcelImport::mapColumns(['Matricule', 'Matricule', 'Nom', 'Prénom']);
+
+        $this->assertSame(0, $mapped['matricule']);
+        $this->assertSame(1, $mapped['matricule_sirh']);
+        $this->assertSame(2, $mapped['nom']);
+    }
+
     public function test_normalize_type_contrat_variants(): void
     {
         $this->assertSame('CDI', ProfilExcelImport::normalizeTypeContrat('cdi'));

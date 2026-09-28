@@ -27,6 +27,27 @@ interface Props {
         date_entree?: string | null;
         date_sortie?: string | null;
         motif_depart?: string | null;
+        matricule_sirh?: string | null;
+        entite?: string | null;
+        nationalite?: string | null;
+        genre?: string | null;
+        date_naissance?: string | null;
+        diplome?: string | null;
+        age?: number | null;
+        situation_matrimoniale?: string | null;
+        nombre_enfants?: number | null;
+        numero_cni?: string | null;
+        categorie?: string | null;
+        type_office?: string | null;
+        duree_contrat?: string | null;
+        date_debut_contrat?: string | null;
+        date_fin_contrat?: string | null;
+        date_embauche?: string | null;
+        dossier_a_jour?: boolean | null;
+        anciennete?: string | null;
+        grade?: string | null;
+        h?: string | null;
+        numero_carte_assurance?: string | null;
         n_plus_1?: {
             id: number;
             prenom: string;
@@ -113,6 +134,46 @@ const breadcrumbs: BreadcrumbItem[] = [
                             <dt class="text-muted-foreground text-sm font-medium">Matricule</dt>
                             <dd class="mt-1 text-sm">{{ profil.matricule }}</dd>
                         </div>
+                        <div v-if="profil.matricule_sirh">
+                            <dt class="text-muted-foreground text-sm font-medium">Matricule SIRH</dt>
+                            <dd class="mt-1 text-sm">{{ profil.matricule_sirh }}</dd>
+                        </div>
+                        <div v-if="profil.genre">
+                            <dt class="text-muted-foreground text-sm font-medium">Genre</dt>
+                            <dd class="mt-1 text-sm">{{ profil.genre }}</dd>
+                        </div>
+                        <div v-if="profil.nationalite">
+                            <dt class="text-muted-foreground text-sm font-medium">Nationalité</dt>
+                            <dd class="mt-1 text-sm">{{ profil.nationalite }}</dd>
+                        </div>
+                        <div v-if="profil.date_naissance">
+                            <dt class="text-muted-foreground text-sm font-medium">Date de naissance</dt>
+                            <dd class="mt-1 text-sm">{{ String(profil.date_naissance).slice(0, 10) }}</dd>
+                        </div>
+                        <div v-if="profil.age">
+                            <dt class="text-muted-foreground text-sm font-medium">Âge</dt>
+                            <dd class="mt-1 text-sm">{{ profil.age }}</dd>
+                        </div>
+                        <div v-if="profil.diplome">
+                            <dt class="text-muted-foreground text-sm font-medium">Diplôme</dt>
+                            <dd class="mt-1 text-sm">{{ profil.diplome }}</dd>
+                        </div>
+                        <div v-if="profil.situation_matrimoniale">
+                            <dt class="text-muted-foreground text-sm font-medium">Situation matrimoniale</dt>
+                            <dd class="mt-1 text-sm">{{ profil.situation_matrimoniale }}</dd>
+                        </div>
+                        <div v-if="profil.nombre_enfants !== null && profil.nombre_enfants !== undefined">
+                            <dt class="text-muted-foreground text-sm font-medium">Nombre d'enfants</dt>
+                            <dd class="mt-1 text-sm">{{ profil.nombre_enfants }}</dd>
+                        </div>
+                        <div v-if="profil.numero_cni">
+                            <dt class="text-muted-foreground text-sm font-medium">N° CNI</dt>
+                            <dd class="mt-1 text-sm">{{ profil.numero_cni }}</dd>
+                        </div>
+                        <div v-if="profil.numero_carte_assurance">
+                            <dt class="text-muted-foreground text-sm font-medium">N° carte assurance</dt>
+                            <dd class="mt-1 text-sm">{{ profil.numero_carte_assurance }}</dd>
+                        </div>
                         <div>
                             <dt class="text-muted-foreground text-sm font-medium">Prénom</dt>
                             <dd class="mt-1 text-sm">{{ profil.prenom }}</dd>
@@ -192,9 +253,53 @@ const breadcrumbs: BreadcrumbItem[] = [
                             <dt class="text-muted-foreground text-sm font-medium">Pointage</dt>
                             <dd class="mt-1 text-sm">{{ profil.pointage_statut_label }}</dd>
                         </div>
+                        <div v-if="profil.entite">
+                            <dt class="text-muted-foreground text-sm font-medium">Entité</dt>
+                            <dd class="mt-1 text-sm">{{ profil.entite }}</dd>
+                        </div>
+                        <div v-if="profil.categorie">
+                            <dt class="text-muted-foreground text-sm font-medium">Catégorie</dt>
+                            <dd class="mt-1 text-sm">{{ profil.categorie }}</dd>
+                        </div>
+                        <div v-if="profil.grade">
+                            <dt class="text-muted-foreground text-sm font-medium">Grade</dt>
+                            <dd class="mt-1 text-sm">{{ profil.grade }}</dd>
+                        </div>
+                        <div v-if="profil.h">
+                            <dt class="text-muted-foreground text-sm font-medium">H</dt>
+                            <dd class="mt-1 text-sm">{{ profil.h }}</dd>
+                        </div>
+                        <div v-if="profil.type_office">
+                            <dt class="text-muted-foreground text-sm font-medium">Front / Back</dt>
+                            <dd class="mt-1 text-sm">{{ profil.type_office }}</dd>
+                        </div>
+                        <div v-if="profil.duree_contrat">
+                            <dt class="text-muted-foreground text-sm font-medium">Durée</dt>
+                            <dd class="mt-1 text-sm">{{ profil.duree_contrat }}</dd>
+                        </div>
+                        <div v-if="profil.date_debut_contrat">
+                            <dt class="text-muted-foreground text-sm font-medium">Date de début contrat</dt>
+                            <dd class="mt-1 text-sm">{{ String(profil.date_debut_contrat).slice(0, 10) }}</dd>
+                        </div>
+                        <div v-if="profil.date_fin_contrat">
+                            <dt class="text-muted-foreground text-sm font-medium">Date de fin contrat</dt>
+                            <dd class="mt-1 text-sm">{{ String(profil.date_fin_contrat).slice(0, 10) }}</dd>
+                        </div>
+                        <div v-if="profil.date_embauche">
+                            <dt class="text-muted-foreground text-sm font-medium">Date d'embauche</dt>
+                            <dd class="mt-1 text-sm">{{ String(profil.date_embauche).slice(0, 10) }}</dd>
+                        </div>
                         <div v-if="profil.date_entree">
-                            <dt class="text-muted-foreground text-sm font-medium">Date d'arrivée</dt>
-                            <dd class="mt-1 text-sm">{{ profil.date_entree }}</dd>
+                            <dt class="text-muted-foreground text-sm font-medium">Date d'entrée dans l'établissement</dt>
+                            <dd class="mt-1 text-sm">{{ String(profil.date_entree).slice(0, 10) }}</dd>
+                        </div>
+                        <div v-if="profil.dossier_a_jour !== null && profil.dossier_a_jour !== undefined">
+                            <dt class="text-muted-foreground text-sm font-medium">Dossier à jour</dt>
+                            <dd class="mt-1 text-sm">{{ profil.dossier_a_jour ? 'Oui' : 'Non' }}</dd>
+                        </div>
+                        <div v-if="profil.anciennete">
+                            <dt class="text-muted-foreground text-sm font-medium">Ancienneté</dt>
+                            <dd class="mt-1 text-sm">{{ profil.anciennete }}</dd>
                         </div>
                         <div v-if="profil.date_sortie">
                             <dt class="text-muted-foreground text-sm font-medium">Date de départ</dt>
