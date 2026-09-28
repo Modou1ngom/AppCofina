@@ -77,6 +77,10 @@ const mainNavItems = computed<NavItem[]>(() => {
                         title: 'Arrivées / départs / postes',
                         href: '/profils/mouvements',
                     },
+                    {
+                        title: 'En attente de pointage',
+                        href: '/profils/pointage',
+                    },
                   
                 ],
             },
@@ -209,6 +213,10 @@ const mainNavItems = computed<NavItem[]>(() => {
                         title: 'Terminées',
                         href: '/habilitations/espace-it?filter=terminees',
                     },
+                    {
+                        title: 'Pointage staff',
+                        href: '/profils/pointage',
+                    },
                 ],
             });
         }
@@ -298,6 +306,10 @@ const mainNavItems = computed<NavItem[]>(() => {
                     {
                         title: 'Arrivées / départs / postes',
                         href: '/profils/mouvements',
+                    },
+                    {
+                        title: 'En attente de pointage',
+                        href: '/profils/pointage',
                     },
                   
                 ],
@@ -432,6 +444,10 @@ const mainNavItems = computed<NavItem[]>(() => {
                 {
                     title: 'Terminées',
                     href: '/habilitations/espace-it?filter=terminees',
+                },
+                {
+                    title: 'Pointage staff',
+                    href: '/profils/pointage',
                 },
             ],
         });

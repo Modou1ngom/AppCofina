@@ -23,6 +23,7 @@ interface Profil {
     site?: string;
     type_contrat: string;
     statut: string;
+    pointage_statut?: string | null;
 }
 
 interface Props {
@@ -146,15 +147,21 @@ const getAvatarColor = (name: string) => {
     return colors[index];
 };
 
-const getStatusBadge = (statut: string) => {
-    if (statut === 'actif') {
+const getStatusBadge = (profil: { statut: string; pointage_statut?: string | null }) => {
+    if (profil.pointage_statut === 'en_attente') {
+        return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200';
+    }
+    if (profil.statut === 'actif') {
         return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
     }
     return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
 };
 
-const getStatusLabel = (statut: string) => {
-    return statut === 'actif' ? 'Actif' : 'Inactif';
+const getStatusLabel = (profil: { statut: string; pointage_statut?: string | null }) => {
+    if (profil.pointage_statut === 'en_attente') {
+        return 'En attente de pointage';
+    }
+    return profil.statut === 'actif' ? 'Actif' : 'Inactif';
 };
 
 const columns: Column[] = [
@@ -201,6 +208,7 @@ const tableData = computed(() => {
         fonction: profil.fonction || '-',
         departement: profil.departement || '-',
         statut: profil.statut,
+        pointage_statut: profil.pointage_statut,
         profil: profil,
     }));
 });
@@ -382,10 +390,10 @@ const tableData = computed(() => {
                     <span
                         :class="[
                             'rounded-full px-3 py-1 text-xs font-medium',
-                            getStatusBadge(item.statut),
+                            getStatusBadge(item),
                         ]"
                     >
-                        {{ getStatusLabel(item.statut) }}
+                        {{ getStatusLabel(item) }}
                     </span>
                 </template>
 

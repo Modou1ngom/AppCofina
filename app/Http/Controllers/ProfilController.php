@@ -10,6 +10,7 @@ use App\Models\Profil;
 use App\Models\User;
 use App\Services\ProfilBulkImportService;
 use App\Services\ProfilMouvementService;
+use App\Services\ProfilPointageService;
 use App\Services\ProfilSignatureService;
 use App\Services\ProfilUserProvisioningService;
 use App\Support\ProfilExcelImport;
@@ -276,6 +277,9 @@ class ProfilController extends Controller
             'filiale_id' => $filialeId,
             'type_contrat' => $validated['type_contrat'] ?? null,
             'statut' => $validated['statut'] ?? 'actif',
+            'pointage_statut' => Profil::POINTAGE_EN_ATTENTE,
+            'pointage_demande_at' => now(),
+            'pointage_demande_par' => $user?->id,
             'statut_rh' => $validated['statut_rh'] ?? null,
             'type_office' => $validated['type_office'] ?? null,
             'n_plus_1_id' => $validated['n_plus_1_id'] ?? null,
@@ -292,10 +296,11 @@ class ProfilController extends Controller
 
         $provisioner = app(ProfilUserProvisioningService::class);
         $mouvementService = app(ProfilMouvementService::class);
+        $pointageService = app(ProfilPointageService::class);
 
         $hadEmail = trim((string) ($data['email'] ?? '')) !== '';
 
-        $createdUser = DB::transaction(function () use ($data, $provisioner, $mouvementService, $user) {
+        [$profil, $createdUser] = DB::transaction(function () use ($data, $provisioner, $mouvementService, $user) {
             $profil = Profil::create($data);
             $profil->refresh();
 
@@ -312,10 +317,17 @@ class ProfilController extends Controller
                 $user,
             );
 
-            return $created;
+            return [$profil, $created];
         });
 
-        $message = 'Profil créé avec succès !';
+        $itNotifie = $pointageService->notifierDemande($profil, $user);
+
+        $message = 'Profil créé avec succès. Le collaborateur est en attente de pointage.';
+        if ($itNotifie) {
+            $message .= ' L\'équipe IT a été notifiée pour l\'enregistrer sur la plateforme de pointage.';
+        } else {
+            $message .= ' Aucun compte IT actif n\'a été trouvé pour la notification.';
+        }
         if (! $hadEmail) {
             $message .= ' Aucun compte utilisateur : renseignez un e-mail pour activer la connexion.';
         } elseif ($createdUser?->wasRecentlyCreated) {
@@ -365,6 +377,7 @@ class ProfilController extends Controller
         $profilData['date_entree'] = ($profil->date_entree ?? $profil->created_at)?->format('Y-m-d');
         $profilData['date_sortie'] = $profil->date_sortie?->format('Y-m-d');
         $profilData['motif_depart'] = $profil->motif_depart;
+        $profilData['pointage_statut_label'] = $profil->pointageStatutLabel();
         $profilData['compte_utilisateur'] = $this->compteUtilisateurPourProfil($profil);
         $profilData['mouvements'] = $profil->mouvements->map(function ($m) {
             return [

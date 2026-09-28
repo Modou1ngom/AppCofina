@@ -269,6 +269,21 @@ class DashboardController extends Controller
                     ];
                 }
             }
+
+            if ($user->isExecuteurIt() || $user->isAdmin() || $user->isRh()) {
+                $enAttentePointage = Profil::query()
+                    ->where('pointage_statut', Profil::POINTAGE_EN_ATTENTE)
+                    ->count();
+
+                if ($enAttentePointage > 0) {
+                    $actionsEnAttente[] = [
+                        'type' => 'pointage_staff',
+                        'label' => 'Staff en attente de pointage',
+                        'count' => $enAttentePointage,
+                        'url' => route('profils.pointage'),
+                    ];
+                }
+            }
         }
 
         // Répartition des habilitations par type de demande (filtrées selon le rôle)

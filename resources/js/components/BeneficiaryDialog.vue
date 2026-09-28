@@ -10,6 +10,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import ProfilSearchSelect from '@/components/ProfilSearchSelect.vue';
 import { useBeneficiaryDialog } from '@/composables/useBeneficiaryDialog';
 import { ref } from 'vue';
 
@@ -36,7 +37,7 @@ const handleCancel = () => {
 
 <template>
     <Dialog v-model:open="isOpen">
-        <DialogContent>
+        <DialogContent class="overflow-visible">
             <DialogHeader>
                 <DialogTitle>Sélectionner le bénéficiaire</DialogTitle>
                 <DialogDescription>
@@ -44,22 +45,16 @@ const handleCancel = () => {
                 </DialogDescription>
             </DialogHeader>
             <div class="grid gap-4 py-4">
-                <div class="grid gap-2">
+                <div class="relative z-20 grid gap-2">
                     <Label for="beneficiary">Bénéficiaire *</Label>
-                    <select
+                    <ProfilSearchSelect
                         id="beneficiary"
                         v-model="selectedBeneficiary"
-                        class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        <option :value="null" disabled>Sélectionner un bénéficiaire</option>
-                        <option
-                            v-for="subordonne in subordonnes"
-                            :key="subordonne.id"
-                            :value="subordonne.id"
-                        >
-                            {{ subordonne.prenom }} {{ subordonne.nom }} ({{ subordonne.matricule }})
-                        </option>
-                    </select>
+                        :profils="subordonnes"
+                        :portal="false"
+                        :clear-option-label="false"
+                        placeholder="Rechercher par nom, prénom ou matricule…"
+                    />
                 </div>
             </div>
             <DialogFooter>

@@ -9,6 +9,10 @@ class Profil extends Model
 {
     use HasFactory;
 
+    public const POINTAGE_EN_ATTENTE = 'en_attente';
+
+    public const POINTAGE_PRIS_EN_CHARGE = 'pris_en_charge';
+
     protected $table = 'profiles';
 
     protected $fillable = [
@@ -24,6 +28,12 @@ class Profil extends Model
         'code_agence',
         'type_contrat',
         'statut',
+        'pointage_statut',
+        'pointage_demande_at',
+        'pointage_demande_par',
+        'pointage_confirme_at',
+        'pointage_confirme_par',
+        'pointage_commentaire',
         'statut_rh',
         'type_office',
         'n_plus_1_id',
@@ -37,6 +47,8 @@ class Profil extends Model
     protected $casts = [
         'date_entree' => 'date',
         'date_sortie' => 'date',
+        'pointage_demande_at' => 'datetime',
+        'pointage_confirme_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -120,6 +132,25 @@ class Profil extends Model
     public function filiale()
     {
         return $this->belongsTo(Filiale::class, 'filiale_id');
+    }
+
+    public function pointageDemandePar()
+    {
+        return $this->belongsTo(User::class, 'pointage_demande_par');
+    }
+
+    public function pointageConfirmePar()
+    {
+        return $this->belongsTo(User::class, 'pointage_confirme_par');
+    }
+
+    public function pointageStatutLabel(): ?string
+    {
+        return match ($this->pointage_statut) {
+            self::POINTAGE_EN_ATTENTE => 'En attente de pointage',
+            self::POINTAGE_PRIS_EN_CHARGE => 'Pointage pris en charge',
+            default => null,
+        };
     }
 
     public function getFullNameAttribute()

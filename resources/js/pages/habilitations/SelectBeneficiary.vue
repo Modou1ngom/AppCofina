@@ -13,6 +13,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import ProfilSearchSelect from '@/components/ProfilSearchSelect.vue';
 import { CheckCircle, AlertCircle, X } from 'lucide-vue-next';
 import { computed, ref, watch, onMounted } from 'vue';
 
@@ -145,7 +146,7 @@ const handleCancel = () => {
 
             <!-- Modal de sélection du bénéficiaire -->
             <Dialog v-model:open="isDialogOpen">
-                <DialogContent>
+                <DialogContent class="overflow-visible">
                     <DialogHeader>
                         <DialogTitle>Sélectionner le bénéficiaire</DialogTitle>
                         <DialogDescription>
@@ -156,22 +157,16 @@ const handleCancel = () => {
                         <div v-if="props.subordonnes.length === 0" class="text-center py-4">
                             <p class="text-muted-foreground">Vous n'avez aucun subordonné dans votre département.</p>
                         </div>
-                        <div v-else class="grid gap-2">
+                        <div v-else class="relative z-20 grid gap-2">
                             <Label for="beneficiary">Bénéficiaire *</Label>
-                            <select
+                            <ProfilSearchSelect
                                 id="beneficiary"
                                 v-model="selectedBeneficiary"
-                                class="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                                <option :value="null" disabled>Sélectionner un bénéficiaire</option>
-                                <option
-                                    v-for="subordonne in props.subordonnes"
-                                    :key="subordonne.id"
-                                    :value="subordonne.id"
-                                >
-                                    {{ subordonne.prenom }} {{ subordonne.nom }} ({{ subordonne.matricule }})
-                                </option>
-                            </select>
+                                :profils="props.subordonnes"
+                                :portal="false"
+                                :clear-option-label="false"
+                                placeholder="Rechercher par nom, prénom ou matricule…"
+                            />
                         </div>
                     </div>
                     <DialogFooter>

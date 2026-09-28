@@ -22,6 +22,8 @@ interface Props {
         site?: string;
         type_contrat: string;
         statut: string;
+        pointage_statut?: string | null;
+        pointage_statut_label?: string | null;
         date_entree?: string | null;
         date_sortie?: string | null;
         motif_depart?: string | null;
@@ -169,14 +171,26 @@ const breadcrumbs: BreadcrumbItem[] = [
                                 <span
                                     :class="[
                                         'rounded-full px-2 py-1 text-xs font-medium',
-                                        profil.statut === 'actif'
-                                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                            : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
+                                        profil.pointage_statut === 'en_attente'
+                                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200'
+                                            : profil.statut === 'actif'
+                                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                              : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
                                     ]"
                                 >
-                                    {{ profil.statut === 'actif' ? 'Actif' : 'Inactif' }}
+                                    {{
+                                        profil.pointage_statut === 'en_attente'
+                                            ? 'En attente de pointage'
+                                            : profil.statut === 'actif'
+                                              ? 'Actif'
+                                              : 'Inactif'
+                                    }}
                                 </span>
                             </dd>
+                        </div>
+                        <div v-if="profil.pointage_statut_label">
+                            <dt class="text-muted-foreground text-sm font-medium">Pointage</dt>
+                            <dd class="mt-1 text-sm">{{ profil.pointage_statut_label }}</dd>
                         </div>
                         <div v-if="profil.date_entree">
                             <dt class="text-muted-foreground text-sm font-medium">Date d'arrivée</dt>

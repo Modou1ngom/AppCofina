@@ -11,6 +11,7 @@ use App\Http\Controllers\FilialeController;
 use App\Http\Controllers\HabilitationController;
 use App\Http\Controllers\ProfilController;
 use App\Http\Controllers\ProfilMouvementController;
+use App\Http\Controllers\ProfilPointageController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SigAlertesDoublonsController;
 use App\Http\Controllers\SigDetectionAutomatiqueController;
@@ -50,6 +51,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('profils/import', [ProfilController::class, 'showImport'])->name('profils.import')->middleware('role:admin,rh');
     Route::post('profils/import', [ProfilController::class, 'import'])->name('profils.import.store')->middleware('role:admin,rh');
     Route::get('profils/export', [ProfilController::class, 'export'])->name('profils.export')->middleware('role:admin,rh');
+    Route::get('profils/pointage', [ProfilPointageController::class, 'index'])
+        ->name('profils.pointage')
+        ->middleware('role:admin,rh,it');
+    Route::post('profils/{profil}/pointage', [ProfilPointageController::class, 'confirmer'])
+        ->name('profils.pointage.confirmer')
+        ->middleware('role:admin,it');
     Route::middleware('role:admin,rh')->group(function () {
         Route::get('profils/mouvements', [ProfilMouvementController::class, 'index'])->name('profils.mouvements.index');
         Route::get('profils/mouvements/depart', [ProfilMouvementController::class, 'createDepart'])->name('profils.mouvements.depart');

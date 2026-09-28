@@ -10,9 +10,9 @@ use App\Models\MissionParticipant;
 use App\Models\MissionRapportPieceJointe;
 use App\Models\Profil;
 use App\Models\User;
+use App\Services\MissionNotificationService;
 use App\Support\MissionRapport;
 use App\Support\MissionSites;
-use App\Services\MissionNotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,7 +33,7 @@ use ZipArchive;
 
 class MissionController extends Controller
 {
-  private const ACTIONS_VALIDATION_VALIDATEUR = [
+    private const ACTIONS_VALIDATION_VALIDATEUR = [
         'approbation',
         'attribution_facilities',
         'generation_ordre_mission',
@@ -979,13 +979,13 @@ class MissionController extends Controller
 
         foreach ($profilsChauffeur as $profil) {
             $user = $this->trouverUserPourProfil($profil);
-            $name = trim(($profil->prenom ?? '') . ' ' . ($profil->nom ?? ''));
+            $name = trim(($profil->prenom ?? '').' '.($profil->nom ?? ''));
             if ($name === '') {
                 $name = $user?->name ?? $profil->email ?? 'Chauffeur';
             }
 
             $entrees->push([
-                'selection_value' => $user !== null ? 'user-' . $user->id : 'profil-' . $profil->id,
+                'selection_value' => $user !== null ? 'user-'.$user->id : 'profil-'.$profil->id,
                 'name' => $name,
                 'profil_id' => $profil->id,
                 'user_id' => $user?->id,
@@ -998,7 +998,7 @@ class MissionController extends Controller
             }
 
             $entrees->push([
-                'selection_value' => 'user-' . $user->id,
+                'selection_value' => 'user-'.$user->id,
                 'name' => $user->name,
                 'profil_id' => $this->trouverProfilPourUser($user)?->id,
                 'user_id' => $user->id,
@@ -1011,11 +1011,11 @@ class MissionController extends Controller
     private function selectionChauffeurDepuisParticipant(MissionParticipant $participant): string
     {
         if ($participant->chauffeur_id) {
-            return 'user-' . $participant->chauffeur_id;
+            return 'user-'.$participant->chauffeur_id;
         }
 
         if ($participant->chauffeur_profil_id) {
-            return 'profil-' . $participant->chauffeur_profil_id;
+            return 'profil-'.$participant->chauffeur_profil_id;
         }
 
         return '';
@@ -1056,13 +1056,13 @@ class MissionController extends Controller
 
         if ($participant->chauffeur) {
             $profil = $this->trouverProfilPourUser($participant->chauffeur);
-            $nom = trim(($profil?->prenom ?? '') . ' ' . ($profil?->nom ?? ''));
+            $nom = trim(($profil?->prenom ?? '').' '.($profil?->nom ?? ''));
 
             return $nom !== '' ? $nom : $participant->chauffeur->name;
         }
 
         if ($participant->chauffeurProfil) {
-            $nom = trim(($participant->chauffeurProfil->prenom ?? '') . ' ' . ($participant->chauffeurProfil->nom ?? ''));
+            $nom = trim(($participant->chauffeurProfil->prenom ?? '').' '.($participant->chauffeurProfil->nom ?? ''));
 
             return $nom !== '' ? $nom : $participant->chauffeurProfil->email;
         }
@@ -1692,7 +1692,7 @@ class MissionController extends Controller
             return null;
         }
 
-        return 'data:image/png;base64,' . base64_encode((string) file_get_contents($logoPath));
+        return 'data:image/png;base64,'.base64_encode((string) file_get_contents($logoPath));
     }
 
     private function reglesSignatureMission(): array
@@ -1746,12 +1746,77 @@ class MissionController extends Controller
             return $signature;
         }
 
-        return 'data:image/png;base64,' . base64_encode($png);
+        return 'data:image/png;base64,'.base64_encode($png);
     }
 
     private function mdASigne(Mission $mission): bool
     {
         return $mission->md_signe_at !== null;
+    }
+
+    private function existeValidateurMd(): bool
+    {
+        return User::query()
+            ->where('is_active', true)
+            ->where(function ($q) {
+                $q->whereHas('roles', static fn ($r) => $r->where('slug', 'md'))
+                    ->orWhereHas('profil.roles', static fn ($r) => $r->where('slug', 'md'));
+            })
+            ->exists();
+    }
+
+    private function couvrirSignatureDgParDga(Mission $mission, User $dga, ?string $signature = null): void
+    {
+        $this->enregistrerLogValidation(
+            $mission,
+            $dga,
+            'Niveau 2c — Validation DG (MD)',
+            $signature,
+            'Signature DG couverte par la DGA (aucun Directeur Général paramétré).',
+        );
+
+        $mission->update([
+            'current_step' => Mission::STEP_ATTENTE_FACILITIES,
+            'md_signe_at' => now(),
+        ]);
+        $this->notifierEtapeCourante($mission);
+    }
+
+    private function deverouillerEtapeMdSiAucunDirecteurGeneral(Mission $mission): void
+    {
+        if ($mission->current_step !== Mission::STEP_ATTENTE_MD || $this->existeValidateurMd()) {
+            return;
+        }
+
+        try {
+            $logDga = MissionLog::query()
+                ->where('mission_id', $mission->id)
+                ->where('action', 'approbation')
+                ->where('etape_concernee', 'like', '%DGA%')
+                ->latest('id')
+                ->first();
+
+            $auteur = $logDga?->auteur;
+            if ($auteur === null && $logDga?->user_id) {
+                $auteur = User::query()->find($logDga->user_id);
+            }
+            if ($auteur === null) {
+                $auteur = User::query()
+                    ->where('is_active', true)
+                    ->whereHas('roles', static fn ($q) => $q->where('slug', 'dga'))
+                    ->first();
+            }
+            if ($auteur === null) {
+                return;
+            }
+
+            $this->couvrirSignatureDgParDga($mission, $auteur, $logDga?->signature_image);
+        } catch (\Throwable $e) {
+            Log::warning('Impossible de débloquer l’étape DG sans Directeur Général.', [
+                'mission_id' => $mission->id,
+                'message' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function redirectApresActionEtape(string $etapeActuelle, string $flashType, string $message, ?User $user = null): RedirectResponse
@@ -1804,7 +1869,7 @@ class MissionController extends Controller
 
         $profil = $this->trouverProfilPourUser($user);
         if ($profil !== null) {
-            $nomComplet = trim(($profil->prenom ?? '') . ' ' . ($profil->nom ?? ''));
+            $nomComplet = trim(($profil->prenom ?? '').' '.($profil->nom ?? ''));
             if ($nomComplet !== '') {
                 return $nomComplet;
             }
@@ -1868,7 +1933,7 @@ class MissionController extends Controller
             'departement' => $profilDemandeur?->departement ?? '—',
             'demandeur' => [
                 'nom' => $profilDemandeur
-                    ? trim($profilDemandeur->prenom . ' ' . $profilDemandeur->nom)
+                    ? trim($profilDemandeur->prenom.' '.$profilDemandeur->nom)
                     : ($mission->demandeur?->name ?? '—'),
                 'fonction' => $profilDemandeur?->fonction ?? '—',
                 'email' => $profilDemandeur?->email ?? $mission->demandeur?->email ?? '—',
@@ -1878,7 +1943,7 @@ class MissionController extends Controller
             'date_demande' => $mission->created_at?->format('d/m/Y') ?? '—',
             'destination' => $this->destinationsAffichageMission($mission),
             'objet' => $mission->objet ?? '—',
-            'duree' => $dureeJours . ' jour' . ($dureeJours > 1 ? 's' : ''),
+            'duree' => $dureeJours.' jour'.($dureeJours > 1 ? 's' : ''),
             'date_debut' => $mission->date_debut?->format('d/m/Y') ?? '—',
             'date_fin' => $mission->date_fin?->format('d/m/Y') ?? '—',
             'motif' => trim($mission->description ?? ''),
@@ -1893,7 +1958,7 @@ class MissionController extends Controller
     {
         $html = view('missions.demande-validation', $this->preparerDonneesFicheValidation($mission))->render();
 
-        $dompdf = new \Dompdf\Dompdf();
+        $dompdf = new \Dompdf\Dompdf;
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
@@ -1964,7 +2029,7 @@ class MissionController extends Controller
             $prenom = trim((string) ($profil?->prenom ?? ''));
             $nom = trim((string) ($profil?->nom ?? ''));
             $nomComplet = $prenom !== '' && $nom !== ''
-                ? $prenom . ' ' . mb_strtoupper($nom)
+                ? $prenom.' '.mb_strtoupper($nom)
                 : $missionnaire->nomAffichage();
 
             $ordres[] = [
@@ -1986,7 +2051,7 @@ class MissionController extends Controller
             $missionnaire->loadMissing(['chauffeur', 'chauffeurProfil']);
 
             if ($missionnaire->chauffeur) {
-                $cle = 'user-' . $missionnaire->chauffeur_id;
+                $cle = 'user-'.$missionnaire->chauffeur_id;
                 if ($chauffeursDejaAjoutes->contains($cle)) {
                     continue;
                 }
@@ -1996,11 +2061,11 @@ class MissionController extends Controller
                 $prenom = trim((string) ($profil?->prenom ?? ''));
                 $nom = trim((string) ($profil?->nom ?? ''));
                 $nomComplet = $prenom !== '' && $nom !== ''
-                    ? $prenom . ' ' . mb_strtoupper($nom)
+                    ? $prenom.' '.mb_strtoupper($nom)
                     : ($missionnaire->chauffeur->name ?? '—');
                 $fonction = mb_strtoupper(trim((string) ($profil?->fonction ?? 'CHAUFFEUR')));
             } elseif ($missionnaire->chauffeurProfil) {
-                $cle = 'profil-' . $missionnaire->chauffeur_profil_id;
+                $cle = 'profil-'.$missionnaire->chauffeur_profil_id;
                 if ($chauffeursDejaAjoutes->contains($cle)) {
                     continue;
                 }
@@ -2010,7 +2075,7 @@ class MissionController extends Controller
                 $prenom = trim((string) ($profil->prenom ?? ''));
                 $nom = trim((string) ($profil->nom ?? ''));
                 $nomComplet = $prenom !== '' && $nom !== ''
-                    ? $prenom . ' ' . mb_strtoupper($nom)
+                    ? $prenom.' '.mb_strtoupper($nom)
                     : ($profil->email ?? '—');
                 $fonction = mb_strtoupper(trim((string) ($profil->fonction ?? 'CHAUFFEUR')));
             } else {
@@ -2038,7 +2103,7 @@ class MissionController extends Controller
                 $nom = trim((string) ($profil?->nom ?? ''));
                 $ordres[] = [
                     'nom_complet' => $prenom !== '' && $nom !== ''
-                        ? $prenom . ' ' . mb_strtoupper($nom)
+                        ? $prenom.' '.mb_strtoupper($nom)
                         : ($chauffeur->name ?? '—'),
                     'fonction' => mb_strtoupper(trim((string) ($profil?->fonction ?? 'CHAUFFEUR'))),
                     'destination' => mb_strtoupper($this->destinationsAffichageMission($mission)),
@@ -2075,7 +2140,7 @@ class MissionController extends Controller
             'dateGeneration' => now()->format('d/m/Y'),
         ])->render();
 
-        $dompdf = new \Dompdf\Dompdf();
+        $dompdf = new \Dompdf\Dompdf;
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
@@ -2092,7 +2157,7 @@ class MissionController extends Controller
     {
         $nomSignataire = $signatureRrh !== null ? $this->nomSignatairePourUser($signataireRrh) : null;
         $pdf = $this->construirePdfOrdreMission($mission, $signatureRrh, $nomSignataire);
-        $filename = "missions/ordre_mission_{$mission->id}_" . now()->format('Y-m-d_His') . '.pdf';
+        $filename = "missions/ordre_mission_{$mission->id}_".now()->format('Y-m-d_His').'.pdf';
         Storage::disk('local')->put($filename, $pdf['content']);
 
         return $filename;
@@ -2130,7 +2195,7 @@ class MissionController extends Controller
         }
 
         $pdf = $this->construirePdfOrdreMission($mission, $signature, $nomSignataire);
-        $filename = "missions/ordre_mission_{$mission->id}_" . now()->format('Y-m-d_His') . '.pdf';
+        $filename = "missions/ordre_mission_{$mission->id}_".now()->format('Y-m-d_His').'.pdf';
         Storage::disk('local')->put($filename, $pdf['content']);
         $mission->update(['pdf_path' => $filename]);
 
@@ -2166,7 +2231,7 @@ class MissionController extends Controller
             'descriptionsSitesProlongation' => $mission->descriptions_sites_prolongation ?? ($donnees['descriptions_sites_prolongation'] ?? []),
         ])->render();
 
-        $dompdf = new \Dompdf\Dompdf();
+        $dompdf = new \Dompdf\Dompdf;
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
@@ -2183,7 +2248,7 @@ class MissionController extends Controller
     {
         $nomSignataire = $signatureRrh !== null ? $this->nomSignatairePourUser($signataireRrh) : null;
         $pdf = $this->construirePdfOrdreProlongation($mission, $signatureRrh, $nomSignataire);
-        $filename = "missions/ordre_prolongation_{$mission->id}_" . now()->format('Y-m-d_His') . '.pdf';
+        $filename = "missions/ordre_prolongation_{$mission->id}_".now()->format('Y-m-d_His').'.pdf';
         Storage::disk('local')->put($filename, $pdf['content']);
 
         return $filename;
@@ -2238,7 +2303,7 @@ class MissionController extends Controller
     {
         return response($content, 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
             'Pragma' => 'no-cache',
         ]);
@@ -2451,6 +2516,9 @@ class MissionController extends Controller
     {
         $user = $request->user();
 
+        $this->deverouillerEtapeMdSiAucunDirecteurGeneral($mission);
+        $mission->refresh();
+
         $peutVoirHistorique = $this->peutVoirHistoriqueMission($user);
         $relations = ['demandeur', 'beneficiaire', 'participants', 'chauffeur', 'n1Validateur', 'rapportPiecesJointes'];
         if ($peutVoirHistorique) {
@@ -2521,6 +2589,11 @@ class MissionController extends Controller
             'canValidateDga' => $mission->current_step === Mission::STEP_ATTENTE_DGA && $peutTraiter && $user->isDga(),
             'validationN1EtDgaCombinee' => $this->dgaValideN1EtDgaCombine($mission, $user),
             'canValidateMd' => $mission->current_step === Mission::STEP_ATTENTE_MD && $peutTraiter && $user->isMd(),
+            'validationDejaEnregistree' => MissionLog::query()
+                ->where('mission_id', $mission->id)
+                ->where('user_id', $user->id)
+                ->where('action', 'approbation')
+                ->exists(),
             'canPrintFicheValidation' => $this->peutImprimerFicheValidation($user, $mission),
             'canValidateFacilities' => $mission->current_step === Mission::STEP_ATTENTE_FACILITIES && $peutTraiter,
             'canValidateRhLogistique' => $this->estEtapeRh($mission) && $peutTraiter && $this->peutValiderRh($user),
@@ -2677,14 +2750,18 @@ class MissionController extends Controller
                     : ($validated['commentaire'] ?? 'Validation DGA accordée.'),
             );
 
-            $mission->update(['current_step' => Mission::STEP_ATTENTE_MD]);
-            $this->notifierEtapeCourante($mission);
+            if ($this->existeValidateurMd()) {
+                $mission->update(['current_step' => Mission::STEP_ATTENTE_MD]);
+                $this->notifierEtapeCourante($mission);
+                $message = $validationCombinee
+                    ? 'Validation N+1 et DGA enregistrées avec une seule signature. Le DG a été notifié.'
+                    : 'Demande validée. Elle est transmise au Directeur Général.';
+            } else {
+                $this->couvrirSignatureDgParDga($mission, $user, $validated['signature']);
+                $message = 'Demande validée et transmise à Facilities.';
+            }
 
             DB::commit();
-
-            $message = $validationCombinee
-                ? 'Validation N+1 et DGA enregistrées avec une seule signature. Le DG a été notifié.'
-                : 'Demande validée.';
 
             return $this->redirectApresActionEtape(Mission::STEP_ATTENTE_DGA, 'success', $message, $user);
         } catch (\Exception $e) {
@@ -2969,7 +3046,7 @@ class MissionController extends Controller
                     $missionnaires->count(),
                     $besoinChauffeurMission ? ' Chauffeur(s) attribué(s) par Facilities.' : '',
                     $retourDirectFinance ? ' Retour direct vers Finance pour validation.' : '',
-                    $validated['commentaire'] ? ' ' . $validated['commentaire'] : ''
+                    $validated['commentaire'] ? ' '.$validated['commentaire'] : ''
                 ),
             ]);
 
@@ -3040,7 +3117,7 @@ class MissionController extends Controller
                 }
 
                 $pdf = $this->construirePdfOrdreProlongation($mission);
-                $filename = "missions/ordre_prolongation_{$mission->id}_" . now()->format('Y-m-d_His') . '.pdf';
+                $filename = "missions/ordre_prolongation_{$mission->id}_".now()->format('Y-m-d_His').'.pdf';
                 Storage::disk('local')->put($filename, $pdf['content']);
 
                 $mission->update([
@@ -3058,7 +3135,7 @@ class MissionController extends Controller
                 ]);
             } else {
                 $pdf = $this->construirePdfOrdreMission($mission);
-                $filename = "missions/ordre_mission_{$mission->id}_" . now()->format('Y-m-d_His') . '.pdf';
+                $filename = "missions/ordre_mission_{$mission->id}_".now()->format('Y-m-d_His').'.pdf';
                 Storage::disk('local')->put($filename, $pdf['content']);
 
                 $mission->update([
@@ -3180,7 +3257,7 @@ class MissionController extends Controller
                 return $this->redirectApresActionEtape(
                     Mission::STEP_ATTENTE_SIGNATURE_RRH,
                     'success',
-                    'Ordre de prolongation signé. La mission reprend à l\'étape « ' . $this->libelleEtapeMission($mission->fresh()) . ' ».',
+                    'Ordre de prolongation signé. La mission reprend à l\'étape « '.$this->libelleEtapeMission($mission->fresh()).' ».',
                     $user,
                 );
             }
@@ -3221,7 +3298,7 @@ class MissionController extends Controller
             );
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Échec signature RRH mission #' . $mission->id, [
+            Log::error('Échec signature RRH mission #'.$mission->id, [
                 'exception' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -3927,7 +4004,7 @@ class MissionController extends Controller
                 : 'Dépenses logistiques validées par Finance.';
 
             if ($commentaire !== '') {
-                $messageLog .= ' ' . $commentaire;
+                $messageLog .= ' '.$commentaire;
             }
 
             MissionLog::create([
@@ -4608,7 +4685,7 @@ class MissionController extends Controller
 
         return response($pdf['content'], 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="fiche_validation_mission_' . $mission->id . '.pdf"',
+            'Content-Disposition' => 'inline; filename="fiche_validation_mission_'.$mission->id.'.pdf"',
         ]);
     }
 
@@ -4626,7 +4703,7 @@ class MissionController extends Controller
 
         $pdf = $this->construirePdfOrdreMission($mission);
 
-        return $this->reponsePdfInline($pdf['content'], 'apercu_ordre_mission_' . $mission->id . '.pdf');
+        return $this->reponsePdfInline($pdf['content'], 'apercu_ordre_mission_'.$mission->id.'.pdf');
     }
 
     public function vueRapportsMission(Request $request): Response
@@ -4682,7 +4759,7 @@ class MissionController extends Controller
         return [
             'nullable',
             'array',
-            'max:' . self::NB_MAX_PIECES_JOINTES_RAPPORT,
+            'max:'.self::NB_MAX_PIECES_JOINTES_RAPPORT,
         ];
     }
 
@@ -4693,8 +4770,8 @@ class MissionController extends Controller
     {
         return [
             'file',
-            'max:' . self::TAILLE_MAX_PIECE_JOINTE_RAPPORT_KO,
-            'mimes:' . implode(',', $this->extensionsPiecesJointesRapport()),
+            'max:'.self::TAILLE_MAX_PIECE_JOINTE_RAPPORT_KO,
+            'mimes:'.implode(',', $this->extensionsPiecesJointesRapport()),
         ];
     }
 
@@ -4742,7 +4819,7 @@ class MissionController extends Controller
             $nomOriginal = $fichier->getClientOriginalName();
             $chemin = $fichier->storeAs(
                 "missions/rapports/{$mission->id}",
-                Str::uuid() . '_' . $this->nomFichierPieceJointeSecurise($nomOriginal),
+                Str::uuid().'_'.$this->nomFichierPieceJointeSecurise($nomOriginal),
                 'local',
             );
 
@@ -5046,10 +5123,10 @@ class MissionController extends Controller
                 'action' => 'modification',
                 'etape_concernee' => 'Modification durée — Retour Facilities',
                 'commentaire' => "Durée modifiée ({$ancienDebut} → {$ancienFin} remplacé par {$nouveauDebut} → {$nouveauFin}). "
-                    . $detailsSites
-                    . ' '
-                    . $detailsMissionnaires
-                    . " Motif : {$validated['motif']}",
+                    .$detailsSites
+                    .' '
+                    .$detailsMissionnaires
+                    ." Motif : {$validated['motif']}",
             ]);
 
             $this->notifierEtapeCourante(
@@ -5087,7 +5164,7 @@ class MissionController extends Controller
 
         return response($pdf['content'], 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="rapport_mission_' . $mission->id . '.pdf"',
+            'Content-Disposition' => 'inline; filename="rapport_mission_'.$mission->id.'.pdf"',
         ]);
     }
 
@@ -5136,7 +5213,7 @@ class MissionController extends Controller
             'sectionsRapport' => MissionRapport::sectionsAffichables($mission->rapport_reponses),
         ])->render();
 
-        $dompdf = new \Dompdf\Dompdf();
+        $dompdf = new \Dompdf\Dompdf;
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
@@ -5152,7 +5229,7 @@ class MissionController extends Controller
     private function genererPdfRapportMission(Mission $mission): string
     {
         $pdf = $this->construirePdfRapportMission($mission);
-        $filename = "missions/rapport_mission_{$mission->id}_" . now()->format('Y-m-d_His') . '.pdf';
+        $filename = "missions/rapport_mission_{$mission->id}_".now()->format('Y-m-d_His').'.pdf';
         Storage::disk('local')->put($filename, $pdf['content']);
 
         return $filename;
@@ -5190,7 +5267,7 @@ class MissionController extends Controller
 
         $pdf = $this->construirePdfOrdreProlongation($mission, $signature, $nomSignataire);
 
-        return $this->reponsePdfInline($pdf['content'], 'apercu_ordre_prolongation_' . $mission->id . '.pdf');
+        return $this->reponsePdfInline($pdf['content'], 'apercu_ordre_prolongation_'.$mission->id.'.pdf');
     }
 
     public function telechargerPdf(Request $request, Mission $mission): HttpResponse|RedirectResponse

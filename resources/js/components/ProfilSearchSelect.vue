@@ -22,6 +22,7 @@ const props = withDefaults(
         emptyLabel?: string;
         clearOptionLabel?: string | false;
         inputClass?: string;
+        portal?: boolean;
     }>(),
     {
         excludeId: null,
@@ -29,6 +30,7 @@ const props = withDefaults(
         emptyLabel: 'Aucun collaborateur trouvé',
         clearOptionLabel: 'Aucun',
         inputClass: '',
+        portal: true,
     },
 );
 
@@ -217,12 +219,13 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- Liste téléportée (évite le clipping overflow-hidden des parents) -->
-        <Teleport to="body">
+        <Teleport to="body" :disabled="!portal">
             <div
                 v-if="open"
                 ref="dropdownRef"
-                class="fixed z-[200] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
-                :style="dropdownStyle"
+                class="z-[200] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
+                :class="portal ? 'fixed' : 'absolute top-full right-0 left-0 mt-1.5'"
+                :style="portal ? dropdownStyle : undefined"
             >
                 <div
                     v-if="!search.trim() && options.length > 0"

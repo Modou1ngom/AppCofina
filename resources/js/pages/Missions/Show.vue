@@ -115,6 +115,7 @@ interface Props {
     canValidateDga: boolean;
     validationN1EtDgaCombinee: boolean;
     canValidateMd: boolean;
+    validationDejaEnregistree?: boolean;
     canPrintFicheValidation: boolean;
     canValidateFacilities: boolean;
     canValidateRhLogistique: boolean;
@@ -585,6 +586,17 @@ const soumettreDecision = () => {
             <div v-if="props.isConsultationSeule && !props.isAudit" class="flex items-center gap-3 border border-blue-200 bg-blue-50 px-4 py-3 rounded-xl text-blue-900">
                 <Info class="h-5 w-5 shrink-0" />
                 <span><strong>Consultation missionnaire :</strong> vous pouvez suivre l'état d'avancement de cette demande. Aucune action de validation n'est disponible.</span>
+            </div>
+
+            <div
+                v-if="props.validationDejaEnregistree && !props.canValidateN1 && !props.canValidateDga && !props.canValidateMd"
+                class="flex items-center gap-3 border border-emerald-200 bg-emerald-50 px-4 py-3 rounded-xl text-emerald-900"
+            >
+                <CheckCircle2 class="h-5 w-5 shrink-0" />
+                <span>
+                    <strong>Votre validation a bien été enregistrée.</strong>
+                    Prochaine étape : {{ formatEtape(props.mission.current_step) }}.
+                </span>
             </div>
 
             <div :class="[missionCard, 'space-y-6']">

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import InputError from '@/components/InputError.vue';
+import ProfilSearchSelect from '@/components/ProfilSearchSelect.vue';
 import { store } from '@/routes/habilitations';
 import { computed, watch } from 'vue';
 
@@ -284,23 +285,15 @@ const submit = () => {
                                 <div v-if="props.demandeur" class="flex h-9 items-center rounded-md border border-input px-3 text-sm">
                                     {{ props.demandeur.prenom }} {{ props.demandeur.nom }} 
                                 </div>
-                                <select
+                                <ProfilSearchSelect
                                     v-else
                                     id="requester_profile_id"
-                                    v-model="form.requester_profile_id"
-                                    name="requester_profile_id"
-                                    required
-                                    class="block w-full h-9 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    <option value="" disabled selected>Sélectionner un profil</option>
-                                    <option
-                                        v-for="profil in props.profils || []"
-                                        :key="profil.id"
-                                        :value="profil.id"
-                                    >
-                                        {{ profil.prenom }} {{ profil.nom }} ({{ profil.matricule }})
-                                    </option>
-                                </select>
+                                    :model-value="form.requester_profile_id ? Number(form.requester_profile_id) : null"
+                                    :profils="props.profils || []"
+                                    :clear-option-label="false"
+                                    placeholder="Rechercher le demandeur…"
+                                    @update:model-value="(id) => { form.requester_profile_id = id ?? ''; }"
+                                />
                                 <p v-if="!props.demandeur && (!props.profils || props.profils.length === 0)" class="text-sm text-muted-foreground">Aucun profil disponible. Veuillez d'abord créer des profils.</p>
                                 <InputError :message="form.errors.requester_profile_id" />
                             </div>
@@ -354,23 +347,15 @@ const submit = () => {
                                 <div v-if="props.beneficiaire" class="flex h-9 items-center rounded-md border border-input  px-3 text-sm">
                                     {{ props.beneficiaire.prenom }} {{ props.beneficiaire.nom }} 
                                 </div>
-                                <select
+                                <ProfilSearchSelect
                                     v-else
                                     id="beneficiary_profile_id"
-                                    v-model="form.beneficiary_profile_id"
-                                    name="beneficiary_profile_id"
-                                    required
-                                    class="block w-full h-9 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-base text-gray-900 shadow-sm transition-[color,box-shadow] outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    <option value="" disabled selected>Sélectionner un profil</option>
-                                    <option
-                                        v-for="profil in props.profils || []"
-                                        :key="profil.id"
-                                        :value="profil.id"
-                                    >
-                                        {{ profil.prenom }} {{ profil.nom }} ({{ profil.matricule }})
-                                    </option>
-                                </select>
+                                    :model-value="form.beneficiary_profile_id ? Number(form.beneficiary_profile_id) : null"
+                                    :profils="props.profils || []"
+                                    :clear-option-label="false"
+                                    placeholder="Rechercher le bénéficiaire…"
+                                    @update:model-value="(id) => { form.beneficiary_profile_id = id ?? ''; }"
+                                />
                                 <p v-if="!props.beneficiaire && (!props.profils || props.profils.length === 0)" class="text-sm text-muted-foreground">Aucun profil disponible. Veuillez d'abord créer des profils.</p>
                                 <InputError :message="form.errors.beneficiary_profile_id" />
                             </div>
