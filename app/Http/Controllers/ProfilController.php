@@ -199,7 +199,7 @@ class ProfilController extends Controller
                 'fonction' => 'nullable|string',
                 'departement' => 'nullable|string',
                 'email' => ['nullable', 'email', 'unique:profiles,email', 'unique:users,email'],
-                'telephone' => ['nullable', 'string', 'max:20', 'regex:/^(\\+221|00221|221)?[0-9]{9}$/'],
+                'telephone' => ['nullable', 'string', 'max:64', 'regex:/^[0-9+\\s\\/.()-]{6,64}$/'],
                 'site' => 'nullable|string|max:100',
                 'numero_compte' => 'nullable|string|max:255',
                 'code_agence' => 'nullable|string|max:255',
@@ -491,7 +491,7 @@ class ProfilController extends Controller
                 Rule::unique('profiles', 'email')->ignore($profil->id),
                 Rule::unique('users', 'email')->ignore($linkedUserId),
             ],
-            'telephone' => ['nullable', 'string', 'max:20', 'regex:/^(\\+221|00221|221)?[0-9]{9}$/'],
+            'telephone' => ['nullable', 'string', 'max:64', 'regex:/^[0-9+\\s\\/.()-]{6,64}$/'],
             'site' => 'nullable|string|max:100',
             'numero_compte' => 'nullable|string|max:255',
             'code_agence' => 'nullable|string|max:255',
@@ -707,7 +707,7 @@ class ProfilController extends Controller
                     $mouvementService->enregistrerArrivee(
                         $newProfil,
                         $newProfil->date_entree,
-                        'Import Excel',
+                        'Enrôlement staff',
                         $user,
                     );
                 }

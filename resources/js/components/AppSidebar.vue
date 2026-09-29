@@ -73,15 +73,6 @@ const mainNavItems = computed<NavItem[]>(() => {
                         title: 'Liste des enrolements',
                         href: '/profils',
                     },
-                    {
-                        title: 'Arrivées / départs / postes',
-                        href: '/profils/mouvements',
-                    },
-                    {
-                        title: 'En attente de pointage',
-                        href: '/profils/pointage',
-                    },
-                  
                 ],
             },
             {
@@ -224,8 +215,17 @@ const mainNavItems = computed<NavItem[]>(() => {
         if (auth.value?.isAdmin || auth.value?.isExecuteurIt) {
             items.push({
                 title: 'Enquête satisfaction IT',
-                href: '/enquete-satisfaction/reponses',
                 icon: ClipboardList,
+                items: [
+                    {
+                        title: 'Réponses',
+                        href: '/enquete-satisfaction/reponses',
+                    },
+                    {
+                        title: 'Rapport',
+                        href: '/enquete-satisfaction/rapport',
+                    },
+                ],
             });
         }
     }
@@ -303,15 +303,6 @@ const mainNavItems = computed<NavItem[]>(() => {
                         title: 'Liste des enrolements',
                         href: '/profils',
                     },
-                    {
-                        title: 'Arrivées / départs / postes',
-                        href: '/profils/mouvements',
-                    },
-                    {
-                        title: 'En attente de pointage',
-                        href: '/profils/pointage',
-                    },
-                  
                 ],
             },
             {
@@ -453,8 +444,17 @@ const mainNavItems = computed<NavItem[]>(() => {
         });
         items.push({
             title: 'Enquête satisfaction IT',
-            href: '/enquete-satisfaction/reponses',
             icon: ClipboardList,
+            items: [
+                {
+                    title: 'Réponses',
+                    href: '/enquete-satisfaction/reponses',
+                },
+                {
+                    title: 'Rapport',
+                    href: '/enquete-satisfaction/rapport',
+                },
+            ],
         });
     }
     // Si aucun rôle défini, voir au moins les habilitations

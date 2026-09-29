@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import DataTable, { type Column } from '@/components/DataTable.vue';
 import { computed, ref } from 'vue';
-import { ArrowLeftRight, Filter, UserMinus, UserPlus } from 'lucide-vue-next';
+import { ArrowLeftRight, Download, Filter, UserMinus, UserPlus } from 'lucide-vue-next';
 
 interface MouvementRow {
     id: number;
@@ -40,7 +40,7 @@ interface Props {
         meta?: { total?: number; current_page?: number; per_page?: number };
     };
     types: { value: string; label: string }[];
-    filters: { type: string; search: string };
+    filters: { type: string; search: string; date_debut: string; date_fin: string };
 }
 
 const props = defineProps<Props>();
@@ -53,22 +53,56 @@ const breadcrumbs: BreadcrumbItem[] = [
 const filters = ref({
     type: props.filters.type || '',
     search: props.filters.search || '',
+    date_debut: props.filters.date_debut || '',
+    date_fin: props.filters.date_fin || '',
 });
+const exportMessage = ref('');
 
 const currentPage = computed(() => props.mouvements.current_page || props.mouvements.meta?.current_page || 1);
 const totalItems = computed(() => props.mouvements.total || props.mouvements.meta?.total || 0);
 const perPage = computed(() => props.mouvements.per_page || props.mouvements.meta?.per_page || 15);
 
-const applyFilters = () => {
+const filterParams = () => {
     const params = new URLSearchParams();
     if (filters.value.type) {
         params.set('type', filters.value.type);
     }
+    if (filters.value.date_debut) {
+        params.set('date_debut', filters.value.date_debut);
+    }
+    if (filters.value.date_fin) {
+        params.set('date_fin', filters.value.date_fin);
+    }
     if (filters.value.search) {
         params.set('search', filters.value.search);
     }
+
+    return params;
+};
+
+const applyFilters = () => {
+    exportMessage.value = '';
+    const params = filterParams();
     params.set('page', '1');
     router.visit(`/profils/mouvements?${params.toString()}`, { preserveScroll: true });
+};
+
+const exportMouvements = () => {
+    exportMessage.value = '';
+    if (filters.value.type !== 'arrivee' && filters.value.type !== 'depart') {
+        exportMessage.value = 'Choisissez Arrivée ou Départ avant d’exporter.';
+        return;
+    }
+    if (!filters.value.date_debut || !filters.value.date_fin) {
+        exportMessage.value = 'Indiquez la période : date de début et date de fin.';
+        return;
+    }
+    if (filters.value.date_fin < filters.value.date_debut) {
+        exportMessage.value = 'La date de fin doit être au moins égale à la date de début.';
+        return;
+    }
+
+    window.location.href = `/profils/mouvements/export?${filterParams().toString()}`;
 };
 
 const handlePageChange = (page: number) => {
@@ -158,7 +192,7 @@ const tableData = computed(() =>
                     <Filter class="h-5 w-5 text-gray-500" />
                     <h2 class="text-base font-semibold text-gray-700">Filtres</h2>
                 </div>
-                <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <div>
                         <label class="mb-1.5 block text-sm font-medium text-gray-700">Type</label>
                         <select v-model="filters.type" class="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 text-sm">
@@ -166,7 +200,15 @@ const tableData = computed(() =>
                             <option v-for="type in types" :key="type.value" :value="type.value">{{ type.label }}</option>
                         </select>
                     </div>
-                    <div class="sm:col-span-2">
+                    <div>
+                        <label class="mb-1.5 block text-sm font-medium text-gray-700">Du</label>
+                        <Input v-model="filters.date_debut" type="date" class="border-gray-300" />
+                    </div>
+                    <div>
+                        <label class="mb-1.5 block text-sm font-medium text-gray-700">Au</label>
+                        <Input v-model="filters.date_fin" type="date" class="border-gray-300" />
+                    </div>
+                    <div>
                         <label class="mb-1.5 block text-sm font-medium text-gray-700">Recherche</label>
                         <Input
                             v-model="filters.search"
@@ -177,13 +219,18 @@ const tableData = computed(() =>
                         />
                     </div>
                 </div>
-                <div class="mt-4 flex gap-2">
+                <p v-if="exportMessage" class="mt-3 text-sm text-red-600">{{ exportMessage }}</p>
+                <div class="mt-4 flex flex-col gap-2 sm:flex-row">
                     <Button class="bg-blue-600 hover:bg-blue-700" @click="applyFilters">Appliquer</Button>
                     <Button
                         variant="outline"
-                        @click="() => { filters.type = ''; filters.search = ''; applyFilters(); }"
+                        @click="() => { filters.type = ''; filters.search = ''; filters.date_debut = ''; filters.date_fin = ''; exportMessage = ''; applyFilters(); }"
                     >
                         Réinitialiser
+                    </Button>
+                    <Button variant="outline" class="border-gray-300" @click="exportMouvements">
+                        <Download class="mr-2 h-4 w-4" />
+                        Exporter
                     </Button>
                 </div>
             </div>

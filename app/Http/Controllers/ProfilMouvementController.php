@@ -2,16 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\MouvementsExport;
 use App\Models\Agence;
 use App\Models\Departement;
 use App\Models\Profil;
 use App\Models\ProfilMouvement;
 use App\Services\ProfilMouvementService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ProfilMouvementController extends Controller
 {
@@ -23,38 +27,15 @@ class ProfilMouvementController extends Controller
     {
         $user = Auth::user();
         $perPage = (int) $request->get('per_page', 15);
+        $filters = $this->movementFilters($request);
 
-        $query = ProfilMouvement::query()
+        $mouvements = $this->filteredMouvements($user, $filters)
             ->with([
                 'profil:id,nom,prenom,matricule,statut',
                 'nPlus1Avant:id,nom,prenom,matricule',
                 'nPlus1Apres:id,nom,prenom,matricule',
                 'createur:id,name,email',
-            ]);
-
-        if ($user) {
-            $profilIds = Profil::query();
-            $user->applyProfilVisibilityScope($profilIds);
-            $query->whereIn('profil_id', $profilIds->select('id'));
-        } else {
-            $query->whereRaw('0 = 1');
-        }
-
-        $type = (string) $request->get('type', '');
-        if ($type !== '' && array_key_exists($type, ProfilMouvement::typeLabels())) {
-            $query->where('type', $type);
-        }
-
-        $search = trim((string) $request->get('search', ''));
-        if ($search !== '') {
-            $query->whereHas('profil', function ($q) use ($search) {
-                $q->where('nom', 'like', "%{$search}%")
-                    ->orWhere('prenom', 'like', "%{$search}%")
-                    ->orWhere('matricule', 'like', "%{$search}%");
-            });
-        }
-
-        $mouvements = $query
+            ])
             ->orderByDesc('date_effet')
             ->orderByDesc('id')
             ->paginate($perPage)
@@ -66,11 +47,83 @@ class ProfilMouvementController extends Controller
             'types' => collect(ProfilMouvement::typeLabels())
                 ->map(fn (string $label, string $value) => ['value' => $value, 'label' => $label])
                 ->values(),
-            'filters' => [
-                'type' => $type,
-                'search' => $search,
-            ],
+            'filters' => $filters,
         ]);
+    }
+
+    public function export(Request $request): BinaryFileResponse
+    {
+        $validated = $request->validate([
+            'type' => 'required|in:arrivee,depart',
+            'date_debut' => 'required|date',
+            'date_fin' => 'required|date|after_or_equal:date_debut',
+            'search' => 'nullable|string|max:255',
+        ]);
+
+        $filters = $this->movementFilters($request);
+        $query = $this->filteredMouvements(Auth::user(), $filters);
+        $label = $validated['type'] === ProfilMouvement::TYPE_ARRIVEE ? 'arrivees' : 'departs';
+        $fileName = $label.'_'.$validated['date_debut'].'_'.$validated['date_fin'].'.xlsx';
+
+        return Excel::download(new MouvementsExport($query), $fileName);
+    }
+
+    /**
+     * @return array{type: string, search: string, date_debut: string, date_fin: string}
+     */
+    private function movementFilters(Request $request): array
+    {
+        $type = (string) $request->get('type', '');
+        if (! array_key_exists($type, ProfilMouvement::typeLabels())) {
+            $type = '';
+        }
+
+        return [
+            'type' => $type,
+            'search' => trim((string) $request->get('search', '')),
+            'date_debut' => (string) $request->get('date_debut', ''),
+            'date_fin' => (string) $request->get('date_fin', ''),
+        ];
+    }
+
+    /**
+     * @param  array{type: string, search: string, date_debut: string, date_fin: string}  $filters
+     * @return Builder<ProfilMouvement>
+     */
+    private function filteredMouvements(?\App\Models\User $user, array $filters): Builder
+    {
+        $query = ProfilMouvement::query();
+
+        if ($user) {
+            $profilIds = Profil::query();
+            $user->applyProfilVisibilityScope($profilIds);
+            $query->whereIn('profil_id', $profilIds->select('id'));
+        } else {
+            $query->whereRaw('0 = 1');
+        }
+
+        if ($filters['type'] !== '') {
+            $query->where('type', $filters['type']);
+        }
+
+        if ($filters['date_debut'] !== '') {
+            $query->whereDate('date_effet', '>=', $filters['date_debut']);
+        }
+
+        if ($filters['date_fin'] !== '') {
+            $query->whereDate('date_effet', '<=', $filters['date_fin']);
+        }
+
+        if ($filters['search'] !== '') {
+            $search = $filters['search'];
+            $query->whereHas('profil', function ($q) use ($search) {
+                $q->where('nom', 'like', "%{$search}%")
+                    ->orWhere('prenom', 'like', "%{$search}%")
+                    ->orWhere('matricule', 'like', "%{$search}%");
+            });
+        }
+
+        return $query;
     }
 
     public function createDepart(Request $request): Response

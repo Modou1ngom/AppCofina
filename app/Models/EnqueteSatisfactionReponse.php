@@ -6,6 +6,7 @@ use App\Helpers\FilialeHelper;
 use App\Traits\HasFilialeScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class EnqueteSatisfactionReponse extends Model
 {
@@ -31,6 +32,22 @@ class EnqueteSatisfactionReponse extends Model
         'qualite_solution' => 'Qualité de la solution apportée',
         'communication_suivi' => 'Communication et suivi',
         'satisfaction_globale' => 'Satisfaction globale',
+    ];
+
+    public const CRITERES_COURT = [
+        'qualite_accueil_ecoute' => 'Accueil',
+        'rapidite_prise_en_charge' => 'Prise en charge',
+        'temps_resolution' => 'Résolution',
+        'professionnalisme_equipe_it' => 'Professionnalisme',
+        'qualite_solution' => 'Solution',
+        'communication_suivi' => 'Communication',
+        'satisfaction_globale' => 'Satisfaction',
+    ];
+
+    public const CHAMPS_SUIVI = [
+        'remarque' => 'remarques_difficultes',
+        'suggestion' => 'suggestions_amelioration',
+        'besoin' => 'besoins_attentes',
     ];
 
     public const RECOMMANDATIONS = [
@@ -92,6 +109,11 @@ class EnqueteSatisfactionReponse extends Model
     public function filiale(): BelongsTo
     {
         return $this->belongsTo(Filiale::class, 'filiale_id');
+    }
+
+    public function suivis(): HasMany
+    {
+        return $this->hasMany(EnqueteSatisfactionSuivi::class, 'reponse_id');
     }
 
     public function moyenneNotes(): float

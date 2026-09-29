@@ -58,6 +58,7 @@ Route::middleware(['auth'])->group(function () {
         ->name('profils.pointage.confirmer')
         ->middleware('role:admin,it');
     Route::middleware('role:admin,rh')->group(function () {
+        Route::get('profils/mouvements/export', [ProfilMouvementController::class, 'export'])->name('profils.mouvements.export');
         Route::get('profils/mouvements', [ProfilMouvementController::class, 'index'])->name('profils.mouvements.index');
         Route::get('profils/mouvements/depart', [ProfilMouvementController::class, 'createDepart'])->name('profils.mouvements.depart');
         Route::post('profils/mouvements/depart', [ProfilMouvementController::class, 'storeDepart'])->name('profils.mouvements.depart.store');
@@ -250,6 +251,8 @@ Route::middleware(['auth'])->group(function () {
 
     Route::prefix('enquete-satisfaction')->name('enquete-satisfaction.')->middleware('role:admin,executeur_it,it')->group(function () {
         Route::get('/reponses', [EnqueteSatisfactionController::class, 'index'])->name('index');
+        Route::get('/rapport', [EnqueteSatisfactionController::class, 'rapport'])->name('rapport');
+        Route::put('/reponses/{enqueteSatisfaction}/suivi', [EnqueteSatisfactionController::class, 'updateSuivi'])->name('suivi.update');
         Route::get('/reponses/{enqueteSatisfaction}', [EnqueteSatisfactionController::class, 'show'])->name('show');
     });
 });

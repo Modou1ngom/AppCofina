@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Button } from '@/components/ui/button';
-import { BarChart3, ClipboardCopy, ExternalLink, Eye, MessageSquare } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { BarChart3, ChevronLeft, ChevronRight, ClipboardCopy, ExternalLink, Eye, MessageSquare } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
 
 interface Row {
     id: number;
@@ -25,6 +25,9 @@ interface Props {
         links?: unknown[];
         current_page?: number;
         last_page?: number;
+        per_page?: number;
+        from?: number | null;
+        to?: number | null;
         total?: number;
     };
     lienPublic: string;
@@ -38,6 +41,45 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 const copie = ref(false);
+
+const pageCourante = computed(() => props.reponses.current_page ?? 1);
+const dernierePage = computed(() => props.reponses.last_page ?? 1);
+const parPage = computed(() => props.reponses.per_page ?? 10);
+const total = computed(() => props.reponses.total ?? props.reponses.data.length);
+const debut = computed(() => props.reponses.from ?? (total.value ? 1 : 0));
+const fin = computed(() => props.reponses.to ?? props.reponses.data.length);
+
+const pagesVisibles = computed(() => {
+    const courante = pageCourante.value;
+    const derniere = dernierePage.value;
+    const pages: number[] = [];
+    const debutPage = Math.max(1, courante - 2);
+    const finPage = Math.min(derniere, courante + 2);
+    for (let page = debutPage; page <= finPage; page += 1) {
+        pages.push(page);
+    }
+    return pages;
+});
+
+const changerPage = (page: number) => {
+    if (page < 1 || page > dernierePage.value || page === pageCourante.value) {
+        return;
+    }
+    router.get(
+        '/enquete-satisfaction/reponses',
+        { page, per_page: parPage.value },
+        { preserveScroll: true, preserveState: true },
+    );
+};
+
+const changerParPage = (event: Event) => {
+    const value = Number((event.target as HTMLSelectElement).value);
+    router.get(
+        '/enquete-satisfaction/reponses',
+        { page: 1, per_page: value },
+        { preserveScroll: true, preserveState: true },
+    );
+};
 
 const copierLien = async () => {
     try {
@@ -57,11 +99,19 @@ const copierLien = async () => {
         <Head title="Enquête de satisfaction IT — Réponses" />
 
         <div class="flex flex-col gap-6 p-6">
-            <div>
-                <h1 class="text-2xl font-semibold tracking-tight">Enquête de satisfaction — Services IT</h1>
-                <p class="mt-1 text-sm text-muted-foreground">
-                    Réponses de l’environnement (filiale) actuellement sélectionné. Partagez le lien public au staff (sans authentification).
-                </p>
+            <div class="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                    <h1 class="text-2xl font-semibold tracking-tight">Enquête de satisfaction — Services IT</h1>
+                    <p class="mt-1 text-sm text-muted-foreground">
+                        Réponses de l’environnement (filiale) actuellement sélectionné. Partagez le lien public au staff (sans authentification).
+                    </p>
+                </div>
+                <Button as-child variant="outline">
+                    <Link href="/enquete-satisfaction/rapport">
+                        <BarChart3 class="mr-2 h-4 w-4" />
+                        Rapport de synthèse
+                    </Link>
+                </Button>
             </div>
 
             <div class="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-800 to-slate-900 p-6 text-white shadow-lg">
@@ -145,6 +195,47 @@ const copierLien = async () => {
                         </tr>
                     </tbody>
                 </table>
+                <div v-if="total > 0" class="flex flex-col gap-3 border-t bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        Lignes par page
+                        <select
+                            class="h-8 rounded-lg border border-slate-200 bg-white px-2 text-sm"
+                            :value="parPage"
+                            @change="changerParPage"
+                        >
+                            <option :value="5">5</option>
+                            <option :value="10">10</option>
+                            <option :value="25">25</option>
+                            <option :value="50">50</option>
+                        </select>
+                    </label>
+                    <div class="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
+                        <p class="text-sm text-slate-600">
+                            {{ debut }}–{{ fin }} sur {{ total }}
+                        </p>
+                        <div class="flex items-center gap-1">
+                            <Button type="button" variant="outline" size="sm" :disabled="pageCourante <= 1" @click="changerPage(pageCourante - 1)">
+                                <ChevronLeft class="h-4 w-4" />
+                                <span class="sr-only">Page précédente</span>
+                            </Button>
+                            <Button
+                                v-for="page in pagesVisibles"
+                                :key="page"
+                                type="button"
+                                size="sm"
+                                :variant="page === pageCourante ? 'default' : 'outline'"
+                                :class="page === pageCourante ? 'bg-slate-900 text-white hover:bg-slate-800' : ''"
+                                @click="changerPage(page)"
+                            >
+                                {{ page }}
+                            </Button>
+                            <Button type="button" variant="outline" size="sm" :disabled="pageCourante >= dernierePage" @click="changerPage(pageCourante + 1)">
+                                <ChevronRight class="h-4 w-4" />
+                                <span class="sr-only">Page suivante</span>
+                            </Button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </AppLayout>

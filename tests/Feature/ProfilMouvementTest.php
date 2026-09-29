@@ -189,6 +189,64 @@ test('un changement de poste sans modification est refuse', function () {
         ->assertSessionHasErrors('fonction');
 });
 
+test('lexport excel des departs ou des arrivees respecte la periode', function () {
+    $user = utilisateurRhPourMouvements();
+    $service = app(ProfilMouvementService::class);
+
+    $parti = profilStaff([
+        'prenom' => 'Awa',
+        'nom' => 'Partie',
+        'email' => 'awa.partie.'.uniqid().'@cofina.test',
+    ]);
+    $arrive = profilStaff([
+        'prenom' => 'Moussa',
+        'nom' => 'Arrive',
+        'email' => 'moussa.arrive.'.uniqid().'@cofina.test',
+        'date_entree' => '2026-08-17',
+    ]);
+
+    $service->enregistrerDepart($parti, \Illuminate\Support\Carbon::parse('2026-09-07'), 'Démission', $user);
+    $service->enregistrerArrivee($arrive, \Illuminate\Support\Carbon::parse('2026-08-17'), 'Enrôlement staff', $user);
+
+    $this->actingAs($user)
+        ->get(route('profils.mouvements.export', ['type' => 'depart']))
+        ->assertSessionHasErrors(['date_debut', 'date_fin']);
+
+    $depart = $this->actingAs($user)->get(route('profils.mouvements.export', [
+        'type' => 'depart',
+        'date_debut' => '2026-09-01',
+        'date_fin' => '2026-09-30',
+    ]));
+
+    $depart->assertOk();
+    $depart->assertDownload('departs_2026-09-01_2026-09-30.xlsx');
+
+    $sheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($depart->baseResponse->getFile()->getPathname())
+        ->getActiveSheet();
+    $values = $sheet->toArray();
+
+    expect($values[0][0])->toBe('Date')
+        ->and($values[0][8])->toBe('Motif')
+        ->and(collect($values)->pluck(3)->all())->toContain('Partie')
+        ->and(collect($values)->pluck(3)->all())->not->toContain('Arrive');
+
+    $arrivee = $this->actingAs($user)->get(route('profils.mouvements.export', [
+        'type' => 'arrivee',
+        'date_debut' => '2026-08-01',
+        'date_fin' => '2026-08-31',
+    ]));
+
+    $arrivee->assertOk();
+    $noms = collect(
+        \PhpOffice\PhpSpreadsheet\IOFactory::load($arrivee->baseResponse->getFile()->getPathname())
+            ->getActiveSheet()
+            ->toArray()
+    )->pluck(3);
+
+    expect($noms->all())->toContain('Arrive')
+        ->and($noms->all())->not->toContain('Partie');
+});
+
 test('les pages mouvements rh s affichent', function () {
     $user = utilisateurRhPourMouvements();
 

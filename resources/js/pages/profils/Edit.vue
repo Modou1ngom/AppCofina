@@ -189,22 +189,23 @@ watch(selectedFiliale, (newFilialeId) => {
 // Formatage et validation du numéro de téléphone
 const formatTelephone = (event: Event) => {
     const input = event.target as HTMLInputElement;
-    let value = input.value.replace(/\D/g, ''); // Supprimer tous les caractères non numériques
-    
-    // Si commence par 221, garder le préfixe
+    const raw = input.value;
+    const digits = raw.replace(/\D/g, '');
+
+    if (raw.includes('/') || digits.length > 9) {
+        form.telephone = raw.slice(0, 64);
+
+        return;
+    }
+
+    let value = digits;
+
     if (value.startsWith('221')) {
         value = '+221' + value.substring(3);
     } else if (value.startsWith('00221')) {
         value = '+221' + value.substring(5);
-    } else if (value.length > 0 && !value.startsWith('+')) {
-        // Si c'est un numéro local (commence par 7 ou 8), formater
-        if (value.length <= 9) {
-            value = value;
-        } else {
-            value = value.substring(0, 9);
-        }
     }
-    
+
     form.telephone = value;
 };
 
@@ -406,7 +407,7 @@ const submit = () => {
                                 <Label for="telephone" class="mb-2 block text-sm font-medium text-gray-700">Téléphone</Label>
                                 <div class="relative">
                                     <Phone class="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                                    <Input id="telephone" v-model="form.telephone" type="tel" maxlength="20" :class="[inputClass, 'pl-10']" @input="formatTelephone" />
+                                    <Input id="telephone" v-model="form.telephone" type="tel" maxlength="64" :class="[inputClass, 'pl-10']" @input="formatTelephone" />
                                 </div>
                                 <InputError :message="form.errors.telephone" />
                             </div>
